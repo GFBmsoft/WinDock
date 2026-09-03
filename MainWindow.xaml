@@ -1,0 +1,196 @@
+<Window x:Class="WinDock.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="WinDock"
+        WindowStyle="None" AllowsTransparency="True" Background="{x:Null}"
+        ShowInTaskbar="False" Topmost="True" ResizeMode="NoResize"
+        UseLayoutRounding="True" SnapsToDevicePixels="True">
+
+  <!--
+    A janela cobre a faixa inteira (e o que a AppBar reserva), mas nao pinta nada:
+    com Background nulo o clique atravessa o vazio. So a pilula e visivel e clicavel.
+  -->
+
+  <Window.Resources>
+
+    <BooleanToVisibilityConverter x:Key="BoolToVisible" />
+
+    <Style x:Key="DockButton" TargetType="Button">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="Padding" Value="0" />
+      <Setter Property="Cursor" Value="Hand" />
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="Button">
+            <Border x:Name="Bg" Background="Transparent" CornerRadius="6" Margin="1">
+              <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+            </Border>
+            <ControlTemplate.Triggers>
+              <Trigger Property="IsMouseOver" Value="True">
+                <Setter TargetName="Bg" Property="Background" Value="{StaticResource ItemHover}" />
+              </Trigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+
+  </Window.Resources>
+
+  <!-- a pilula: encolhe ate o tamanho dos icones e fica centralizada na faixa -->
+  <Border x:Name="Pill"
+          Background="{Binding Theme.PillBrush}"
+          CornerRadius="{Binding Theme.PillCorner}"
+          Padding="{Binding Theme.PillPadding}"
+          Margin="{Binding Theme.PillMargin}"
+          HorizontalAlignment="{Binding Theme.PillHorizontal}"
+          VerticalAlignment="{Binding Theme.PillVertical}">
+
+    <ItemsControl x:Name="ItemsHost" ItemsSource="{Binding Items}">
+
+      <ItemsControl.ItemsPanel>
+        <ItemsPanelTemplate>
+          <StackPanel Orientation="{Binding Theme.Orientation}" />
+        </ItemsPanelTemplate>
+      </ItemsControl.ItemsPanel>
+
+      <ItemsControl.ItemTemplate>
+        <DataTemplate>
+         <!-- o traco que separa os fixados dos que so estao abertos; o painel segue a
+              orientacao da dock para o traco cair ao lado, e nao acima, quando ela e vertical -->
+         <StackPanel Orientation="{Binding DataContext.Theme.Orientation,
+                                   RelativeSource={RelativeSource AncestorType=ItemsControl}}">
+          <Border Background="{Binding DataContext.Theme.DividerBrush,
+                               RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                  Width="{Binding DataContext.Theme.DividerWidth,
+                          RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                  Height="{Binding DataContext.Theme.DividerHeight,
+                           RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                  Margin="{Binding DataContext.Theme.DividerMargin,
+                           RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                  HorizontalAlignment="Center" VerticalAlignment="Center"
+                  Visibility="{Binding StartsRunning, Converter={StaticResource BoolToVisible}}" />
+          <Button Style="{StaticResource DockButton}"
+                  Click="OnItemClick"
+                  MouseRightButtonUp="OnItemRightClick"
+                  PreviewMouseLeftButtonDown="OnItemMouseDown"
+                  PreviewMouseMove="OnItemMouseMove"
+                  MouseEnter="OnItemMouseEnter"
+                  MouseLeave="OnItemMouseLeave"
+                  AllowDrop="True"
+                  DragOver="OnItemDragOver"
+                  Drop="OnItemDrop"
+                  ToolTip="{Binding Tooltip}"
+                  Tag="{Binding}"
+                  Width="{Binding DataContext.Theme.ButtonSize, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                  Height="{Binding DataContext.Theme.ButtonSize, RelativeSource={RelativeSource AncestorType=ItemsControl}}">
+            <Grid>
+              <Grid.Style>
+                <Style TargetType="Grid">
+                  <Setter Property="Opacity" Value="1" />
+                  <Style.Triggers>
+                    <!-- o icone que esta na mao fica apagado no lugar de origem -->
+                    <DataTrigger Binding="{Binding IsDragging}" Value="True">
+                      <Setter Property="Opacity" Value="0.35" />
+                    </DataTrigger>
+                  </Style.Triggers>
+                </Style>
+              </Grid.Style>
+
+              <!--
+                Quem esta em primeiro plano e dito so pelo traco: o fundo claro atras do
+                icone competia com o desenho do app, ainda mais nos icones claros.
+                O realce do mouse continua, no estilo do botao.
+              -->
+
+              <!--
+                O DockPanel da a faixa das bolinhas primeiro e deixa o resto para o icone:
+                assim elas ficam embaixo dele (ou ao lado, em dock lateral) em vez de por
+                cima do desenho do app.
+              -->
+              <DockPanel>
+
+              <!-- uma bolinha por janela aberta, do lado da borda da tela -->
+              <ItemsControl ItemsSource="{Binding Indicators}"
+                            DockPanel.Dock="{Binding DataContext.Theme.IndicatorDock, RelativeSource={RelativeSource AncestorType=Window}}"
+                            VerticalAlignment="{Binding DataContext.Theme.IndicatorVertical, RelativeSource={RelativeSource AncestorType=Window}}"
+                            HorizontalAlignment="{Binding DataContext.Theme.IndicatorHorizontal, RelativeSource={RelativeSource AncestorType=Window}}">
+                <ItemsControl.ItemsPanel>
+                  <ItemsPanelTemplate>
+                    <StackPanel Orientation="{Binding DataContext.Theme.IndicatorOrientation, RelativeSource={RelativeSource AncestorType=Window}}" />
+                  </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate>
+                    <Border CornerRadius="{Binding DataContext.Theme.IndicatorCorner, RelativeSource={RelativeSource AncestorType=Window}}"
+                            Margin="{Binding DataContext.Theme.IndicatorSpacing, RelativeSource={RelativeSource AncestorType=Window}}">
+                      <Border.Style>
+                        <Style TargetType="Border">
+                          <!-- curto e apagado: o app esta aberto, mas nao na frente -->
+                          <Setter Property="Background"
+                                  Value="{Binding DataContext.Theme.IndicatorDimBrush, RelativeSource={RelativeSource AncestorType=Window}}" />
+                          <Setter Property="Width"
+                                  Value="{Binding DataContext.Theme.IndicatorShortWidth, RelativeSource={RelativeSource AncestorType=Window}}" />
+                          <Setter Property="Height"
+                                  Value="{Binding DataContext.Theme.IndicatorShortHeight, RelativeSource={RelativeSource AncestorType=Window}}" />
+                          <Style.Triggers>
+                            <!-- em primeiro plano: acende -->
+                            <DataTrigger Binding="{Binding DataContext.IsActive, RelativeSource={RelativeSource AncestorType=Button}}"
+                                         Value="True">
+                              <Setter Property="Background"
+                                      Value="{Binding DataContext.Theme.IndicatorBrush, RelativeSource={RelativeSource AncestorType=Window}}" />
+                            </DataTrigger>
+
+                            <!--
+                              e estica, como na barra do Windows — mas so com uma janela:
+                              com varias, os tracos ficam curtos para caberem lado a lado
+                              e continuarem contando quantas sao.
+                            -->
+                            <MultiDataTrigger>
+                              <MultiDataTrigger.Conditions>
+                                <Condition Binding="{Binding DataContext.IsActive, RelativeSource={RelativeSource AncestorType=Button}}"
+                                           Value="True" />
+                                <Condition Binding="{Binding DataContext.WindowCount, RelativeSource={RelativeSource AncestorType=Button}}"
+                                           Value="1" />
+                              </MultiDataTrigger.Conditions>
+                              <Setter Property="Width"
+                                      Value="{Binding DataContext.Theme.IndicatorLongWidth, RelativeSource={RelativeSource AncestorType=Window}}" />
+                              <Setter Property="Height"
+                                      Value="{Binding DataContext.Theme.IndicatorLongHeight, RelativeSource={RelativeSource AncestorType=Window}}" />
+                            </MultiDataTrigger>
+                          </Style.Triggers>
+                        </Style>
+                      </Border.Style>
+                    </Border>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+
+                <!-- o que sobra da faixa e do icone; a foto do perfil vai no canto dele -->
+                <Grid>
+                  <Image Source="{Binding Icon}"
+                         Width="{Binding DataContext.Theme.IconSize, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                         Height="{Binding DataContext.Theme.IconSize, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                         RenderOptions.BitmapScalingMode="HighQuality" />
+
+                  <!-- foto do perfil no canto, quando o app tem varios (ex.: Chrome) -->
+                  <Border HorizontalAlignment="Right" VerticalAlignment="Bottom"
+                          Width="14" Height="14" CornerRadius="7"
+                          Visibility="{Binding HasOverlay, Converter={StaticResource BoolToVisible}}">
+                    <Border.Background>
+                      <ImageBrush ImageSource="{Binding Overlay}" Stretch="UniformToFill" />
+                    </Border.Background>
+                  </Border>
+                </Grid>
+
+              </DockPanel>
+            </Grid>
+          </Button>
+         </StackPanel>
+        </DataTemplate>
+      </ItemsControl.ItemTemplate>
+
+    </ItemsControl>
+  </Border>
+</Window>

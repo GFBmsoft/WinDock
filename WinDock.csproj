@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UseWPF>true</UseWPF>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <AssemblyName>WinDock</AssemblyName>
+    <RootNamespace>WinDock</RootNamespace>
+
+    <!-- icone do executavel: e o que o Explorer, o Alt+Tab e a chave Run mostram -->
+    <ApplicationIcon>assets\windock.ico</ApplicationIcon>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- o mesmo arquivo embutido, para as janelas do app poderem usa-lo -->
+    <Resource Include="assets\windock.ico" />
+
+    <!-- a arte grande: num .ico o WPF escolhe um quadro pequeno e estica -->
+    <Resource Include="assets\windock.png" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,645 @@
+<Window x:Class="WinDock.SettingsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:interop="clr-namespace:WinDock.Interop"
+        xmlns:ui="clr-namespace:WinDock.Ui"
+        xmlns:services="clr-namespace:WinDock.Services"
+        Title="Configurações do WinDock" Icon="assets/windock.ico"
+        Width="560" Height="700" ResizeMode="CanResize" MinWidth="480" MinHeight="420"
+        WindowStartupLocation="CenterScreen" ShowInTaskbar="True"
+        Background="{StaticResource FluentWindow}"
+        FontFamily="Segoe UI Variable Text, Segoe UI"
+        TextOptions.TextFormattingMode="Display" UseLayoutRounding="True">
+
+  <!--
+    O painel segue o desenho do app Configuracoes do Windows 11: cada opcao em seu
+    cartao, titulo e explicacao a esquerda, controle a direita. Os controles em si
+    (interruptor, slider, lista) estao em src/Ui/Fluent.xaml.
+  -->
+
+  <Window.Resources>
+    <ui:HexBrushConverter x:Key="HexBrush" />
+    <ui:IntToBoolConverter x:Key="IntToBool" />
+  </Window.Resources>
+
+  <Grid>
+    <Grid.RowDefinitions>
+      <RowDefinition Height="Auto" />
+      <RowDefinition Height="*" />
+      <RowDefinition Height="Auto" />
+    </Grid.RowDefinitions>
+
+    <!-- ── cabecalho ─────────────────────────────────────── -->
+    <StackPanel Orientation="Horizontal" Margin="24,20,24,4">
+      <Image Source="assets/windock.png" Width="44" Height="44" VerticalAlignment="Center"
+             RenderOptions.BitmapScalingMode="HighQuality" />
+
+      <TextBlock Text="WinDock" Foreground="{StaticResource FluentText}" Margin="14,0,10,0"
+                 FontSize="26" FontWeight="SemiBold" VerticalAlignment="Center" />
+
+      <!-- as explicações que ficavam soltas na tela agora moram aqui dentro -->
+      <Border Style="{StaticResource FluentHelp}"
+              ToolTipService.InitialShowDelay="150" ToolTipService.ShowDuration="30000">
+        <Border.ToolTip>
+          <ToolTip>
+            <StackPanel>
+              <TextBlock Text="Cada controle vale na hora, enquanto você arrasta o slider; o arquivo é salvo ao fechar esta janela."
+                         TextWrapping="Wrap" />
+              <TextBlock Text="Para mudar a ordem, arraste os ícones dentro da dock — a ordem é salva sozinha."
+                         TextWrapping="Wrap" Margin="0,8,0,0" />
+              <TextBlock Text="Alt+Espaço abre a busca de aplicativos."
+                         TextWrapping="Wrap" Margin="0,8,0,0" />
+            </StackPanel>
+          </ToolTip>
+        </Border.ToolTip>
+        <TextBlock Text="?" Foreground="{StaticResource FluentTextDim}" FontSize="13"
+                   HorizontalAlignment="Center" VerticalAlignment="Center" />
+      </Border>
+    </StackPanel>
+
+    <ScrollViewer x:Name="Scroller" Grid.Row="1" VerticalScrollBarVisibility="Auto"
+                  Padding="24,0,18,0" Margin="0,8,0,0">
+      <StackPanel>
+
+        <!-- ══ posicao ══════════════════════════════════════ -->
+        <TextBlock Text="Posição" Style="{StaticResource FluentSection}" Margin="2,0,0,8" />
+
+        <Border Style="{StaticResource FluentCardBorderStyle}">
+          <Grid>
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="*" />
+              <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <StackPanel VerticalAlignment="Center">
+              <TextBlock Text="Borda da tela" Style="{StaticResource FluentTitle}" />
+              <TextBlock Text="Nas laterais os ícones empilham na vertical"
+                         Style="{StaticResource FluentCaption}" />
+            </StackPanel>
+            <ComboBox Grid.Column="1" Width="150" Style="{StaticResource FluentCombo}"
+                      SelectedValue="{Binding Edge, Mode=TwoWay}" SelectedValuePath="Tag">
+              <ComboBoxItem Content="Inferior" Tag="{x:Static interop:DockEdge.Bottom}" />
+              <ComboBoxItem Content="Superior" Tag="{x:Static interop:DockEdge.Top}" />
+              <ComboBoxItem Content="Esquerda" Tag="{x:Static interop:DockEdge.Left}" />
+              <ComboBoxItem Content="Direita"  Tag="{x:Static interop:DockEdge.Right}" />
+            </ComboBox>
+          </Grid>
+        </Border>
+
+        <Border Style="{StaticResource FluentCardBorderStyle}">
+          <Grid>
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="*" />
+              <ColumnDefinition Width="180" />
+              <ColumnDefinition Width="52" />
+            </Grid.ColumnDefinitions>
+            <TextBlock Text="Espessura" Style="{StaticResource FluentTitle}" />
+            <Slider Grid.Column="1" Style="{StaticResource FluentSlider}"
+                    Minimum="24" Maximum="120" Value="{Binding Size, Mode=TwoWay}" />
+            <TextBlock Grid.Column="2" Text="{Binding Size, StringFormat='{}{0} px'}"
+                       Style="{StaticResource FluentCaption}" Margin="10,0,0,0"
+                       VerticalAlignment="Center" TextAlignment="Right" />
+          </Grid>
+        </Border>
+
+        <Border Style="{StaticResource FluentCardBorderStyle}">
+          <StackPanel>
+            <TextBlock Text="Margens da pílula" Style="{StaticResource FluentTitle}" />
+            <TextBlock Text="Folga em cada lado, em pixels"
+                       Style="{StaticResource FluentCaption}" />
+
+            <!-- os quatro lados em colunas: numa linha só, o último campo saía da janela -->
+            <UniformGrid Columns="4" Margin="0,10,0,0">
+              <StackPanel Margin="0,0,10,0">
+                <TextBlock Text="Superior" Style="{StaticResource FluentCaption}" Margin="2,0,0,4" />
+                <TextBox Style="{StaticResource FluentTextBox}"
+                         Text="{Binding MarginTop, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" />
+              </StackPanel>
+              <StackPanel Margin="0,0,10,0">
+                <TextBlock Text="Inferior" Style="{StaticResource FluentCaption}" Margin="2,0,0,4" />
+                <TextBox Style="{StaticResource FluentTextBox}"
+                         Text="{Binding MarginBottom, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" />
+              </StackPanel>
+              <StackPanel Margin="0,0,10,0">
+                <TextBlock Text="Esquerda" Style="{StaticResource FluentCaption}" Margin="2,0,0,4" />
+                <TextBox Style="{StaticResource FluentTextBox}"
+                         Text="{Binding MarginLeft, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" />
+              </StackPanel>
+              <StackPanel>
+                <TextBlock Text="Direita" Style="{StaticResource FluentCaption}" Margin="2,0,0,4" />
+                <TextBox Style="{StaticResource FluentTextBox}"
+                         Text="{Binding MarginRight, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" />
+              </StackPanel>
+            </UniformGrid>
+          </StackPanel>
+        </Border>
+
+        <Border Style="{StaticResource FluentCardBorderStyle}">
+          <Grid>
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="*" />
+              <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <StackPanel VerticalAlignment="Center">
+              <TextBlock Text="Reservar a faixa" Style="{StaticResource FluentTitle}" />
+              <TextBlock Text="Encolhe a área de trabalho para nada maximizado passar por baixo"
+                         Style="{StaticResource FluentCaption}" />
+            </StackPanel>
+            <CheckBox Grid.Column="1" Style="{StaticResource FluentToggle}"
+                      IsChecked="{Binding ReserveSpace, Mode=TwoWay}" />
+          </Grid>
+        </Border>
+
+        <Border Style="{StaticResource FluentCardBorderStyle}">
+          <Grid>
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="*" />
+              <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <TextBlock Text="Centralizar a pílula" Style="{StaticResource FluentTitle}" />
+            <CheckBox Grid.Column="1" Style="{StaticResource FluentToggle}"
+                      IsChecked="{Binding Centered, Mode=TwoWay}" />
+          </Grid>
+        </Border>
+
+        <!-- ══ aparencia ════════════════════════════════════ -->
+        <TextBlock Text="Aparência" Style="{StaticResource FluentSection}" />
+
+        <Border Style="{StaticResource FluentCardBorderStyle}">
+          <Grid>
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="*" />
+              <ColumnDefinition Width="180" />
+              <ColumnDefinition Width="52" />
+            </Grid.ColumnDefinitions>
+            <TextBlock Text="Opacidade" Style="{StaticResource FluentTitle}" />
+            <Slider Grid.Column="1" Style="{StaticResource FluentSlider}"
+                    Minimum="0" Maximum="100" Value="{Binding Opacity, Mode=TwoWay}" />
+            <TextBlock Grid.Column="2" Text="{Binding Opacity, StringFormat='{}{0}%'}"
+                       Style="{StaticResource FluentCaption}" Margin="10,0,0,0"
+                       VerticalAlignment="Center" TextAlignment="Right" />
+          </Grid>
+        </Border>
+
+        <Border Style="{StaticResource FluentCardBorderStyle}">
+          <Grid>
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="*" />
+              <ColumnDefinition Width="180" />
+              <ColumnDefinition Width="52" />
+            </Grid.ColumnDefinitions>
+            <StackPanel VerticalAlignment="Center">
+              <TextBlock Text="Cantos" Style="{StaticResource FluentTitle}" />
+              <TextBlock Text="Metade da espessura dá a cápsula perfeita"
+                         Style="{StaticResource FluentCaption}" />
+            </StackPanel>
+            <Slider Grid.Column="1" Style="{StaticResource FluentSlider}"
+                    Minimum="0" Maximum="60" Value="{Binding CornerRadius, Mode=TwoWay}" />
+            <TextBlock Grid.Column="2" Text="{Binding CornerRadius, StringFormat='{}{0} px'}"
+                       Style="{StaticResource FluentCaption}" Margin="10,0,0,0"
+                       VerticalAlignment="Center" TextAlignment="Right" />
+          </Grid>
+        </Border>
+
+        <Border Style="{StaticResource FluentCardBorderStyle}">
+          <Grid>
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="*" />
+              <ColumnDefinition Width="180" />
+              <ColumnDefinition Width="52" />
+            </Grid.ColumnDefinitions>
+            <StackPanel VerticalAlignment="Center">
+              <TextBlock Text="Folga do ícone" Style="{StaticResource FluentTitle}" />
+              <TextBlock Text="Menor = ícone maior dentro do botão; ignorada com tamanho fixo"
+                         Style="{StaticResource FluentCaption}" />
+            </StackPanel>
+            <Slider Grid.Column="1" Style="{StaticResource FluentSlider}"
+                    Minimum="0" Maximum="20" Value="{Binding IconPadding, Mode=TwoWay}" />
+            <TextBlock Grid.Column="2" Text="{Binding IconPadding, StringFormat='{}{0} px'}"
+                       Style="{StaticResource FluentCaption}" Margin="10,0,0,0"
+                       VerticalAlignment="Center" TextAlignment="Right" />
+          </Grid>
+        </Border>
+
+        <Border Style="{StaticResource FluentCardBorderStyle}">
+          <Grid>
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="*" />
+              <ColumnDefinition Width="180" />
+              <ColumnDefinition Width="52" />
+            </Grid.ColumnDefinitions>
+            <TextBlock Text="Folga da pílula" Style="{StaticResource FluentTitle}" />
+            <Slider Grid.Column="1" Style="{StaticResource FluentSlider}"
+                    Minimum="0" Maximum="20" Value="{Binding PillPadding, Mode=TwoWay}" />
+            <TextBlock Grid.Column="2" Text="{Binding PillPadding, StringFormat='{}{0} px'}"
+                       Style="{StaticResource FluentCaption}" Margin="10,0,0,0"
+                       VerticalAlignment="Center" TextAlignment="Right" />
+          </Grid>
+        </Border>
+
+        <Border Style="{StaticResource FluentCardBorderStyle}">
+          <Grid>
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="*" />
+              <ColumnDefinition Width="130" />
+              <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <StackPanel VerticalAlignment="Center">
+              <TextBlock Text="Cor de fundo" Style="{StaticResource FluentTitle}" />
+              <TextBlock Text="Hex; a opacidade é aplicada em cima"
+                         Style="{StaticResource FluentCaption}" />
+            </StackPanel>
+            <TextBox Grid.Column="1" Style="{StaticResource FluentTextBox}"
+                     Text="{Binding Background, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+            <Border Grid.Column="2" Width="32" Height="32" CornerRadius="4" Margin="8,0,0,0"
+                    Background="{Binding Background, Converter={StaticResource HexBrush}}"
+                    BorderBrush="{StaticResource FluentControlBorder}" BorderThickness="1" />
+          </Grid>
+        </Border>
+
+        <Border Style="{StaticResource FluentCardBorderStyle}">
+          <Grid>
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="*" />
+              <ColumnDefinition Width="130" />
+              <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <StackPanel VerticalAlignment="Center">
+              <TextBlock Text="Cor do indicador" Style="{StaticResource FluentTitle}" />
+              <TextBlock Text="A bolinha do app aberto; apagada quando ele não está em foco"
+                         Style="{StaticResource FluentCaption}" />
+            </StackPanel>
+            <TextBox Grid.Column="1" Style="{StaticResource FluentTextBox}"
+                     Text="{Binding IndicatorColor, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+            <Border Grid.Column="2" Width="32" Height="32" CornerRadius="4" Margin="8,0,0,0"
+                    Background="{Binding IndicatorColor, Converter={StaticResource HexBrush}}"
+                    BorderBrush="{StaticResource FluentControlBorder}" BorderThickness="1" />
+          </Grid>
+        </Border>
+
+        <Border Style="{StaticResource FluentCardBorderStyle}">
+          <Grid>
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="*" />
+              <ColumnDefinition Width="180" />
+              <ColumnDefinition Width="64" />
+            </Grid.ColumnDefinitions>
+            <StackPanel VerticalAlignment="Center">
+              <TextBlock Text="Tamanho do ícone" Style="{StaticResource FluentTitle}" />
+              <TextBlock Text="Zero deixa a dock decidir pelo tamanho do botão"
+                         Style="{StaticResource FluentCaption}" />
+            </StackPanel>
+            <Slider Grid.Column="1" Style="{StaticResource FluentSlider}"
+                    Minimum="0" Maximum="64" Value="{Binding IconSize, Mode=TwoWay}" />
+            <TextBlock Grid.Column="2" Margin="10,0,0,0"
+                       VerticalAlignment="Center" TextAlignment="Right">
+              <TextBlock.Style>
+                <Style TargetType="TextBlock" BasedOn="{StaticResource FluentCaption}">
+                  <Setter Property="Text" Value="{Binding IconSize, StringFormat='{}{0} px'}" />
+                  <Style.Triggers>
+                    <DataTrigger Binding="{Binding IconSize}" Value="0">
+                      <Setter Property="Text" Value="automático" />
+                    </DataTrigger>
+                  </Style.Triggers>
+                </Style>
+              </TextBlock.Style>
+            </TextBlock>
+          </Grid>
+        </Border>
+
+        <!-- ══ comportamento ════════════════════════════════ -->
+        <TextBlock Text="Comportamento" Style="{StaticResource FluentSection}" />
+
+        <Border Style="{StaticResource FluentCardBorderStyle}">
+          <Grid>
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="*" />
+              <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <TextBlock Text="Mostrar apps abertos que não estão fixados"
+                       Style="{StaticResource FluentTitle}" />
+            <CheckBox Grid.Column="1" Style="{StaticResource FluentToggle}"
+                      IsChecked="{Binding ShowRunning, Mode=TwoWay}" />
+          </Grid>
+        </Border>
+
+        <Border Style="{StaticResource FluentCardBorderStyle}">
+          <Grid>
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="*" />
+              <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <StackPanel VerticalAlignment="Center">
+              <TextBlock Text="Barra do Windows" Style="{StaticResource FluentTitle}" />
+              <TextBlock Text="Escondida, o menu iniciar vira o Alt+Espaço"
+                         Style="{StaticResource FluentCaption}" />
+            </StackPanel>
+            <ComboBox Grid.Column="1" Width="190" Style="{StaticResource FluentCombo}"
+                      SelectedValue="{Binding Taskbar, Mode=TwoWay}" SelectedValuePath="Tag">
+              <ComboBoxItem Content="Não mexer" Tag="{x:Static services:TaskbarMode.Keep}" />
+              <ComboBoxItem Content="Recolher na borda" Tag="{x:Static services:TaskbarMode.AutoHide}" />
+              <ComboBoxItem Content="Esconder" Tag="{x:Static services:TaskbarMode.Hidden}" />
+            </ComboBox>
+          </Grid>
+        </Border>
+
+        <Border Style="{StaticResource FluentCardBorderStyle}">
+          <Grid>
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="*" />
+              <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <StackPanel VerticalAlignment="Center">
+              <TextBlock Text="Buscar aplicativos com Alt+Espaço" Style="{StaticResource FluentTitle}" />
+              <TextBlock Text="Apps instalados, comandos e desligar/reiniciar"
+                         Style="{StaticResource FluentCaption}" />
+            </StackPanel>
+            <CheckBox Grid.Column="1" Style="{StaticResource FluentToggle}"
+                      IsChecked="{Binding Launcher, Mode=TwoWay}" />
+          </Grid>
+        </Border>
+
+        <Border Style="{StaticResource FluentCardBorderStyle}">
+          <Grid>
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="*" />
+              <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <StackPanel VerticalAlignment="Center">
+              <TextBlock Text="Barra superior" Style="{StaticResource FluentTitle}" />
+              <TextBlock Text="Relógio, data e atalhos para os painéis do Windows"
+                         Style="{StaticResource FluentCaption}" />
+            </StackPanel>
+            <CheckBox Grid.Column="1" Style="{StaticResource FluentToggle}"
+                      IsChecked="{Binding Panel, Mode=TwoWay}" />
+          </Grid>
+        </Border>
+
+        <Border Style="{StaticResource FluentCardBorderStyle}">
+          <Grid>
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="*" />
+              <ColumnDefinition Width="180" />
+              <ColumnDefinition Width="52" />
+            </Grid.ColumnDefinitions>
+            <TextBlock Text="Altura da barra superior" Style="{StaticResource FluentTitle}" />
+            <Slider Grid.Column="1" Style="{StaticResource FluentSlider}"
+                    Minimum="22" Maximum="60" Value="{Binding PanelSize, Mode=TwoWay}" />
+            <TextBlock Grid.Column="2" Text="{Binding PanelSize, StringFormat='{}{0} px'}"
+                       Style="{StaticResource FluentCaption}" Margin="10,0,0,0"
+                       VerticalAlignment="Center" TextAlignment="Right" />
+          </Grid>
+        </Border>
+
+        <Border Style="{StaticResource FluentCardBorderStyle}">
+          <Grid>
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="*" />
+              <ColumnDefinition Width="180" />
+              <ColumnDefinition Width="52" />
+            </Grid.ColumnDefinitions>
+            <TextBlock Text="Opacidade da barra superior" Style="{StaticResource FluentTitle}" />
+            <Slider Grid.Column="1" Style="{StaticResource FluentSlider}"
+                    Minimum="0" Maximum="100" Value="{Binding PanelOpacity, Mode=TwoWay}" />
+            <TextBlock Grid.Column="2" Text="{Binding PanelOpacity, StringFormat='{}{0}%'}"
+                       Style="{StaticResource FluentCaption}" Margin="10,0,0,0"
+                       VerticalAlignment="Center" TextAlignment="Right" />
+          </Grid>
+        </Border>
+
+        <Border Style="{StaticResource FluentCardBorderStyle}">
+          <Grid>
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="*" />
+              <ColumnDefinition Width="130" />
+              <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <StackPanel VerticalAlignment="Center">
+              <TextBlock Text="Cor da barra superior" Style="{StaticResource FluentTitle}" />
+              <TextBlock Text="Independente da cor da dock" Style="{StaticResource FluentCaption}" />
+            </StackPanel>
+            <TextBox Grid.Column="1" Style="{StaticResource FluentTextBox}"
+                     Text="{Binding PanelBackground, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+            <Border Grid.Column="2" Width="32" Height="32" CornerRadius="4" Margin="8,0,0,0"
+                    Background="{Binding PanelBackground, Converter={StaticResource HexBrush}}"
+                    BorderBrush="{StaticResource FluentControlBorder}" BorderThickness="1" />
+          </Grid>
+        </Border>
+
+        <Border Style="{StaticResource FluentCardBorderStyle}">
+          <Grid>
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="*" />
+              <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <StackPanel VerticalAlignment="Center">
+              <TextBlock Text="Relógio no centro" Style="{StaticResource FluentTitle}" />
+              <TextBlock Text="Em vez do canto direito, ao lado dos indicadores"
+                         Style="{StaticResource FluentCaption}" />
+            </StackPanel>
+            <CheckBox Grid.Column="1" Style="{StaticResource FluentToggle}"
+                      IsChecked="{Binding PanelCenterClock, Mode=TwoWay}" />
+          </Grid>
+        </Border>
+
+        <Border Style="{StaticResource FluentCardBorderStyle}">
+          <Grid>
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="*" />
+              <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <StackPanel VerticalAlignment="Center">
+              <TextBlock Text="Ícones da bandeja" Style="{StaticResource FluentTitle}" />
+              <TextBlock Text="Mostra os ícones dos programas rodando em segundo plano — antivírus, AnyDesk e afins"
+                         Style="{StaticResource FluentCaption}" />
+            </StackPanel>
+            <CheckBox Grid.Column="1" Style="{StaticResource FluentToggle}"
+                      IsChecked="{Binding PanelTray, Mode=TwoWay}" />
+          </Grid>
+        </Border>
+
+        <Border Style="{StaticResource FluentCardBorderStyle}">
+          <Grid>
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="*" />
+              <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <StackPanel VerticalAlignment="Center">
+              <TextBlock Text="Volume por aplicativo" Style="{StaticResource FluentTitle}" />
+              <TextBlock Text="Um controle para cada programa com som, dentro do painel de volume"
+                         Style="{StaticResource FluentCaption}" />
+            </StackPanel>
+            <CheckBox Grid.Column="1" Style="{StaticResource FluentToggle}"
+                      IsChecked="{Binding PanelAppVolume, Mode=TwoWay}" />
+          </Grid>
+        </Border>
+
+        <Border Style="{StaticResource FluentCardBorderStyle}" Margin="0,0,0,16">
+          <Grid>
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="*" />
+              <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <StackPanel VerticalAlignment="Center">
+              <TextBlock Text="Iniciar com o Windows" Style="{StaticResource FluentTitle}" />
+              <TextBlock Text="Grava o caminho deste executável na chave Run"
+                         Style="{StaticResource FluentCaption}" />
+            </StackPanel>
+            <CheckBox x:Name="StartupBox" Grid.Column="1" Style="{StaticResource FluentToggle}"
+                      Checked="OnStartupChanged" Unchecked="OnStartupChanged" />
+          </Grid>
+        </Border>
+
+        <!-- ══ mosaico ══════════════════════════════════════ -->
+        <TextBlock Text="Mosaico" Style="{StaticResource FluentSection}" />
+
+        <Border Style="{StaticResource FluentCardBorderStyle}">
+          <Grid>
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="*" />
+              <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <StackPanel VerticalAlignment="Center">
+              <StackPanel Orientation="Horizontal">
+                <TextBlock Text="Ligado" Style="{StaticResource FluentTitle}" />
+                <Border Style="{StaticResource FluentHelp}" Margin="8,0,0,0"
+                        ToolTipService.InitialShowDelay="150" ToolTipService.ShowDuration="30000">
+                  <Border.ToolTip>
+                    <ToolTip>
+                      <StackPanel>
+                        <TextBlock Text="Ctrl + Alt + setas — troca o foco de janela (ou de monitor, na ponta do grid)"
+                                   TextWrapping="Wrap" />
+                        <TextBlock Text="Ctrl + Shift + setas — troca a janela em foco de lugar no grid (ou de monitor)"
+                                   TextWrapping="Wrap" Margin="0,8,0,0" />
+                        <TextBlock Text="Alt + C — flutua a janela em foco (ou devolve, se já estava flutuando)"
+                                   TextWrapping="Wrap" Margin="0,8,0,0" />
+                        <TextBlock Text="Alt + Z — esconde (minimiza) a janela em foco"
+                                   TextWrapping="Wrap" Margin="0,8,0,0" />
+                        <TextBlock Text="Alt + W — fecha a janela em foco"
+                                   TextWrapping="Wrap" Margin="0,8,0,0" />
+                      </StackPanel>
+                    </ToolTip>
+                  </Border.ToolTip>
+                  <TextBlock Text="?" Foreground="{StaticResource FluentTextDim}" FontSize="13"
+                             HorizontalAlignment="Center" VerticalAlignment="Center" />
+                </Border>
+              </StackPanel>
+              <TextBlock Text="Divide as janelas de cada monitor sem sobrepor — passe o mouse no “?” pros atalhos"
+                         Style="{StaticResource FluentCaption}" TextWrapping="Wrap" />
+            </StackPanel>
+            <CheckBox Grid.Column="1" Style="{StaticResource FluentToggle}"
+                      IsChecked="{Binding TilingEnabled, Mode=TwoWay}" />
+          </Grid>
+        </Border>
+
+        <Border Style="{StaticResource FluentCardBorderStyle}" MinHeight="0">
+          <StackPanel>
+            <TextBlock Text="Exceções" Style="{StaticResource FluentTitle}" />
+            <TextBlock Text="Apps com tamanho pensado pra ser aquele — não entram no mosaico sozinhos ao abrir, mas continuam alcançáveis pelo Alt+C. Nome do .exe, ou o AppUserModelID para apps como a Calculadora e as Configurações"
+                       Style="{StaticResource FluentCaption}" />
+            <Grid Margin="0,10,0,0">
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+              </Grid.ColumnDefinitions>
+              <TextBox x:Name="ExcludedAppBox" Style="{StaticResource FluentTextBox}"
+                       KeyDown="OnExcludedAppKeyDown" />
+              <Button Grid.Column="1" Content="Adicionar" Style="{StaticResource FluentButton}"
+                      Margin="8,0,0,0" Click="OnAddExcludedApp" />
+            </Grid>
+            <ItemsControl x:Name="ExcludedAppsList" Margin="0,10,0,0">
+              <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate>
+                  <WrapPanel />
+                </ItemsPanelTemplate>
+              </ItemsControl.ItemsPanel>
+              <ItemsControl.ItemTemplate>
+                <DataTemplate>
+                  <Border Background="{StaticResource FluentControl}" BorderBrush="{StaticResource FluentControlBorder}"
+                          BorderThickness="1" CornerRadius="12" Padding="10,4" Margin="0,0,6,6">
+                    <StackPanel Orientation="Horizontal">
+                      <TextBlock Text="{Binding}" Foreground="{StaticResource FluentText}" FontSize="12"
+                                 VerticalAlignment="Center" />
+                      <TextBlock Text=" ✕" Foreground="{StaticResource FluentTextDim}" FontSize="12"
+                                 Margin="6,0,0,0" VerticalAlignment="Center" Cursor="Hand"
+                                 MouseLeftButtonUp="OnRemoveExcludedApp" />
+                    </StackPanel>
+                  </Border>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </StackPanel>
+        </Border>
+
+        <Border Style="{StaticResource FluentCardBorderStyle}">
+          <Grid>
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="*" />
+              <ColumnDefinition Width="180" />
+              <ColumnDefinition Width="52" />
+            </Grid.ColumnDefinitions>
+            <StackPanel VerticalAlignment="Center">
+              <TextBlock Text="Espaçamento" Style="{StaticResource FluentTitle}" />
+              <TextBlock Text="Folga entre as janelas e a borda da tela"
+                         Style="{StaticResource FluentCaption}" />
+            </StackPanel>
+            <Slider Grid.Column="1" Style="{StaticResource FluentSlider}"
+                    Minimum="0" Maximum="60" Value="{Binding TilingGap, Mode=TwoWay}" />
+            <TextBlock Grid.Column="2" Text="{Binding TilingGap, StringFormat='{}{0} px'}"
+                       Style="{StaticResource FluentCaption}" Margin="10,0,0,0"
+                       VerticalAlignment="Center" TextAlignment="Right" />
+          </Grid>
+        </Border>
+
+        <Border Style="{StaticResource FluentCardBorderStyle}">
+          <Grid>
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="*" />
+              <ColumnDefinition Width="130" />
+              <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <StackPanel VerticalAlignment="Center">
+              <TextBlock Text="Cor da borda" Style="{StaticResource FluentTitle}" />
+              <TextBlock Text="A própria borda nativa do Windows 11 em volta da janela em foco, recolorida; hex"
+                         Style="{StaticResource FluentCaption}" />
+            </StackPanel>
+            <TextBox Grid.Column="1" Style="{StaticResource FluentTextBox}"
+                     Text="{Binding TilingBorderColor, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+            <Border Grid.Column="2" Width="32" Height="32" CornerRadius="4" Margin="8,0,0,0"
+                    Background="{Binding TilingBorderColor, Converter={StaticResource HexBrush}}"
+                    BorderBrush="{StaticResource FluentControlBorder}" BorderThickness="1" />
+          </Grid>
+        </Border>
+
+        <Border Style="{StaticResource FluentCardBorderStyle}" Margin="0,0,0,16">
+          <Grid>
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="*" />
+              <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <StackPanel VerticalAlignment="Center">
+              <TextBlock Text="Contorno" Style="{StaticResource FluentTitle}" />
+              <TextBlock Text="Desliga só o realce de foco, sem desligar o mosaico — espessura e cantos são do próprio Windows, não dá pra ajustar"
+                         Style="{StaticResource FluentCaption}" />
+            </StackPanel>
+            <CheckBox Grid.Column="1" Style="{StaticResource FluentToggle}"
+                      IsChecked="{Binding TilingBorderThickness, Mode=TwoWay, Converter={StaticResource IntToBool}}" />
+          </Grid>
+        </Border>
+
+      </StackPanel>
+    </ScrollViewer>
+
+    <!-- ── rodape ────────────────────────────────────────── -->
+    <Border Grid.Row="2" BorderBrush="{StaticResource FluentDivider}" BorderThickness="0,1,0,0"
+            Padding="24,14">
+      <Grid>
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+          <Button Content="Restaurar padrões" Click="OnReset" Style="{StaticResource FluentButton}"
+                  Margin="0,0,8,0" />
+          <Button Content="Fechar" Click="OnClose" Style="{StaticResource FluentAccentButton}"
+                  IsDefault="True" Padding="24,0" />
+        </StackPanel>
+      </Grid>
+    </Border>
+  </Grid>
+</Window>

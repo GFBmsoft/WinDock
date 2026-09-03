@@ -1,0 +1,51 @@
+<Window x:Class="WinDock.ThumbnailWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="WinDock Thumbnails"
+        WindowStyle="None" ResizeMode="NoResize" ShowInTaskbar="False" Topmost="True"
+        AllowsTransparency="False" Background="#F2242424"
+        SizeToContent="WidthAndHeight"
+        FontFamily="Segoe UI Variable Text, Segoe UI"
+        TextOptions.TextFormattingMode="Display" UseLayoutRounding="True">
+
+  <!--
+    O preview de janelas, no espirito do que a barra de tarefas faz.
+
+    AllowsTransparency fica em False de proposito: com ele o WPF faz da janela uma janela em
+    camada, e o DWM se recusa a desenhar miniatura dentro de janela em camada — o painel
+    apareceria vazio. Os cantos arredondados vem do proprio DWM, no code-behind.
+
+    As miniaturas nao sao desenhadas por nos: o DWM as compoe por cima desta janela, nos
+    retangulos que pedimos. Por isso cada item tem aqui so um espaco reservado e o titulo
+    embaixo; quem preenche o meio e o compositor.
+  -->
+
+  <Border BorderBrush="#2EFFFFFF" BorderThickness="1" Padding="8">
+    <ItemsControl x:Name="Items">
+      <ItemsControl.ItemsPanel>
+        <ItemsPanelTemplate><StackPanel Orientation="Horizontal" /></ItemsPanelTemplate>
+      </ItemsControl.ItemsPanel>
+      <ItemsControl.ItemTemplate>
+        <DataTemplate>
+          <Border x:Name="Cell" Background="Transparent" CornerRadius="6" Padding="6,6,6,4"
+                  Margin="2" Cursor="Hand"
+                  MouseLeftButtonUp="OnThumbnailClick" Tag="{Binding Handle}">
+            <StackPanel>
+              <!-- o espaco que o DWM preenche -->
+              <Border x:Name="Slot" Width="{Binding Width}" Height="{Binding Height}"
+                      Background="#18FFFFFF" CornerRadius="3" />
+              <TextBlock Text="{Binding Title}" Foreground="#FFE8E8EA" FontSize="11"
+                         Margin="0,6,0,0" TextTrimming="CharacterEllipsis"
+                         MaxWidth="{Binding Width}" HorizontalAlignment="Center" />
+            </StackPanel>
+          </Border>
+          <DataTemplate.Triggers>
+            <Trigger SourceName="Cell" Property="IsMouseOver" Value="True">
+              <Setter TargetName="Cell" Property="Background" Value="#22FFFFFF" />
+            </Trigger>
+          </DataTemplate.Triggers>
+        </DataTemplate>
+      </ItemsControl.ItemTemplate>
+    </ItemsControl>
+  </Border>
+</Window>

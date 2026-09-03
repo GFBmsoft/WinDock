@@ -1,0 +1,119 @@
+<Window x:Class="WinDock.LauncherWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Buscar" Width="560" SizeToContent="Height"
+        WindowStyle="None" AllowsTransparency="True" Background="{x:Null}"
+        ShowInTaskbar="False" Topmost="True" ResizeMode="NoResize"
+        WindowStartupLocation="Manual"
+        TextOptions.TextFormattingMode="Display" UseLayoutRounding="True">
+
+  <!--
+    A janela do launcher: uma caixa de texto e a lista de resultados. Fecha sozinha
+    quando perde o foco, como o menu iniciar — nao fica uma janela orfa na tela.
+  -->
+
+  <Window.Resources>
+
+    <BooleanToVisibilityConverter x:Key="BoolToVisible" />
+    <Style x:Key="Row" TargetType="ListBoxItem">
+      <Setter Property="Padding" Value="10,7" />
+      <Setter Property="Foreground" Value="#FFE8E8EA" />
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="ListBoxItem">
+            <Border x:Name="Bg" Background="Transparent" CornerRadius="8" Padding="{TemplateBinding Padding}">
+              <ContentPresenter />
+            </Border>
+            <ControlTemplate.Triggers>
+              <Trigger Property="IsMouseOver" Value="True">
+                <Setter TargetName="Bg" Property="Background" Value="#18FFFFFF" />
+              </Trigger>
+              <Trigger Property="IsSelected" Value="True">
+                <Setter TargetName="Bg" Property="Background" Value="#332F6FEB" />
+              </Trigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+
+  </Window.Resources>
+
+  <Border Background="#F21B1C1F" CornerRadius="14" BorderBrush="#FF34353B" BorderThickness="1"
+          Padding="8">
+    <StackPanel>
+
+      <Grid Margin="0,0,0,6">
+        <TextBox x:Name="Query"
+                 Background="Transparent" Foreground="#FFE8E8EA" CaretBrush="#FF6CB6FF"
+                 BorderThickness="0" FontSize="20" Padding="10,8"
+                 PreviewKeyDown="OnQueryKeyDown"
+                 TextChanged="OnQueryChanged" />
+
+        <!-- o texto-fantasma some no primeiro caractere digitado -->
+        <TextBlock Text="Buscar aplicativo, comando ou desligar…" FontSize="20" Padding="12,8"
+                   IsHitTestVisible="False">
+          <TextBlock.Style>
+            <Style TargetType="TextBlock">
+              <Setter Property="Foreground" Value="#FF5E5F66" />
+              <Setter Property="Visibility" Value="Collapsed" />
+              <Style.Triggers>
+                <DataTrigger Binding="{Binding Text, ElementName=Query}" Value="">
+                  <Setter Property="Visibility" Value="Visible" />
+                </DataTrigger>
+              </Style.Triggers>
+            </Style>
+          </TextBlock.Style>
+        </TextBlock>
+      </Grid>
+
+      <!-- risco fino separando a busca dos resultados; some junto com a lista -->
+      <Border Height="1" Background="#1AFFFFFF" Margin="6,0,6,6"
+              Visibility="{Binding Visibility, ElementName=Results}" />
+
+      <ListBox x:Name="Results" Background="Transparent" BorderThickness="0"
+               ItemContainerStyle="{StaticResource Row}" MaxHeight="420"
+               ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+               ScrollViewer.CanContentScroll="False"
+               MouseLeftButtonUp="OnResultClick" KeyDown="OnResultKeyDown">
+        <ListBox.ItemTemplate>
+          <DataTemplate>
+            <Grid>
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="34" />
+                <ColumnDefinition Width="*" />
+              </Grid.ColumnDefinitions>
+
+              <!-- icone do app; quem nao tem (energia, comando) ganha um circulo com a inicial -->
+              <Image Source="{Binding Icon}" Width="26" Height="26"
+                     RenderOptions.BitmapScalingMode="HighQuality"
+                     Visibility="{Binding HasIcon, Converter={StaticResource BoolToVisible}}" />
+              <Border Width="26" Height="26" CornerRadius="13" Background="#FF2A2B30">
+                <Border.Style>
+                  <Style TargetType="Border">
+                    <Setter Property="Visibility" Value="Visible" />
+                    <Style.Triggers>
+                      <DataTrigger Binding="{Binding HasIcon}" Value="True">
+                        <Setter Property="Visibility" Value="Collapsed" />
+                      </DataTrigger>
+                    </Style.Triggers>
+                  </Style>
+                </Border.Style>
+                <TextBlock Text="{Binding Glyph}" Foreground="#FF6CB6FF" FontSize="13"
+                           HorizontalAlignment="Center" VerticalAlignment="Center" />
+              </Border>
+
+              <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="4,0,0,0">
+                <TextBlock Text="{Binding Name}" Foreground="#FFE8E8EA" FontSize="14"
+                           TextTrimming="CharacterEllipsis" />
+                <TextBlock Text="{Binding Detail}" Foreground="#FF7E7F86" FontSize="11"
+                           TextTrimming="CharacterEllipsis" />
+              </StackPanel>
+            </Grid>
+          </DataTemplate>
+        </ListBox.ItemTemplate>
+      </ListBox>
+
+    </StackPanel>
+  </Border>
+</Window>

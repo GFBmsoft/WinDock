@@ -1,0 +1,539 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:sys="clr-namespace:System;assembly=mscorlib"
+                    xmlns:controls="clr-namespace:System.Windows.Controls;assembly=PresentationFramework">
+
+  <!--
+    Os controles do Windows 11 (WinUI) nao existem no WPF, e o projeto nao carrega
+    dependencia externa nenhuma. Entao aqui estao so os poucos que o painel usa,
+    desenhados na mao: o interruptor, o slider, a lista suspensa e os botoes.
+
+    As cores seguem o tema escuro do app Configuracoes: fundo quase preto, cartoes um
+    tom acima, e o azul de destaque so no que responde ao clique.
+  -->
+
+  <!-- ── cores ─────────────────────────────────────────────── -->
+  <SolidColorBrush x:Key="FluentWindow"        Color="#FF202020" />
+  <SolidColorBrush x:Key="FluentCard"          Color="#FF2B2B2B" />
+  <SolidColorBrush x:Key="FluentCardHover"     Color="#FF313131" />
+  <SolidColorBrush x:Key="FluentCardBorder"    Color="#FF383838" />
+  <SolidColorBrush x:Key="FluentControl"       Color="#FF313131" />
+  <SolidColorBrush x:Key="FluentControlHover"  Color="#FF3B3B3B" />
+  <SolidColorBrush x:Key="FluentControlBorder" Color="#FF464646" />
+  <SolidColorBrush x:Key="FluentText"          Color="#FFF2F2F2" />
+  <SolidColorBrush x:Key="FluentTextDim"       Color="#FF9D9D9D" />
+  <SolidColorBrush x:Key="FluentAccent"        Color="#FF4CC2FF" />
+  <SolidColorBrush x:Key="FluentAccentHover"   Color="#FF61CBFF" />
+  <SolidColorBrush x:Key="FluentOnAccent"      Color="#FF000000" />
+  <SolidColorBrush x:Key="FluentDivider"       Color="#22FFFFFF" />
+
+  <sys:Double x:Key="FluentCorner">6</sys:Double>
+
+  <!-- ── texto ─────────────────────────────────────────────── -->
+  <Style x:Key="FluentTitle" TargetType="TextBlock">
+    <Setter Property="Foreground" Value="{StaticResource FluentText}" />
+    <Setter Property="FontSize" Value="14" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+  </Style>
+
+  <Style x:Key="FluentCaption" TargetType="TextBlock">
+    <Setter Property="Foreground" Value="{StaticResource FluentTextDim}" />
+    <Setter Property="FontSize" Value="12" />
+    <Setter Property="TextWrapping" Value="Wrap" />
+    <Setter Property="Margin" Value="0,2,0,0" />
+  </Style>
+
+  <Style x:Key="FluentSection" TargetType="TextBlock">
+    <Setter Property="Foreground" Value="{StaticResource FluentText}" />
+    <Setter Property="FontSize" Value="14" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+    <Setter Property="Margin" Value="2,18,0,8" />
+  </Style>
+
+  <!-- ── cartao: cada linha de configuracao mora em um ────── -->
+  <Style x:Key="FluentCardBorderStyle" TargetType="Border">
+    <Setter Property="Background" Value="{StaticResource FluentCard}" />
+    <Setter Property="BorderBrush" Value="{StaticResource FluentCardBorder}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="CornerRadius" Value="6" />
+    <Setter Property="Padding" Value="14,11" />
+    <Setter Property="Margin" Value="0,0,0,4" />
+    <!-- mesma altura com ou sem a linha de explicacao, para a coluna nao ficar irregular -->
+    <Setter Property="MinHeight" Value="62" />
+  </Style>
+
+  <!-- ── interruptor (o "toggle switch" do Windows 11) ─────── -->
+  <Style x:Key="FluentToggle" TargetType="CheckBox">
+    <Setter Property="Cursor" Value="Hand" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+    <Setter Property="HorizontalAlignment" Value="Right" />
+    <Setter Property="Template">
+      <Setter.Value>
+        <ControlTemplate TargetType="CheckBox">
+          <Grid Width="40" Height="20" Background="Transparent">
+            <Border x:Name="Track" CornerRadius="10" Background="Transparent"
+                    BorderBrush="{StaticResource FluentTextDim}" BorderThickness="1" />
+            <!-- a bolinha anda de um lado ao outro pela margem -->
+            <Ellipse x:Name="Knob" Width="12" Height="12" Fill="{StaticResource FluentText}"
+                     HorizontalAlignment="Left" Margin="4,0,0,0" />
+          </Grid>
+          <ControlTemplate.Triggers>
+            <Trigger Property="IsChecked" Value="True">
+              <Setter TargetName="Track" Property="Background" Value="{StaticResource FluentAccent}" />
+              <Setter TargetName="Track" Property="BorderBrush" Value="{StaticResource FluentAccent}" />
+              <Setter TargetName="Knob" Property="Fill" Value="{StaticResource FluentOnAccent}" />
+              <Setter TargetName="Knob" Property="HorizontalAlignment" Value="Right" />
+              <Setter TargetName="Knob" Property="Margin" Value="0,0,4,0" />
+            </Trigger>
+            <MultiTrigger>
+              <MultiTrigger.Conditions>
+                <Condition Property="IsMouseOver" Value="True" />
+                <Condition Property="IsChecked" Value="False" />
+              </MultiTrigger.Conditions>
+              <Setter TargetName="Track" Property="Background" Value="{StaticResource FluentControl}" />
+            </MultiTrigger>
+            <MultiTrigger>
+              <MultiTrigger.Conditions>
+                <Condition Property="IsMouseOver" Value="True" />
+                <Condition Property="IsChecked" Value="True" />
+              </MultiTrigger.Conditions>
+              <Setter TargetName="Track" Property="Background" Value="{StaticResource FluentAccentHover}" />
+              <Setter TargetName="Track" Property="BorderBrush" Value="{StaticResource FluentAccentHover}" />
+            </MultiTrigger>
+          </ControlTemplate.Triggers>
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+  </Style>
+
+  <!-- ── slider ────────────────────────────────────────────── -->
+  <Style x:Key="FluentSliderThumb" TargetType="Thumb">
+    <Setter Property="Template">
+      <Setter.Value>
+        <ControlTemplate TargetType="Thumb">
+          <Grid Width="20" Height="20">
+            <Ellipse Fill="{StaticResource FluentAccent}" />
+            <Ellipse x:Name="Center" Width="10" Height="10" Fill="{StaticResource FluentWindow}" />
+          </Grid>
+          <ControlTemplate.Triggers>
+            <!-- o miolo encolhe ao arrastar, como no Windows 11 -->
+            <Trigger Property="IsMouseOver" Value="True">
+              <Setter TargetName="Center" Property="Width" Value="12" />
+              <Setter TargetName="Center" Property="Height" Value="12" />
+            </Trigger>
+            <Trigger Property="IsDragging" Value="True">
+              <Setter TargetName="Center" Property="Width" Value="8" />
+              <Setter TargetName="Center" Property="Height" Value="8" />
+            </Trigger>
+          </ControlTemplate.Triggers>
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+  </Style>
+
+  <Style x:Key="FluentSliderTrackButton" TargetType="RepeatButton">
+    <Setter Property="Focusable" Value="False" />
+    <Setter Property="IsTabStop" Value="False" />
+    <Setter Property="Template">
+      <Setter.Value>
+        <ControlTemplate TargetType="RepeatButton">
+          <Border Background="Transparent" />
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+  </Style>
+
+  <Style x:Key="FluentSlider" TargetType="Slider">
+    <Setter Property="VerticalAlignment" Value="Center" />
+    <Setter Property="IsSnapToTickEnabled" Value="True" />
+    <Setter Property="TickFrequency" Value="1" />
+    <Setter Property="Height" Value="24" />
+    <Setter Property="Template">
+      <Setter.Value>
+        <ControlTemplate TargetType="Slider">
+          <Grid>
+            <!-- trilho inteiro, e por cima dele a parte ja percorrida, em destaque -->
+            <Border Height="4" CornerRadius="2" VerticalAlignment="Center"
+                    Background="{StaticResource FluentControlBorder}" />
+            <Track x:Name="PART_Track">
+              <Track.DecreaseRepeatButton>
+                <RepeatButton Style="{StaticResource FluentSliderTrackButton}"
+                              Command="Slider.DecreaseLarge">
+                  <RepeatButton.Template>
+                    <ControlTemplate TargetType="RepeatButton">
+                      <Border Height="4" CornerRadius="2" VerticalAlignment="Center"
+                              Background="{StaticResource FluentAccent}" />
+                    </ControlTemplate>
+                  </RepeatButton.Template>
+                </RepeatButton>
+              </Track.DecreaseRepeatButton>
+              <Track.Thumb>
+                <Thumb Style="{StaticResource FluentSliderThumb}" />
+              </Track.Thumb>
+              <Track.IncreaseRepeatButton>
+                <RepeatButton Style="{StaticResource FluentSliderTrackButton}"
+                              Command="Slider.IncreaseLarge" />
+              </Track.IncreaseRepeatButton>
+            </Track>
+          </Grid>
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+  </Style>
+
+  <!-- ── lista suspensa ────────────────────────────────────── -->
+  <Style x:Key="FluentComboItem" TargetType="ComboBoxItem">
+    <Setter Property="Foreground" Value="{StaticResource FluentText}" />
+    <Setter Property="Padding" Value="10,7" />
+    <Setter Property="Template">
+      <Setter.Value>
+        <ControlTemplate TargetType="ComboBoxItem">
+          <Border x:Name="Bg" Background="Transparent" CornerRadius="4" Margin="3,1"
+                  Padding="{TemplateBinding Padding}">
+            <ContentPresenter VerticalAlignment="Center" />
+          </Border>
+          <ControlTemplate.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+              <Setter TargetName="Bg" Property="Background" Value="#18FFFFFF" />
+            </Trigger>
+            <Trigger Property="IsHighlighted" Value="True">
+              <Setter TargetName="Bg" Property="Background" Value="#22FFFFFF" />
+            </Trigger>
+          </ControlTemplate.Triggers>
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+  </Style>
+
+  <Style x:Key="FluentCombo" TargetType="ComboBox">
+    <Setter Property="Foreground" Value="{StaticResource FluentText}" />
+    <Setter Property="Height" Value="32" />
+    <Setter Property="Cursor" Value="Hand" />
+    <Setter Property="ItemContainerStyle" Value="{StaticResource FluentComboItem}" />
+    <Setter Property="Template">
+      <Setter.Value>
+        <ControlTemplate TargetType="ComboBox">
+          <Grid>
+            <ToggleButton x:Name="Toggle" Focusable="False" ClickMode="Press"
+                          IsChecked="{Binding IsDropDownOpen, Mode=TwoWay,
+                                              RelativeSource={RelativeSource TemplatedParent}}">
+              <ToggleButton.Template>
+                <ControlTemplate TargetType="ToggleButton">
+                  <!--
+                    TextElement.Foreground aqui e o que pinta o item selecionado: ele e
+                    desenhado dentro deste botao, que herdaria o preto padrao do WPF em
+                    vez da cor do ComboBox.
+                  -->
+                  <Border x:Name="Bg" Background="{StaticResource FluentControl}"
+                          BorderBrush="{StaticResource FluentControlBorder}" BorderThickness="1"
+                          CornerRadius="4" Padding="10,0"
+                          TextElement.Foreground="{StaticResource FluentText}">
+                    <Grid>
+                      <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                      </Grid.ColumnDefinitions>
+                      <ContentPresenter x:Name="Selection" VerticalAlignment="Center"
+                                        Content="{Binding SelectionBoxItem,
+                                                  RelativeSource={RelativeSource AncestorType=ComboBox}}" />
+                      <!-- a setinha: um "v" desenhado, para nao depender de fonte de icones -->
+                      <Path Grid.Column="1" Data="M 0,0 L 5,5 L 10,0" Stroke="{StaticResource FluentTextDim}"
+                            StrokeThickness="1.3" VerticalAlignment="Center" Margin="8,2,0,0" />
+                    </Grid>
+                  </Border>
+                  <ControlTemplate.Triggers>
+                    <Trigger Property="IsMouseOver" Value="True">
+                      <Setter TargetName="Bg" Property="Background" Value="{StaticResource FluentControlHover}" />
+                    </Trigger>
+                  </ControlTemplate.Triggers>
+                </ControlTemplate>
+              </ToggleButton.Template>
+            </ToggleButton>
+
+            <Popup IsOpen="{TemplateBinding IsDropDownOpen}" Placement="Bottom" AllowsTransparency="True"
+                   PopupAnimation="Fade" Focusable="False"
+                   Width="{Binding ActualWidth, RelativeSource={RelativeSource TemplatedParent}}">
+              <Border Background="#FF2C2C2C" BorderBrush="{StaticResource FluentControlBorder}"
+                      BorderThickness="1" CornerRadius="6" Padding="0,3" Margin="0,3,0,0"
+                      TextElement.Foreground="{StaticResource FluentText}">
+                <Border.Effect>
+                  <DropShadowEffect BlurRadius="14" ShadowDepth="3" Opacity="0.5" Color="Black" />
+                </Border.Effect>
+                <ItemsPresenter />
+              </Border>
+            </Popup>
+          </Grid>
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+  </Style>
+
+  <!-- ── caixa de texto ────────────────────────────────────── -->
+  <Style x:Key="FluentTextBox" TargetType="TextBox">
+    <Setter Property="Foreground" Value="{StaticResource FluentText}" />
+    <Setter Property="CaretBrush" Value="{StaticResource FluentText}" />
+    <Setter Property="Height" Value="32" />
+    <Setter Property="Padding" Value="10,0" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+    <Setter Property="Template">
+      <Setter.Value>
+        <ControlTemplate TargetType="TextBox">
+          <Border x:Name="Bg" Background="{StaticResource FluentControl}"
+                  BorderBrush="{StaticResource FluentControlBorder}" BorderThickness="1"
+                  CornerRadius="4" Padding="{TemplateBinding Padding}">
+            <ScrollViewer x:Name="PART_ContentHost" VerticalAlignment="Center" />
+          </Border>
+          <ControlTemplate.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+              <Setter TargetName="Bg" Property="Background" Value="{StaticResource FluentControlHover}" />
+            </Trigger>
+            <!-- foco: o Windows 11 acende so a linha de baixo -->
+            <Trigger Property="IsKeyboardFocused" Value="True">
+              <Setter TargetName="Bg" Property="BorderBrush" Value="{StaticResource FluentAccent}" />
+              <Setter TargetName="Bg" Property="BorderThickness" Value="1,1,1,2" />
+            </Trigger>
+          </ControlTemplate.Triggers>
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+  </Style>
+
+
+    <!--
+      A barra de rolagem padrao do WPF e clara, larga e tem setas nas pontas: num painel
+      escuro ela chama mais atencao que a propria lista. Esta e so um traco arredondado,
+      que engorda quando o mouse chega perto.
+    -->
+    <Style x:Key="ScrollThumb" TargetType="Thumb">
+      <Setter Property="IsTabStop" Value="False" />
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="Thumb">
+            <Border x:Name="Bar" Background="#38FFFFFF" CornerRadius="3" Margin="2,0" />
+            <ControlTemplate.Triggers>
+              <Trigger Property="IsMouseOver" Value="True">
+                <Setter TargetName="Bar" Property="Background" Value="#70FFFFFF" />
+              </Trigger>
+              <Trigger Property="IsDragging" Value="True">
+                <Setter TargetName="Bar" Property="Background" Value="#99FFFFFF" />
+              </Trigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+
+    <!-- clicar no trilho ainda rola uma pagina; o botao so nao e desenhado -->
+    <Style x:Key="ScrollTrackButton" TargetType="RepeatButton">
+      <Setter Property="IsTabStop" Value="False" />
+      <Setter Property="Focusable" Value="False" />
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="RepeatButton">
+            <Border Background="Transparent" />
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+
+    <Style TargetType="ScrollBar">
+      <Setter Property="Width" Value="10" />
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="Margin" Value="0,4,2,4" />
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="ScrollBar">
+            <Track x:Name="PART_Track" IsDirectionReversed="True">
+              <Track.Thumb>
+                <Thumb Style="{StaticResource ScrollThumb}" MinHeight="28" />
+              </Track.Thumb>
+              <Track.DecreaseRepeatButton>
+                <RepeatButton Style="{StaticResource ScrollTrackButton}" Command="ScrollBar.PageUpCommand" />
+              </Track.DecreaseRepeatButton>
+              <Track.IncreaseRepeatButton>
+                <RepeatButton Style="{StaticResource ScrollTrackButton}" Command="ScrollBar.PageDownCommand" />
+              </Track.IncreaseRepeatButton>
+            </Track>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+
+  <!-- ── dica (o balao de ajuda) ───────────────────────────── -->
+  <Style TargetType="ToolTip">
+    <Setter Property="OverridesDefaultStyle" Value="True" />
+    <Setter Property="FontFamily" Value="Segoe UI Variable Text, Segoe UI" />
+    <Setter Property="FontSize" Value="13" />
+    <Setter Property="Foreground" Value="{StaticResource FluentText}" />
+    <Setter Property="MaxWidth" Value="320" />
+    <!-- sem HasDropShadow: a sombra do sistema vem com quina reta -->
+    <Setter Property="HasDropShadow" Value="False" />
+    <Setter Property="Template">
+      <Setter.Value>
+        <ControlTemplate TargetType="ToolTip">
+          <Border Margin="8" Background="#F52C2C2C" BorderBrush="#38FFFFFF" BorderThickness="1"
+                  CornerRadius="6" Padding="12,9">
+            <Border.Effect>
+              <DropShadowEffect BlurRadius="14" ShadowDepth="3" Opacity="0.5" Color="Black" />
+            </Border.Effect>
+            <ContentPresenter />
+          </Border>
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+  </Style>
+
+  <!-- o "?" ao lado do titulo: so um alvo redondo para a dica -->
+  <Style x:Key="FluentHelp" TargetType="Border">
+    <Setter Property="Width" Value="22" />
+    <Setter Property="Height" Value="22" />
+    <Setter Property="CornerRadius" Value="11" />
+    <Setter Property="Background" Value="{StaticResource FluentControl}" />
+    <Setter Property="BorderBrush" Value="{StaticResource FluentControlBorder}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="Cursor" Value="Help" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+    <Style.Triggers>
+      <Trigger Property="IsMouseOver" Value="True">
+        <Setter Property="Background" Value="{StaticResource FluentControlHover}" />
+        <Setter Property="BorderBrush" Value="{StaticResource FluentAccent}" />
+      </Trigger>
+    </Style.Triggers>
+  </Style>
+
+  <!-- ── menu de contexto ──────────────────────────────────── -->
+  <!--
+    O menu que sai do botao direito da dock. Estes tres estilos sao implicitos de
+    proposito: o menu e montado em codigo, item por item, e assim nao precisa carregar
+    estilo em cada um. O app nao tem outro menu para eles atingirem sem querer.
+  -->
+  <Style TargetType="ContextMenu">
+    <Setter Property="OverridesDefaultStyle" Value="True" />
+    <Setter Property="SnapsToDevicePixels" Value="True" />
+    <Setter Property="FontFamily" Value="Segoe UI Variable Text, Segoe UI" />
+    <Setter Property="FontSize" Value="14" />
+    <Setter Property="MinWidth" Value="200" />
+    <!-- a sombra e desenhada aqui dentro; a do sistema viria com quina reta -->
+    <Setter Property="HasDropShadow" Value="False" />
+    <Setter Property="Template">
+      <Setter.Value>
+        <ControlTemplate TargetType="ContextMenu">
+          <!-- a margem deixa a sombra caber dentro do popup, sem ser cortada -->
+          <Border Margin="8" Background="#F52C2C2C" BorderBrush="#38FFFFFF" BorderThickness="1"
+                  CornerRadius="8" Padding="4">
+            <Border.Effect>
+              <DropShadowEffect BlurRadius="16" ShadowDepth="4" Opacity="0.55" Color="Black" />
+            </Border.Effect>
+            <StackPanel IsItemsHost="True" KeyboardNavigation.DirectionalNavigation="Cycle" />
+          </Border>
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+  </Style>
+
+  <Style TargetType="MenuItem">
+    <Setter Property="OverridesDefaultStyle" Value="True" />
+    <Setter Property="Foreground" Value="{StaticResource FluentText}" />
+    <Setter Property="Template">
+      <Setter.Value>
+        <ControlTemplate TargetType="MenuItem">
+          <Border x:Name="Bg" Background="Transparent" CornerRadius="4" Margin="2,1" Padding="12,8">
+            <Grid>
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+              </Grid.ColumnDefinitions>
+              <ContentPresenter ContentSource="Header" VerticalAlignment="Center"
+                                RecognizesAccessKey="True" />
+              <!-- o atalho, quando o item tem um, alinhado a direita como no Windows -->
+              <TextBlock Grid.Column="1" Text="{TemplateBinding InputGestureText}"
+                         Foreground="{StaticResource FluentTextDim}" FontSize="12"
+                         VerticalAlignment="Center" Margin="24,0,0,0" />
+            </Grid>
+          </Border>
+          <ControlTemplate.Triggers>
+            <Trigger Property="IsHighlighted" Value="True">
+              <Setter TargetName="Bg" Property="Background" Value="#1EFFFFFF" />
+            </Trigger>
+            <Trigger Property="IsEnabled" Value="False">
+              <Setter Property="Opacity" Value="0.4" />
+            </Trigger>
+          </ControlTemplate.Triggers>
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+  </Style>
+
+  <Style x:Key="FluentSeparator" TargetType="Separator">
+    <Setter Property="OverridesDefaultStyle" Value="True" />
+    <Setter Property="HorizontalAlignment" Value="Stretch" />
+    <Setter Property="Template">
+      <Setter.Value>
+        <ControlTemplate TargetType="Separator">
+          <Border Height="1" HorizontalAlignment="Stretch"
+                  Background="{StaticResource FluentDivider}" Margin="12,5" />
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+  </Style>
+
+  <!--
+    Dentro de um menu o WPF nao usa o estilo implicito de Separator: ele procura esta
+    chave. Sem ela o risco continua sendo o do tema claro — comecando colado na borda
+    esquerda e sobrando na direita, que e o desalinhamento que se ve.
+  -->
+  <Style x:Key="{x:Static controls:MenuItem.SeparatorStyleKey}" TargetType="Separator"
+         BasedOn="{StaticResource FluentSeparator}" />
+
+  <Style TargetType="Separator" BasedOn="{StaticResource FluentSeparator}" />
+
+  <!-- ── botoes ────────────────────────────────────────────── -->
+  <Style x:Key="FluentButton" TargetType="Button">
+    <Setter Property="Foreground" Value="{StaticResource FluentText}" />
+    <Setter Property="Height" Value="32" />
+    <Setter Property="Padding" Value="16,0" />
+    <Setter Property="Cursor" Value="Hand" />
+    <Setter Property="Template">
+      <Setter.Value>
+        <ControlTemplate TargetType="Button">
+          <Border x:Name="Bg" Background="{StaticResource FluentControl}"
+                  BorderBrush="{StaticResource FluentControlBorder}" BorderThickness="1"
+                  CornerRadius="4" Padding="{TemplateBinding Padding}">
+            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+          </Border>
+          <ControlTemplate.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+              <Setter TargetName="Bg" Property="Background" Value="{StaticResource FluentControlHover}" />
+            </Trigger>
+            <Trigger Property="IsPressed" Value="True">
+              <Setter TargetName="Bg" Property="Opacity" Value="0.7" />
+            </Trigger>
+          </ControlTemplate.Triggers>
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+  </Style>
+
+  <Style x:Key="FluentAccentButton" TargetType="Button" BasedOn="{StaticResource FluentButton}">
+    <Setter Property="Foreground" Value="{StaticResource FluentOnAccent}" />
+    <Setter Property="Template">
+      <Setter.Value>
+        <ControlTemplate TargetType="Button">
+          <Border x:Name="Bg" Background="{StaticResource FluentAccent}" CornerRadius="4"
+                  Padding="{TemplateBinding Padding}">
+            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+          </Border>
+          <ControlTemplate.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+              <Setter TargetName="Bg" Property="Background" Value="{StaticResource FluentAccentHover}" />
+            </Trigger>
+            <Trigger Property="IsPressed" Value="True">
+              <Setter TargetName="Bg" Property="Opacity" Value="0.7" />
+            </Trigger>
+          </ControlTemplate.Triggers>
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+  </Style>
+
+</ResourceDictionary>
