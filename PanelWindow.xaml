@@ -168,6 +168,35 @@
                         VerticalAlignment="Center" />
         </Button>
 
+        <!-- O que está tocando, com os controles na própria barra. O bloco inteiro some
+             quando não há mídia (ShowMedia) — foi o pedido: item parado o dia inteiro pesa
+             mais que o deslocamento dos vizinhos quando a música começa. -->
+        <StackPanel Orientation="Horizontal" VerticalAlignment="Center"
+                    Visibility="{Binding ShowMedia, Converter={StaticResource BoolToVisible}}">
+
+          <Button Style="{StaticResource PanelButton}" Click="OnMediaPrevious" Padding="5,2"
+                  IsEnabled="{Binding Media.CanPrevious}" ToolTip="Faixa anterior">
+            <ui:GlyphIcon Glyph="&#xE892;" Fill="#FFF2F2F2" Size="13" VerticalAlignment="Center" />
+          </Button>
+
+          <Button Style="{StaticResource PanelButton}" Click="OnMediaToggle" Padding="5,2"
+                  ToolTip="Tocar ou pausar">
+            <ui:GlyphIcon Glyph="{Binding MediaGlyph}" Fill="#FFF2F2F2" Size="13" VerticalAlignment="Center" />
+          </Button>
+
+          <Button Style="{StaticResource PanelButton}" Click="OnMediaNext" Padding="5,2"
+                  IsEnabled="{Binding Media.CanNext}" ToolTip="Próxima faixa">
+            <ui:GlyphIcon Glyph="&#xE893;" Fill="#FFF2F2F2" Size="13" VerticalAlignment="Center" />
+          </Button>
+
+          <!-- o texto abre o card; os botões acima agem direto, sem abrir nada -->
+          <Button x:Name="MediaButton" Style="{StaticResource ClockButton}" Click="OnMedia"
+                  ToolTip="{Binding Media.Summary}">
+            <TextBlock Text="{Binding Media.Title}" Foreground="#FFE8E8EA" FontSize="12"
+                       VerticalAlignment="Center" MaxWidth="150" TextTrimming="CharacterEllipsis" />
+          </Button>
+        </StackPanel>
+
         <!-- a pilha do Windows: corpo, ponta e o miolo que enche conforme a carga.
              A porcentagem fica na dica do mouse: o desenho ja diz o quanto resta. -->
         <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,10,0"
@@ -515,6 +544,81 @@
                 </DataTemplate>
               </ItemsControl.ItemTemplate>
             </ItemsControl>
+          </StackPanel>
+        </Border>
+      </Popup>
+
+      <!-- O card da mídia: capa, o que está tocando, onde a faixa está e os controles
+           maiores. A barra de progresso aceita clique para pular no tempo. -->
+      <Popup x:Name="MediaPopup" PlacementTarget="{Binding ElementName=MediaButton}"
+             Placement="Bottom" VerticalOffset="6" HorizontalOffset="-8"
+             StaysOpen="True" AllowsTransparency="True" PopupAnimation="Fade">
+        <Border Background="#F7242424" BorderBrush="#2EFFFFFF" BorderThickness="1"
+                CornerRadius="10" Padding="16,14" Margin="10">
+          <Border.Effect>
+            <DropShadowEffect BlurRadius="20" ShadowDepth="5" Opacity="0.55" Color="Black" />
+          </Border.Effect>
+          <StackPanel Width="280">
+
+            <!-- o mesmo cabeçalho dos outros cards: sem ele, o título da faixa (também em 14
+                 SemiBold) ocupava o lugar visual do cabeçalho e a fonte parecia destoar -->
+            <Grid Margin="0,0,0,12">
+              <StackPanel Orientation="Horizontal">
+                <ui:GlyphIcon Glyph="&#xE8D6;" Fill="#FFF2F2F2" Size="16"
+                              VerticalAlignment="Center" Margin="0,0,10,0" />
+                <TextBlock Text="Tocando agora" Foreground="#FFF2F2F2" FontSize="14"
+                           FontWeight="SemiBold" VerticalAlignment="Center" />
+              </StackPanel>
+            </Grid>
+
+            <StackPanel Orientation="Horizontal">
+              <!-- a capa, quando o programa publica uma; o quadro fica lá de qualquer jeito
+                   para o card não mudar de largura entre uma faixa e outra -->
+              <Border Width="56" Height="56" CornerRadius="6" Background="#22FFFFFF"
+                      VerticalAlignment="Top">
+                <Image Source="{Binding Media.Cover}" Stretch="UniformToFill"
+                       RenderOptions.BitmapScalingMode="HighQuality" />
+              </Border>
+
+              <StackPanel Margin="12,0,0,0" Width="200" VerticalAlignment="Center">
+                <TextBlock Text="{Binding Media.Title}" Foreground="#FFE8E8EA" FontSize="12"
+                           FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                <TextBlock Text="{Binding Media.Artist}" Foreground="#FFE8E8EA" FontSize="12"
+                           TextTrimming="CharacterEllipsis" Margin="0,3,0,0" />
+                <TextBlock Text="{Binding Media.Album}" Foreground="#FF9D9D9D" FontSize="11"
+                           TextTrimming="CharacterEllipsis" Margin="0,3,0,0" />
+              </StackPanel>
+            </StackPanel>
+
+            <!-- progresso: o trilho inteiro é clicável, e a conta de onde se clicou vira o
+                 ponto da faixa (veja OnMediaSeek) -->
+            <Border x:Name="MediaTrack" Height="4" CornerRadius="2" Background="#33FFFFFF"
+                    Margin="0,14,0,0" Cursor="Hand" MouseLeftButtonUp="OnMediaSeek">
+              <Rectangle x:Name="MediaFill" Fill="#FF4CC2FF" RadiusX="2" RadiusY="2"
+                         HorizontalAlignment="Left" />
+            </Border>
+
+            <Grid Margin="0,6,0,0">
+              <TextBlock Text="{Binding MediaElapsed}" Foreground="#FF9D9D9D" FontSize="11"
+                         HorizontalAlignment="Left" />
+              <TextBlock Text="{Binding MediaRemaining}" Foreground="#FF9D9D9D" FontSize="11"
+                         HorizontalAlignment="Right" />
+            </Grid>
+
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,10,0,0">
+              <Button Style="{StaticResource PanelButton}" Click="OnMediaPrevious" Padding="12,4"
+                      IsEnabled="{Binding Media.CanPrevious}" ToolTip="Faixa anterior">
+                <ui:GlyphIcon Glyph="&#xE892;" Fill="#FFF2F2F2" Size="16" VerticalAlignment="Center" />
+              </Button>
+              <Button Style="{StaticResource PanelButton}" Click="OnMediaToggle" Padding="14,4"
+                      ToolTip="Tocar ou pausar">
+                <ui:GlyphIcon Glyph="{Binding MediaGlyph}" Fill="#FFF2F2F2" Size="18" VerticalAlignment="Center" />
+              </Button>
+              <Button Style="{StaticResource PanelButton}" Click="OnMediaNext" Padding="12,4"
+                      IsEnabled="{Binding Media.CanNext}" ToolTip="Próxima faixa">
+                <ui:GlyphIcon Glyph="&#xE893;" Fill="#FFF2F2F2" Size="16" VerticalAlignment="Center" />
+              </Button>
+            </StackPanel>
           </StackPanel>
         </Border>
       </Popup>

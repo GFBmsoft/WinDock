@@ -32,6 +32,7 @@ public partial class PanelWindow : Window
         _outsideClick.Tick += (_, _) => CheckOutsideClick();
         _trayCardTimeout.Tick += (_, _) => { _trayCardTimeout.Stop(); TrayPopup.IsOpen = false; };
         _volumeOsd.Tick += (_, _) => HideVolumeOsd();
+        _mediaTick.Tick += (_, _) => UpdateMediaProgress();
         TrayPopup.CustomPopupPlacementCallback = PlaceTrayCard;
 
         SourceInitialized += OnSourceInitialized;
@@ -81,6 +82,7 @@ public partial class PanelWindow : Window
     private bool _volumeWasOpen;
     private bool _powerWasOpen;
     private bool _calendarWasOpen;
+    private bool _mediaWasOpen;
 
     protected override void OnPreviewMouseDown(System.Windows.Input.MouseButtonEventArgs e)
     {
@@ -89,6 +91,7 @@ public partial class PanelWindow : Window
         _volumeWasOpen = VolumePopup.IsOpen;
         _powerWasOpen = PowerPopup.IsOpen;
         _calendarWasOpen = CalendarPopup.IsOpen;
+        _mediaWasOpen = MediaPopup.IsOpen;
 
         base.OnPreviewMouseDown(e);
     }
@@ -125,6 +128,70 @@ public partial class PanelWindow : Window
     {
         CloseAllPopups();
         if (_shellPanelWasOpen) PanelModel.CloseShellPanel();
+    }
+
+    // ── mídia ────────────────────────────────────────────────
+
+    /// <summary>
+    /// Os três controles agem direto, sem abrir nada: é o ponto de estarem na barra.
+    ///
+    /// Nenhum deles fecha os painéis abertos, de propósito — pausar a música com o controle
+    /// de volume aberto é gesto normal, e fechar o painel no meio seria um susto.
+    /// </summary>
+    private async void OnMediaToggle(object sender, RoutedEventArgs e) => await _model.ToggleMedia();
+    private async void OnMediaNext(object sender, RoutedEventArgs e) => await _model.NextMedia();
+    private async void OnMediaPrevious(object sender, RoutedEventArgs e) => await _model.PreviousMedia();
+
+    /// <summary>O texto da faixa abre o card, como os outros botões da barra abrem os deles.</summary>
+    private void OnMedia(object sender, RoutedEventArgs e)
+    {
+        var estavaAberto = _mediaWasOpen;
+        CloseOpenPanels();
+
+        if (!estavaAberto)
+        {
+            MediaPopup.IsOpen = true;
+            _ = _model.RefreshMediaPosition();
+            _mediaTick.Start();
+        }
+
+        WatchOutsideClick();
+    }
+
+    /// <summary>
+    /// Clique na barra de progresso: pula para aquele ponto da faixa.
+    ///
+    /// A conta é a posição do clique dividida pela largura do trilho — e vem do trilho, não
+    /// do preenchimento, que só ocupa o que já passou.
+    /// </summary>
+    private async void OnMediaSeek(object sender, MouseButtonEventArgs e)
+    {
+        if (sender is not FrameworkElement trilho || trilho.ActualWidth <= 0) return;
+
+        var x = e.GetPosition(trilho).X;
+        await _model.SeekMedia(x / trilho.ActualWidth);
+    }
+
+    /// <summary>
+    /// A posição da faixa é a única coisa que anda sozinha — o resto chega por evento. Este
+    /// relógio existe só enquanto o card está aberto, e para junto com ele.
+    /// </summary>
+    private readonly System.Windows.Threading.DispatcherTimer _mediaTick =
+        new() { Interval = TimeSpan.FromSeconds(1) };
+
+    /// <summary>
+    /// Relê a posição e redesenha o preenchimento da barra de progresso.
+    ///
+    /// A largura é calculada aqui, e não por binding: o trilho tem largura de layout (ele
+    /// estica com o card), e uma fração só vira pixels depois que o WPF mediu o elemento.
+    /// É a mesma conta que a pilha da bateria faz.
+    /// </summary>
+    private async void UpdateMediaProgress()
+    {
+        if (!MediaPopup.IsOpen) { _mediaTick.Stop(); return; }
+
+        await _model.RefreshMediaPosition();
+        MediaFill.Width = MediaTrack.ActualWidth * _model.MediaProgress;
     }
 
     private void OnBluetooth(object sender, RoutedEventArgs e)
@@ -172,7 +239,7 @@ public partial class PanelWindow : Window
 
     private bool AnyPopupOpen =>
         BluetoothPopup.IsOpen || VolumePopup.IsOpen || PowerPopup.IsOpen ||
-        CalendarPopup.IsOpen || TrayPopup.IsOpen;
+        CalendarPopup.IsOpen || TrayPopup.IsOpen || MediaPopup.IsOpen;
 
     private void CheckOutsideClick()
     {
@@ -195,7 +262,7 @@ public partial class PanelWindow : Window
         // fechar aqui faria o clique no icone reabrir logo em seguida
         if (Contains(BluetoothPopup, point) || Contains(VolumePopup, point) ||
             Contains(PowerPopup, point) || Contains(CalendarPopup, point) ||
-            Contains(TrayPopup, point) || ContainsBar(point)) return;
+            Contains(TrayPopup, point) || Contains(MediaPopup, point) || ContainsBar(point)) return;
 
         Log.Trace($"clique fora dos painéis em ({cursor.X},{cursor.Y}): fechando");
         CloseAllPopups();
@@ -589,6 +656,9 @@ public partial class PanelWindow : Window
         CalendarPopup.IsOpen = false;
         TrayPopup.IsOpen = false;
         _trayCardTimeout.Stop();
+
+        MediaPopup.IsOpen = false;
+        _mediaTick.Stop();
 
         // o mostrador de volume não é um painel, mas some junto: o controle de volume já
         // traz o número, e deixá-lo por cima seria a mesma informação duas vezes

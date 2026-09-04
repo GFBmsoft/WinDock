@@ -27,6 +27,8 @@ public partial class SettingsWindow : Window
         DataContext = config;
 
         foreach (var name in _config.TilingExcludedApps) _excludedApps.Add(name);
+        LoadTrayNames();
+        LoadMediaApps();
         ExcludedAppsList.ItemsSource = _excludedApps;
 
         // o "iniciar com o Windows" mora no registro, nao no config.json.
@@ -109,6 +111,156 @@ public partial class SettingsWindow : Window
         _excludedApps.Remove(name);
         _config.TilingExcludedApps.Remove(name);
         _config.NotifyTilingExcludedAppsChanged();
+    }
+
+    // ── programas na barra de mídia ──────────────────────────
+
+    /// <summary>
+    /// Uma linha da lista: um programa de mídia e se ele pode ocupar a barra.
+    ///
+    /// Marcar grava na hora e a barra reavalia qual sessão seguir — sem botão de confirmar,
+    /// como o resto do painel.
+    /// </summary>
+    private sealed class MediaAppRow(DockConfig config, string appId)
+    {
+        public string AppId { get; } = appId;
+        public string Name { get; } = MediaService.FriendlyName(appId);
+
+        public bool Allowed
+        {
+            get => config.MediaApps.Contains(AppId, StringComparer.OrdinalIgnoreCase);
+            set
+            {
+                config.MediaApps.RemoveAll(a => a.Equals(AppId, StringComparison.OrdinalIgnoreCase));
+                if (value) config.MediaApps.Add(AppId);
+
+                config.Save();
+                config.NotifyMediaAppsChanged();
+            }
+        }
+    }
+
+    /// <summary>
+    /// Monta a lista com os programas de mídia vistos nesta sessão, mais os que já estavam
+    /// marcados — senão um programa fechado sumiria da lista sem jeito de desmarcá-lo.
+    /// </summary>
+    private void LoadMediaApps()
+    {
+        var apps = MediaService.KnownApps
+            .Concat(_config.MediaApps)
+            .Where(a => !string.IsNullOrWhiteSpace(a))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(MediaService.FriendlyName, StringComparer.CurrentCultureIgnoreCase)
+            .ToList();
+
+        MediaAppsList.ItemsSource = apps.Select(a => new MediaAppRow(_config, a)).ToList();
+        MediaAppsEmpty.Visibility = apps.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    // ── apelidos dos ícones sem nome ─────────────────────────
+
+    /// <summary>
+    /// Uma linha da lista "Ícones sem nome": o desenho, os candidatos e o apelido.
+    ///
+    /// O apelido é gravado a cada tecla — não há botão de confirmar, e a barra reflete a
+    /// mudança na leitura seguinte. Guardar por assinatura do desenho é o que permite
+    /// reconhecer o mesmo ícone depois; veja <see cref="DockConfig.TrayNames"/>.
+    /// </summary>
+    private sealed class TrayNameRow(DockConfig config, TrayIcon icon, string suggestion)
+        : System.ComponentModel.INotifyPropertyChanged
+    {
+        public string Signature { get; } = icon.Signature;
+        public System.Windows.Media.Imaging.BitmapSource? Image { get; } = icon.Image;
+        public string Suggestion { get; } = suggestion;
+
+        private string _alias = config.TrayNames.TryGetValue(icon.Signature, out var a) ? a : string.Empty;
+        public string Alias
+        {
+            get => _alias;
+            set
+            {
+                if (_alias == value) return;
+                _alias = value;
+
+                if (string.IsNullOrWhiteSpace(value)) config.TrayNames.Remove(Signature);
+                else config.TrayNames[Signature] = value.Trim();
+
+                config.Save();
+                PropertyChanged?.Invoke(this, new(nameof(Alias)));
+            }
+        }
+
+        public event System.ComponentModel.PropertyChangedEventHandler? PropertyChanged;
+    }
+
+    /// <summary>
+    /// Monta a lista de ícones que precisam de apelido: os que a automação não nomeou, mais
+    /// os que já foram batizados (senão não haveria como reeditar o texto).
+    ///
+    /// Usa a bandeja em cache, e não uma leitura nova: ler de verdade levanta meio shell e
+    /// passa de meio segundo. Se a bandeja ainda não foi lida nesta sessão, o cartão
+    /// simplesmente não aparece.
+    /// </summary>
+    private void LoadTrayNames()
+    {
+        var icons = TrayService.Cached
+            .Where(i => !string.IsNullOrEmpty(i.Signature))
+            .Where(i => i.Name.StartsWith("Ícone da bandeja") || _config.TrayNames.ContainsKey(i.Signature))
+            .ToList();
+
+        if (icons.Count == 0) return;
+
+        var suggestion = Candidates(TrayService.Cached);
+        TrayNamesList.ItemsSource = icons.Select(i => new TrayNameRow(_config, i, suggestion)).ToList();
+        TrayNamesCard.Visibility = Visibility.Visible;
+    }
+
+    /// <summary>
+    /// Um palpite de quem pode ser o ícone anônimo: programas rodando agora que têm registro
+    /// de ícone de bandeja e cujo nome não aparece na lista já lida.
+    ///
+    /// Não identifica sozinho — testado, sobram uns três candidatos —, mas encurta muito a
+    /// escolha: em vez de adivinhar, a pessoa reconhece o nome do próprio programa. O
+    /// processo do botão não serve para isso: todos os ícones do painel pertencem ao
+    /// explorer, medido.
+    /// </summary>
+    private static string Candidates(IReadOnlyList<TrayIcon> icons)
+    {
+        try
+        {
+            var vivos = System.Diagnostics.Process.GetProcesses()
+                .Select(p => { try { return p.MainModule?.FileName; } catch { return null; } })
+                .Where(f => !string.IsNullOrEmpty(f))
+                .Select(f => System.IO.Path.GetFileName(f)!)
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+            using var key = Microsoft.Win32.Registry.CurrentUser
+                .OpenSubKey(@"Control Panel\NotifyIconSettings");
+            if (key is null) return string.Empty;
+
+            var nomes = icons.Select(i => i.Name).ToList();
+            var achados = new List<string>();
+
+            foreach (var sub in key.GetSubKeyNames())
+            {
+                using var item = key.OpenSubKey(sub);
+                if (item?.GetValue("ExecutablePath") is not string path) continue;
+
+                var exe = System.IO.Path.GetFileName(path);
+                if (!vivos.Contains(exe) || achados.Contains(exe, StringComparer.OrdinalIgnoreCase)) continue;
+
+                // já identificado na lista pela dica de mouse: não é candidato
+                var dica = item.GetValue("InitialTooltip") as string;
+                if (!string.IsNullOrWhiteSpace(dica) &&
+                    nomes.Any(n => n.Contains(dica!, StringComparison.OrdinalIgnoreCase) ||
+                                   dica!.Contains(n, StringComparison.OrdinalIgnoreCase))) continue;
+
+                achados.Add(exe);
+            }
+
+            return achados.Count == 0 ? string.Empty : "talvez: " + string.Join(", ", achados);
+        }
+        catch { return string.Empty; }
     }
 
     private void OnReset(object sender, RoutedEventArgs e) => _config.ResetAppearance();

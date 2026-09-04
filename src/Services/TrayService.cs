@@ -14,9 +14,22 @@ namespace WinDock.Services;
 /// A <see cref="Position"/> é o lugar dele no painel de ícones ocultos — é por ela que o
 /// clique encontra o botão de volta, já que os botões de lá não têm identificador nenhum.
 /// </summary>
-public sealed record TrayIcon(int Position, string Name, BitmapSource? Image)
+public sealed record TrayIcon(int Position, string Name, BitmapSource? Image, string Signature = "",
+                             string Alias = "")
 {
-    public string Label => string.IsNullOrWhiteSpace(Name) ? "Ícone da bandeja" : Name;
+    /// <summary>
+    /// O que a pessoa lê: o apelido dela, se houver, senão o nome que veio do Windows.
+    ///
+    /// O apelido é um campo à parte, e <b>não</b> uma troca do <see cref="Name"/>, porque o
+    /// nome é a identidade usada para reachar o botão na hora do clique — o
+    /// <c>Find</c> confere se o botão naquela posição ainda é o mesmo comparando o nome
+    /// montado pela mesma regra da leitura. Trocar o <c>Name</c> pelo apelido fazia essa
+    /// conferência falhar sempre, e o clique era recusado em silêncio: o ícone batizado
+    /// deixava de abrir o programa.
+    /// </summary>
+    public string Label => !string.IsNullOrWhiteSpace(Alias) ? Alias
+                         : string.IsNullOrWhiteSpace(Name) ? "Ícone da bandeja"
+                         : Name;
 }
 
 /// <summary>
@@ -327,6 +340,15 @@ public static class TrayService
 
     /// <summary>A última leitura que deu certo — o que o cartão mostra se a próxima falhar.</summary>
     private static IReadOnlyList<TrayIcon> _cache = Array.Empty<TrayIcon>();
+
+    /// <summary>
+    /// A última lista lida, sem custo nenhum.
+    ///
+    /// É o que as Configurações usam para mostrar os ícones e deixar batizá-los: uma leitura
+    /// de verdade levanta meio shell e passa de meio segundo, e abrir uma janela de opções
+    /// não é hora para isso. Vem vazia se a bandeja ainda não foi lida nesta sessão.
+    /// </summary>
+    public static IReadOnlyList<TrayIcon> Cached => _cache;
     /// <summary>
     /// Abre o painel de ícones ocultos, faz o que for pedido com ele e devolve tudo ao lugar.
     ///
@@ -386,8 +408,12 @@ public static class TrayService
             // O `pinned` já pôs a área de trabalho no valor que o shell vai querer, então
             // este ShowWindow não muda nada e ninguém é redimensionado. O valor da dock
             // volta quando o `pinned` for solto — depois do `finally` que esconde a barra.
+            var relogio = System.Diagnostics.Stopwatch.StartNew();
+            long tAbrir, tLista, tTrabalho;
+
             if (!wasVisible) ShowWindow(taskbar, SW_SHOW);
             if (!OpenOverflow(taskbar)) return null;
+            tAbrir = relogio.ElapsedMilliseconds;
 
             var flyout = Overflow();
             if (flyout == 0) { Log.Write("o painel do Windows não ficou visível depois de abrir"); return null; }
@@ -422,12 +448,22 @@ public static class TrayService
             // a lista — medido, a leitura ia a 4 s e voltava com zero ícones. O XAML do shell só
             // preenche os botões enquanto o painel está ativo.
             if (!WaitForItems()) Log.Write("o painel do Windows abriu, mas a lista dele não ficou pronta");
+            tLista = relogio.ElapsedMilliseconds;
 
             // Depois da lista pronta, sim: a leitura que vem a seguir é automação e foto, e
             // nenhuma das duas precisa de foco. Veja o `KeepsFocus`.
             focus?.Restore();
 
             var result = work(flyout);
+            tTrabalho = relogio.ElapsedMilliseconds;
+
+            // onde o tempo foi: sem isto, otimizar a leitura é chutar qual das quatro fases
+            // está cara — e as constantes de espera daqui já foram calibradas no escuro antes
+            Log.Trace($"fases da leitura: abrir={tAbrir} ms, lista=+{tLista - tAbrir} ms, " +
+                      $"foto/recorte=+{tTrabalho - tLista} ms");
+            Log.Trace($"  espera pela lista: {_probeCount} sondagem(ns), {_probeCost} ms dentro " +
+                      $"do Buttons() e ~{(tLista - tAbrir) - _probeCost} ms dormindo");
+
 
             // Acionar um ícone normalmente já fecha o painel do Windows — é o que acontece
             // quando se clica nele pela barra dele. Dar o Esc por cima disso fecharia também
@@ -481,6 +517,9 @@ public static class TrayService
                 }
             }
 
+            Log.Trace($"  fechar o painel: {relogio.ElapsedMilliseconds - tTrabalho} ms " +
+                      $"({(quietClose ? "sem Esc" : "Esc + espera pela animação")})");
+
             SweepShellPopups();
             return result;
         }
@@ -527,13 +566,18 @@ public static class TrayService
         foreach (var button in Buttons(flyout))
         {
             var box = button.Cached.BoundingRectangle;
+            var signature = string.Empty;
             var image = shot is null ? null : Crop(shot, width, height,
                                                    (int)box.Left - bounds.Left,
                                                    (int)box.Top - bounds.Top,
-                                                   (int)box.Width, (int)box.Height);
+                                                   (int)box.Width, (int)box.Height,
+                                                   out signature);
 
+            var name = Clean(NameOf(button, position));
+            if (name.StartsWith("Ícone da bandeja"))
+                Log.Trace($"  ícone {position + 1} sem nome: assinatura do desenho = {signature}");
 
-            found.Add(new TrayIcon(position, Clean(NameOf(button, position)), image));
+            found.Add(new TrayIcon(position, name, image, signature));
             position++;
         }
 
@@ -579,7 +623,37 @@ public static class TrayService
         _blank++;
         Log.Trace($"o ícone na posição {position + 1} não tem nome na automação " +
                   "(o programa dono não publica dica de mouse — o Windows também não o nomeia)");
+
+        DumpProperties(button, position);
         return $"Ícone da bandeja {position + 1}";
+    }
+
+    /// <summary>
+    /// Despeja no rastro tudo o que a automação sabe sobre um ícone sem nome.
+    ///
+    /// Existe para uma pergunta específica: o <c>Name</c> vem vazio para alguns ícones, mas
+    /// será que o nome real está em outra propriedade? Só roda para os anônimos, que são
+    /// poucos, e só com o rastro ligado — enumerar propriedades ao vivo custa uma ida ao
+    /// shell por item.
+    /// </summary>
+    private static void DumpProperties(AutomationElement button, int position)
+    {
+        try
+        {
+            var c = button.Current;
+            Log.Trace($"  ícone {position + 1}: AutomationId='{c.AutomationId}' HelpText='{c.HelpText}' " +
+                      $"ClassName='{c.ClassName}' ItemStatus='{c.ItemStatus}' ItemType='{c.ItemType}' " +
+                      $"AccessKey='{c.AccessKey}' FrameworkId='{c.FrameworkId}' pid={c.ProcessId}");
+
+            // e o que mais houver: varre todas as propriedades com valor, sem lista fixa
+            foreach (var prop in button.GetSupportedProperties())
+            {
+                var value = button.GetCurrentPropertyValue(prop);
+                if (value is string s && !string.IsNullOrWhiteSpace(s))
+                    Log.Trace($"    {prop.ProgrammaticName} = '{s}'");
+            }
+        }
+        catch (Exception ex) { Log.Trace($"  ícone {position + 1}: não deu para ler as propriedades — {ex.Message}"); }
     }
 
     /// <summary>
@@ -699,8 +773,11 @@ public static class TrayService
     /// transparente.
     /// </summary>
     private static BitmapSource? Crop(byte[] pixels, int width, int height,
-                                      int x, int y, int boxWidth, int boxHeight)
+                                      int x, int y, int boxWidth, int boxHeight,
+                                      out string signature)
     {
+        signature = string.Empty;
+
         // O recorte é quadrado e o botão não é: ancorá-lo no canto — que era o que se fazia
         // — deixa o ícone deslocado para um lado e comido do outro, o que na barra aparece
         // como um desenho torto. Centralizado nos dois eixos, o ícone sai inteiro e no lugar.
@@ -735,7 +812,63 @@ public static class TrayService
 
         var image = BitmapSource.Create(size, size, 96, 96, PixelFormats.Bgra32, null, crop, size * 4);
         image.Freeze();
+        signature = Signature(crop, size);
         return image;
+    }
+
+    /// <summary>
+    /// Uma assinatura curta do desenho de um ícone, para servir de identidade quando não há
+    /// nome nenhum.
+    ///
+    /// Alguns programas não publicam dica de mouse (o `Master.exe` desta máquina é o caso), e
+    /// aí não sobra **nada** de texto para identificá-los: a automação dá a todos os botões o
+    /// mesmo <c>AutomationId</c> ("NotifyItemIcon") e a mesma classe, e o registro guarda a
+    /// dica vazia. O que resta é o próprio desenho.
+    ///
+    /// A assinatura reduz o recorte a uma grade 8×8 de médias e guarda 4 bits por canal. Os
+    /// dois cortes são de propósito: a média dilui o antialiasing (que muda de uma foto para
+    /// outra), e a quantização absorve o que sobrar. O que ela **não** tolera é o programa
+    /// trocar o próprio ícone — nesse caso é outro desenho, e vira outra identidade.
+    /// </summary>
+    private static string Signature(byte[] crop, int size)
+    {
+        const int Cells = 8;
+        var sb = new StringBuilder(Cells * Cells * 3);
+
+        for (var cy = 0; cy < Cells; cy++)
+        for (var cx = 0; cx < Cells; cx++)
+        {
+            long b = 0, g = 0, r = 0;
+            var opaque = 0;
+            var total = 0;
+
+            var x0 = cx * size / Cells; var x1 = (cx + 1) * size / Cells;
+            var y0 = cy * size / Cells; var y1 = (cy + 1) * size / Cells;
+
+            for (var y = y0; y < y1; y++)
+            for (var x = x0; x < x1; x++)
+            {
+                var i = (y * size + x) * 4;
+                total++;
+                if (crop[i + 3] == 0) continue;
+
+                b += crop[i]; g += crop[i + 1]; r += crop[i + 2];
+                opaque++;
+            }
+
+            // Célula de borda é quase toda fundo, e quanto dela é fundo muda de uma foto
+            // para a outra: a máscara de transparência sai da tolerância de cor, que depende
+            // do pixel amostrado como fundo. Medido — era só nas bordas que a assinatura
+            // oscilava entre leituras. Abaixo de um quinto de pixels desenhados a célula
+            // conta como vazia, e a assinatura passa a depender só do miolo, que é estável.
+            if (total == 0 || opaque * 5 < total) { sb.Append("000"); continue; }
+
+            sb.Append((b / opaque >> 4).ToString("x1"))
+              .Append((g / opaque >> 4).ToString("x1"))
+              .Append((r / opaque >> 4).ToString("x1"));
+        }
+
+        return sb.ToString();
     }
 
     /// <summary>
@@ -791,7 +924,15 @@ public static class TrayService
 
             ((InvokePattern)button.GetCurrentPattern(InvokePattern.Pattern)).Invoke();
             return icon;
-        }, handsOff: true) is not null;
+
+            // `quietClose` pela mesma razão que o menu de contexto já usava: quando o painel
+            // do Windows não se fecha sozinho depois do clique, o caminho antigo mandava um
+            // **Esc** — e o Esc não tem endereço, vai para quem estiver em primeiro plano.
+            // Se o programa dono do ícone já tiver aberto a janela dele até lá, é ela que
+            // recebe a tecla; num app cuja tela fecha no Esc (é o caso de muita coisa em
+            // Delphi), o efeito é "abre e some". O `HideOverflow` tira o painel da tela sem
+            // tecla nenhuma, é instantâneo e não depende de animação.
+        }, handsOff: true, quietClose: true) is not null;
 
         // Abrir o painel do Windows para achar o botão do ícone traz o **explorer** para
         // primeiro plano — e diferente de uma leitura comum, aqui ninguém devolve o foco no
@@ -1188,12 +1329,25 @@ public static class TrayService
         var previous = -1;
         var settled = TimeSpan.MinValue;
 
+        // Onde vão os ~840 ms desta fase: dormindo entre sondagens, ou dentro delas? Cada
+        // volta enumera a árvore de automação do painel, e isso não é barato — se o custo
+        // estiver aqui, encurtar prazos não adianta e o caminho é sondar menos ou mais
+        // barato. Sem separar as duas coisas, calibrar o Poll seria chute.
+        var sondagens = 0;
+        long emButtons = 0;
+        var cronometro = new System.Diagnostics.Stopwatch();
+
         for (var waited = TimeSpan.Zero; waited < Timeout; waited += Poll)
         {
             var flyout = Overflow();
             if (flyout == 0) return false;
 
+            cronometro.Restart();
             var buttons = Buttons(flyout);
+            emButtons += cronometro.ElapsedMilliseconds;
+            sondagens++;
+            _probeCount = sondagens;
+            _probeCost = emButtons;
 
             if (buttons.Count > 0 && buttons.Count == previous)
             {
@@ -1210,6 +1364,10 @@ public static class TrayService
 
         return Overflow() != 0;
     }
+
+    /// <summary>Quantas sondagens a última espera fez, e quanto delas foi enumerar a árvore.</summary>
+    private static int _probeCount;
+    private static long _probeCost;
 
     /// <summary>Quanto se espera pelos nomes depois de a lista parar de crescer.</summary>
     private static readonly TimeSpan Naming = TimeSpan.FromMilliseconds(400);
@@ -1396,6 +1554,13 @@ public static class TrayService
         if (flyout == 0) return;
 
         ShowWindow(flyout, SW_HIDE);
-        Log.Trace("painel do Windows escondido sem Esc: o menu do programa está aberto e o Esc o fecharia");
+
+        // Vale a pena o rastro dizer QUEM está em primeiro plano aqui: é exatamente a janela
+        // que teria recebido o Esc no caminho antigo. Quando alguém relatar "cliquei no ícone,
+        // a tela abriu e sumiu", esta linha é a que responde se era esse o caso.
+        var fg = GetForegroundWindow();
+        var titulo = new StringBuilder(120);
+        GetWindowText(fg, titulo, titulo.Capacity);
+        Log.Trace($"painel do Windows escondido sem Esc (o Esc iria para '{titulo}' {fg:X})");
     }
 }

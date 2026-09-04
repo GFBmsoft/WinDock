@@ -147,11 +147,49 @@ public sealed class DockConfig : INotifyPropertyChanged
     /// <summary>Listar o volume de cada programa dentro do controle de volume.</summary>
     public bool PanelAppVolume { get => _panelAppVolume; set => Set(ref _panelAppVolume, value); }
 
+    private bool _panelMedia = true;
+    /// <summary>
+    /// Mostrar na barra o que está tocando, com os controles de reprodução.
+    ///
+    /// Some sozinho quando não há mídia nenhuma; esta opção é para quem não quer o item nem
+    /// quando há.
+    /// </summary>
+    public bool PanelMedia { get => _panelMedia; set => Set(ref _panelMedia, value); }
+
+    /// <summary>
+    /// Quais programas podem ocupar a barra de mídia. <b>Lista vazia quer dizer todos.</b>
+    ///
+    /// Guardados pelo identificador que o Windows usa para a sessão de mídia — o Spotify se
+    /// anuncia como <c>SpotifyAB.SpotifyMusic_zpdnekdrzrea0!Spotify</c>. Serve para quem quer
+    /// a barra só para o player de música e não para todo vídeo aberto no navegador.
+    /// </summary>
+    public List<string> MediaApps { get; set; } = new();
+
+    /// <summary>A lista é um objeto só: mexer no conteúdo não avisa ninguém sozinho.</summary>
+    public void NotifyMediaAppsChanged() =>
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(MediaApps)));
+
     /// <summary>
     /// Aparelhos bluetooth que nao devem aparecer na lista da barra. Guardados pelo nome,
     /// que e como a pessoa os reconhece; a lista e curta e editada no proprio painel.
     /// </summary>
     public List<string> BluetoothHidden { get; set; } = new();
+
+    /// <summary>
+    /// Apelidos dados a ícones da bandeja que não publicam nome nenhum, guardados pela
+    /// assinatura do desenho.
+    ///
+    /// Alguns programas simplesmente não fornecem dica de mouse — o <c>Master.exe</c> desta
+    /// máquina é o caso —, e aí não há texto em lugar nenhum: a automação dá a todos os
+    /// botões o mesmo identificador ("NotifyItemIcon"), o processo do botão é sempre o
+    /// explorer, e o registro guarda a dica vazia. O que sobra para reconhecê-lo entre uma
+    /// leitura e outra é o próprio desenho, e é ele que vira a chave aqui (veja
+    /// <c>TrayService.Signature</c>).
+    ///
+    /// A consequência de usar o desenho: se o programa trocar o ícone, o apelido não
+    /// acompanha — vira outro desenho, logo outra identidade, e a linha antiga fica órfã.
+    /// </summary>
+    public Dictionary<string, string> TrayNames { get; set; } = new();
 
     // ── mosaico (tiling window manager) ──────────────────────
     private bool _tilingEnabled;
@@ -271,7 +309,7 @@ public sealed class DockConfig : INotifyPropertyChanged
         ShowRunning = d.ShowRunning; Taskbar = d.Taskbar; Launcher = d.Launcher;
         PanelBackground = d.PanelBackground; PanelOpacity = d.PanelOpacity;
         PanelCenterClock = d.PanelCenterClock;
-        PanelTray = d.PanelTray; PanelAppVolume = d.PanelAppVolume;
+        PanelTray = d.PanelTray; PanelAppVolume = d.PanelAppVolume; PanelMedia = d.PanelMedia;
         Panel = d.Panel; PanelSize = d.PanelSize;
         TilingEnabled = d.TilingEnabled; TilingGap = d.TilingGap;
         TilingBorderColor = d.TilingBorderColor; TilingBorderThickness = d.TilingBorderThickness;

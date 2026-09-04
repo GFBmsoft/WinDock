@@ -20,6 +20,10 @@
   <Window.Resources>
     <ui:HexBrushConverter x:Key="HexBrush" />
     <ui:IntToBoolConverter x:Key="IntToBool" />
+
+    <!-- cada janela precisa dos seus: um recurso declarado no PanelWindow não alcança aqui,
+         e usá-lo sem declarar não quebra a compilação — estoura só na hora de abrir -->
+    <BooleanToVisibilityConverter x:Key="BoolToVisible" />
   </Window.Resources>
 
   <Grid>
@@ -457,6 +461,50 @@
           </Grid>
         </Border>
 
+        <!-- Batizar os ícones que não têm nome. Alguns programas não publicam dica de mouse,
+             e para esses não há texto em lugar nenhum: nem na automação, nem no registro do
+             Windows. O apelido é guardado pelo desenho do ícone, que é a única coisa que
+             distingue um do outro. O cartão inteiro só aparece quando existe algum assim. -->
+        <Border x:Name="TrayNamesCard" Style="{StaticResource FluentCardBorderStyle}"
+                Visibility="Collapsed">
+          <StackPanel>
+            <TextBlock Text="Ícones sem nome" Style="{StaticResource FluentTitle}" />
+            <TextBlock Text="Estes programas não informam o próprio nome ao Windows. Dê um apelido para reconhecê-los na barra."
+                       Style="{StaticResource FluentCaption}" TextWrapping="Wrap" />
+
+            <ItemsControl x:Name="TrayNamesList" Margin="0,12,0,0">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate>
+                  <Grid Margin="0,0,0,8">
+                    <Grid.ColumnDefinitions>
+                      <ColumnDefinition Width="Auto" />
+                      <ColumnDefinition Width="Auto" />
+                      <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+
+                    <!-- o desenho, que é como a pessoa reconhece de qual programa se trata -->
+                    <Border Background="{StaticResource FluentControl}"
+                            BorderBrush="{StaticResource FluentControlBorder}" BorderThickness="1"
+                            CornerRadius="6" Width="34" Height="34" VerticalAlignment="Center">
+                      <Image Source="{Binding Image}" Width="20" Height="20"
+                             RenderOptions.BitmapScalingMode="HighQuality" />
+                    </Border>
+
+                    <TextBlock Grid.Column="1" Text="{Binding Suggestion}" VerticalAlignment="Center"
+                               Margin="10,0,0,0" Width="150" TextTrimming="CharacterEllipsis"
+                               Foreground="{StaticResource FluentTextDim}" FontSize="12"
+                               ToolTip="Programas rodando agora que têm ícone de bandeja e nome desconhecido" />
+
+                    <TextBox Grid.Column="2" Style="{StaticResource FluentTextBox}" Margin="10,0,0,0"
+                             Text="{Binding Alias, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                             Tag="{Binding Signature}" VerticalAlignment="Center" />
+                  </Grid>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </StackPanel>
+        </Border>
+
         <Border Style="{StaticResource FluentCardBorderStyle}">
           <Grid>
             <Grid.ColumnDefinitions>
@@ -471,6 +519,48 @@
             <CheckBox Grid.Column="1" Style="{StaticResource FluentToggle}"
                       IsChecked="{Binding PanelAppVolume, Mode=TwoWay}" />
           </Grid>
+        </Border>
+
+        <Border Style="{StaticResource FluentCardBorderStyle}">
+          <Grid>
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="*" />
+              <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <StackPanel VerticalAlignment="Center">
+              <TextBlock Text="Controles de mídia" Style="{StaticResource FluentTitle}" />
+              <TextBlock Text="O que está tocando e os botões de reprodução na barra — vale para qualquer programa (Spotify, navegador, VLC). Some sozinho quando não há mídia."
+                         Style="{StaticResource FluentCaption}" TextWrapping="Wrap" />
+            </StackPanel>
+            <CheckBox Grid.Column="1" Style="{StaticResource FluentToggle}"
+                      IsChecked="{Binding PanelMedia, Mode=TwoWay}" />
+          </Grid>
+        </Border>
+
+        <!-- Quais programas podem ocupar a barra de mídia. Nenhum marcado = todos, que é o
+             comportamento de quem nunca abriu esta seção. -->
+        <Border x:Name="MediaAppsCard" Style="{StaticResource FluentCardBorderStyle}"
+                Visibility="{Binding PanelMedia, Converter={StaticResource BoolToVisible}}">
+          <StackPanel>
+            <TextBlock Text="Programas na barra de mídia" Style="{StaticResource FluentTitle}" />
+            <TextBlock Text="Marque quem pode ocupar a barra. Sem nenhum marcado, vale para todos — marque só o Spotify se não quiser que um vídeo no navegador tome o lugar dele."
+                       Style="{StaticResource FluentCaption}" TextWrapping="Wrap" />
+
+            <ItemsControl x:Name="MediaAppsList" Margin="0,12,0,0">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate>
+                  <CheckBox Content="{Binding Name}" Margin="0,0,0,6"
+                            Foreground="{StaticResource FluentText}" FontSize="12"
+                            IsChecked="{Binding Allowed, Mode=TwoWay}"
+                            ToolTip="{Binding AppId}" />
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+
+            <TextBlock x:Name="MediaAppsEmpty" Style="{StaticResource FluentCaption}"
+                       TextWrapping="Wrap" Visibility="Collapsed"
+                       Text="Nenhum programa de mídia visto ainda. Toque algo no Spotify (ou no navegador) e reabra esta janela." />
+          </StackPanel>
         </Border>
 
         <Border Style="{StaticResource FluentCardBorderStyle}" Margin="0,0,0,16">

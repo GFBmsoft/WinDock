@@ -37,6 +37,12 @@ public sealed class PanelModel : INotifyPropertyChanged, IDisposable
         // uma thread STA com bomba de mensagens leva alguns milissegundos, e quem esperava
         // por ela era a thread da interface — a barra travava no primeiro clique da seta.
         if (_config.PanelTray) { TrayService.ClearLeftovers(); TrayReader.Start(); WarmTray(); }
+
+        // A mídia avisa sozinha quando muda, mas o evento vem de thread do WinRT — a
+        // interface só pode ser tocada pelo dispatcher.
+        _media.Changed += () => _dispatcher.InvokeAsync(() => Media = _media.Current);
+        _media.SetAllowed(_config.MediaApps);
+        _ = _media.Start();
     }
 
     /// <summary>
@@ -132,6 +138,74 @@ public sealed class PanelModel : INotifyPropertyChanged, IDisposable
     public string BatteryTooltip => _charging
         ? $"{_batteryPercent}% — na tomada"
         : $"{_batteryPercent}% de carga";
+
+    // ── mídia ───────────────────────────────────────────────
+    private readonly MediaService _media = new();
+
+    private MediaInfo _mediaInfo = MediaInfo.None;
+
+    /// <summary>O que está tocando. Trocar isto redesenha o item da barra e o card.</summary>
+    public MediaInfo Media
+    {
+        get => _mediaInfo;
+        private set
+        {
+            _mediaInfo = value;
+            OnChanged(nameof(Media));
+            OnChanged(nameof(ShowMedia));
+            OnChanged(nameof(MediaGlyph));
+            OnChanged(nameof(MediaProgress));
+            OnChanged(nameof(MediaElapsed));
+            OnChanged(nameof(MediaRemaining));
+        }
+    }
+
+    /// <summary>
+    /// O item da barra só existe quando há mídia — e quando a pessoa quis o recurso.
+    ///
+    /// Sumir em vez de esmaecer foi escolha de quem usa: a barra já carrega relógio, bandeja,
+    /// bateria, wi-fi, bluetooth, volume, sino e energia, e um item a mais parado ali o dia
+    /// inteiro pesa mais do que o deslocamento dos vizinhos quando a música começa.
+    /// </summary>
+    public bool ShowMedia => _config.PanelMedia && _mediaInfo.HasMedia;
+
+    /// <summary>
+    /// Pausar quando está tocando, tocar quando está parado.
+    ///
+    /// Escrito como escape, e não com o caractere: glifos da Segoe Fluent Icons são um
+    /// quadradinho vazio no editor e se perdem em qualquer edição de texto que passe por
+    /// cima — o botão fica invisível na barra sem quebrar nem avisar nada. Aconteceu com o
+    /// ícone de energia antes, e aconteceu de novo com estes três aqui.
+    /// </summary>
+    public string MediaGlyph => _mediaInfo.IsPlaying ? "\uE769" : "\uE768";
+
+    /// <summary>Quanto da faixa já passou, de 0 a 1 — a largura da barrinha do card.</summary>
+    public double MediaProgress => _mediaInfo.Duration > TimeSpan.Zero
+        ? Math.Clamp(_mediaInfo.Position.TotalSeconds / _mediaInfo.Duration.TotalSeconds, 0, 1)
+        : 0;
+
+    public string MediaElapsed => Clock(_mediaInfo.Position);
+    public string MediaRemaining => Clock(_mediaInfo.Duration);
+
+    /// <summary>"3:07" — e "1:02:33" só quando a faixa passa da hora.</summary>
+    private static string Clock(TimeSpan t) =>
+        t.TotalHours >= 1 ? $"{(int)t.TotalHours}:{t.Minutes:00}:{t.Seconds:00}"
+                          : $"{t.Minutes}:{t.Seconds:00}";
+
+    public Task ToggleMedia() => _media.TogglePlay();
+    public Task NextMedia() => _media.Next();
+    public Task PreviousMedia() => _media.Previous();
+    public Task SeekMedia(double fraction) => _media.Seek(fraction);
+
+    /// <summary>
+    /// Relê a posição da faixa. Só vale a pena com o card aberto: o resto da informação
+    /// chega por evento, e a posição é a única coisa que anda sozinha.
+    /// </summary>
+    public async Task RefreshMediaPosition()
+    {
+        await _media.Refresh();
+        Media = _media.Current;
+    }
 
     // ── volume ──────────────────────────────────────────────
     private int _volume;
@@ -403,6 +477,37 @@ public sealed class PanelModel : INotifyPropertyChanged, IDisposable
     public string TrayTooltip => "Ícones ocultos";
 
     /// <summary>
+    /// Troca pelo apelido o nome dos ícones que a pessoa batizou.
+    ///
+    /// Fica aqui, e não no <c>TrayService</c>, porque é o modelo que conhece a configuração —
+    /// a leitura da bandeja não precisa saber que apelidos existem.
+    /// </summary>
+    private IReadOnlyList<TrayIcon> Rename(IReadOnlyList<TrayIcon> icons)
+    {
+        if (_config.TrayNames.Count == 0) return icons;
+
+        var renomeados = 0;
+        var saida = icons
+            .Select(i =>
+            {
+                if (string.IsNullOrEmpty(i.Signature) ||
+                    !_config.TrayNames.TryGetValue(i.Signature, out var apelido) ||
+                    string.IsNullOrWhiteSpace(apelido)) return i;
+
+                renomeados++;
+
+                // no Alias, nunca no Name: o Name é o que identifica o botão na hora do
+                // clique (veja TrayIcon.Label)
+                return i with { Alias = apelido };
+            })
+            .ToList();
+
+        Log.Trace($"Rename: {renomeados} de {icons.Count} ícone(s) receberam apelido " +
+                  $"({_config.TrayNames.Count} guardado(s))");
+        return saida;
+    }
+
+    /// <summary>
     /// Relê a bandeja e devolve a lista pronta.
     ///
     /// Roda fora da thread da interface: conferir a bandeja custa uns 90 ms, e uma leitura
@@ -415,7 +520,7 @@ public sealed class PanelModel : INotifyPropertyChanged, IDisposable
 
         var started = TrayReader.Run(() =>
         {
-            var icons = TrayService.Read();
+            var icons = Rename(TrayService.Read());
             _dispatcher.InvokeAsync(() => { TrayIcons = icons; done?.Invoke(); });
         });
 
@@ -494,6 +599,13 @@ public sealed class PanelModel : INotifyPropertyChanged, IDisposable
         RaiseAppearance();
 
         if (e.PropertyName is nameof(DockConfig.PanelTray)) RefreshTray();
+
+        // ligar ou desligar os controles de mídia muda o item da barra na hora, sem esperar
+        // a próxima troca de faixa
+        if (e.PropertyName is nameof(DockConfig.PanelMedia)) OnChanged(nameof(ShowMedia));
+
+        // marcar ou desmarcar um programa reavalia qual sessão a barra segue, na hora
+        if (e.PropertyName is nameof(DockConfig.MediaApps)) _media.SetAllowed(_config.MediaApps);
     }
 
     private void Update()
@@ -656,6 +768,10 @@ public sealed class PanelModel : INotifyPropertyChanged, IDisposable
         // com referencias de uma barra que ja nao existe
         foreach (var session in _appSessions) session.Dispose();
         _appSessions = Array.Empty<VolumeService.AppSession>();
+
+        // solta os eventos da sessão de mídia: sem isto o WinRT segue chamando de volta uma
+        // barra que já não existe
+        _media.Dispose();
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
