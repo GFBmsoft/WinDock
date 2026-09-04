@@ -170,6 +170,18 @@ public sealed class DockConfig : INotifyPropertyChanged
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(MediaApps)));
 
     /// <summary>
+    /// A ordem dos itens do canto direito da barra, por chave.
+    ///
+    /// Vazia quer dizer "a ordem que veio no XAML". Chave desconhecida é ignorada, e item
+    /// que existe na barra mas não está aqui vai para o fim — assim uma configuração antiga
+    /// continua valendo quando a barra ganha um item novo, em vez de escondê-lo.
+    /// </summary>
+    public List<string> PanelOrder { get; set; } = new();
+
+    public void NotifyPanelOrderChanged() =>
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(PanelOrder)));
+
+    /// <summary>
     /// Aparelhos bluetooth que nao devem aparecer na lista da barra. Guardados pelo nome,
     /// que e como a pessoa os reconhece; a lista e curta e editada no proprio painel.
     /// </summary>

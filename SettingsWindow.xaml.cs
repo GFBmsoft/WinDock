@@ -29,6 +29,7 @@ public partial class SettingsWindow : Window
         foreach (var name in _config.TilingExcludedApps) _excludedApps.Add(name);
         LoadTrayNames();
         LoadMediaApps();
+        LoadPanelOrder();
         ExcludedAppsList.ItemsSource = _excludedApps;
 
         // o "iniciar com o Windows" mora no registro, nao no config.json.
@@ -111,6 +112,73 @@ public partial class SettingsWindow : Window
         _excludedApps.Remove(name);
         _config.TilingExcludedApps.Remove(name);
         _config.NotifyTilingExcludedAppsChanged();
+    }
+
+    // ── ordem dos itens da barra ─────────────────────────────
+
+    private sealed record PanelOrderRow(int Position, string Key, string Name);
+
+    /// <summary>
+    /// A ordem atual: o que está guardado, mais o que a barra tem e a configuração ainda não
+    /// cita — item novo aparece no fim, igualzinho ao que a barra faz ao desenhar.
+    /// </summary>
+    private List<string> CurrentPanelOrder()
+    {
+        var conhecidos = PanelWindow.PanelItems.Select(i => i.Key).ToList();
+
+        var ordem = _config.PanelOrder
+            .Where(k => conhecidos.Contains(k, StringComparer.OrdinalIgnoreCase))
+            .ToList();
+
+        ordem.AddRange(conhecidos.Where(k => !ordem.Contains(k, StringComparer.OrdinalIgnoreCase)));
+        return ordem;
+    }
+
+    private void LoadPanelOrder()
+    {
+        var nomes = PanelWindow.PanelItems.ToDictionary(i => i.Key, i => i.Name);
+
+        PanelOrderList.ItemsSource = CurrentPanelOrder()
+            .Select((k, i) => new PanelOrderRow(i + 1, k, nomes.TryGetValue(k, out var n) ? n : k))
+            .ToList();
+    }
+
+    private void OnPanelItemUp(object sender, RoutedEventArgs e) => MovePanelItem(sender, -1);
+    private void OnPanelItemDown(object sender, RoutedEventArgs e) => MovePanelItem(sender, +1);
+
+    /// <summary>
+    /// Troca o item de lugar com o vizinho e grava a lista inteira.
+    ///
+    /// Grava tudo, e não só a diferença, porque a lista guardada passa a ser a ordem completa
+    /// — inclusive dos itens que ainda estavam implícitos. Sem isso, mover um item deixaria
+    /// os outros à mercê da ordem do XAML e o resultado mudaria a cada versão.
+    /// </summary>
+    private void MovePanelItem(object sender, int passo)
+    {
+        if ((sender as FrameworkElement)?.Tag is not string key) return;
+
+        var ordem = CurrentPanelOrder();
+        var de = ordem.FindIndex(k => k.Equals(key, StringComparison.OrdinalIgnoreCase));
+        var para = de + passo;
+
+        if (de < 0 || para < 0 || para >= ordem.Count) return;
+
+        (ordem[de], ordem[para]) = (ordem[para], ordem[de]);
+
+        _config.PanelOrder = ordem;
+        _config.Save();
+        _config.NotifyPanelOrderChanged();
+
+        LoadPanelOrder();
+    }
+
+    private void OnResetPanelOrder(object sender, RoutedEventArgs e)
+    {
+        _config.PanelOrder = new List<string>();
+        _config.Save();
+        _config.NotifyPanelOrderChanged();
+
+        LoadPanelOrder();
     }
 
     // ── programas na barra de mídia ──────────────────────────

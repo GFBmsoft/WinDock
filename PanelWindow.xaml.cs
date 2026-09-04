@@ -3,6 +3,7 @@ using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Interop;
+using System.Linq;
 using System.Windows.Media;
 using WinDock.Interop;
 using WinDock.Services;
@@ -34,12 +35,17 @@ public partial class PanelWindow : Window
         _volumeOsd.Tick += (_, _) => HideVolumeOsd();
         _mediaTick.Tick += (_, _) => UpdateMediaProgress();
         TrayPopup.CustomPopupPlacementCallback = PlaceTrayCard;
+        ApplyPanelOrder();
+
+        // reordenar nas Configurações vale na hora, sem fechar e abrir a barra
+        _config.PropertyChanged += OnPanelConfigChanged;
 
         SourceInitialized += OnSourceInitialized;
         Closed += (_, _) =>
         {
             _outsideClick.Stop();
             _volumeOsd.Stop();
+            _config.PropertyChanged -= OnPanelConfigChanged;
             _model.Dispose();
             _appBar?.Dispose();
         };
@@ -128,6 +134,71 @@ public partial class PanelWindow : Window
     {
         CloseAllPopups();
         if (_shellPanelWasOpen) PanelModel.CloseShellPanel();
+    }
+
+    // ── ordem dos itens da barra ─────────────────────────────
+
+    /// <summary>
+    /// Os itens do canto direito que a pessoa pode reordenar: a chave que vai no
+    /// <c>Tag</c> de cada um no XAML, e o nome que aparece nas Configurações.
+    ///
+    /// Fica aqui, e não no XAML, para as duas janelas lerem a mesma lista — a de opções
+    /// precisa dos nomes, e esta precisa das chaves. Item novo na barra entra aqui também,
+    /// senão ele funciona mas não aparece para ser reordenado.
+    /// </summary>
+    public static readonly (string Key, string Name)[] PanelItems =
+    [
+        ("bandeja",         "Ícones da bandeja"),
+        ("midia",           "Música — o que está tocando"),
+        ("midia-controles", "Música — controles"),
+        ("bateria",         "Bateria"),
+        ("wifi",            "Wi-Fi"),
+        ("bluetooth",       "Bluetooth"),
+        ("volume",          "Volume"),
+        ("notificacoes",    "Notificações"),
+        ("energia",         "Energia"),
+        ("relogio",         "Relógio"),
+    ];
+
+    /// <summary>
+    /// Põe os itens do canto direito na ordem que a pessoa escolheu.
+    ///
+    /// Reordenar os filhos que já existem é o que evita reescrever a barra como lista de
+    /// dados: cada item continua sendo o XAML dele, com os bindings e handlers que já tem, e
+    /// só o lugar muda. Um <c>StackPanel</c> desenha na ordem de <c>Children</c>.
+    ///
+    /// Quem não aparece na configuração fica no fim, na ordem original — é o que faz uma
+    /// preferência antiga continuar válida quando a barra ganha um item novo.
+    /// </summary>
+    private void ApplyPanelOrder()
+    {
+        var atuais = RightItems.Children.Cast<UIElement>().ToList();
+
+        // A ordem do XAML é guardada na primeira passagem: sem ela, "voltar ao padrão" não
+        // teria a que voltar — a essa altura os filhos já estão na ordem customizada, e o
+        // arranjo original teria se perdido.
+        _defaultOrder ??= atuais.Select(e => (e as FrameworkElement)?.Tag as string ?? "").ToList();
+
+        var desejada = _config.PanelOrder.Count > 0 ? _config.PanelOrder : _defaultOrder;
+
+        var ordenados = desejada
+            .Select(chave => atuais.FirstOrDefault(e => (e as FrameworkElement)?.Tag as string == chave))
+            .Where(e => e is not null)
+            .ToList();
+
+        // os que a configuração não citou seguem no fim, na ordem em que estavam
+        ordenados.AddRange(atuais.Where(e => !ordenados.Contains(e)));
+
+        RightItems.Children.Clear();
+        foreach (var e in ordenados) RightItems.Children.Add(e!);
+    }
+
+    /// <summary>A ordem que veio do XAML, para o "voltar ao padrão" ter destino.</summary>
+    private List<string>? _defaultOrder;
+
+    private void OnPanelConfigChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName is nameof(DockConfig.PanelOrder)) ApplyPanelOrder();
     }
 
     // ── mídia ────────────────────────────────────────────────

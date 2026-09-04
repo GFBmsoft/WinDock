@@ -139,6 +139,15 @@ public sealed class PanelModel : INotifyPropertyChanged, IDisposable
         ? $"{_batteryPercent}% — na tomada"
         : $"{_batteryPercent}% de carga";
 
+    // ── conta ───────────────────────────────────────────────
+
+    /// <summary>Nome e foto de quem está usando a máquina, para o topo do menu de energia.</summary>
+    public string UserName => UserService.Name;
+    public System.Windows.Media.Imaging.BitmapSource? UserPicture => UserService.Picture;
+    public bool HasUserPicture => UserService.HasPicture;
+    public bool NoUserPicture => !UserService.HasPicture;
+    public string UserInitials => UserService.Initials;
+
     // ── mídia ───────────────────────────────────────────────
     private readonly MediaService _media = new();
 

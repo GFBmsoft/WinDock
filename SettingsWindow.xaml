@@ -537,6 +537,53 @@
           </Grid>
         </Border>
 
+        <!-- A ordem dos itens do canto direito da barra. Vale para o que existe hoje; item
+             novo entra no fim até ser movido. -->
+        <Border Style="{StaticResource FluentCardBorderStyle}">
+          <StackPanel>
+            <TextBlock Text="Ordem dos itens da barra" Style="{StaticResource FluentTitle}" />
+            <TextBlock Text="Da esquerda para a direita, como aparecem no canto direito da barra. Use as setas para mover — a barra muda na hora."
+                       Style="{StaticResource FluentCaption}" TextWrapping="Wrap" />
+
+            <ItemsControl x:Name="PanelOrderList" Margin="0,12,0,0">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate>
+                  <Border Background="{StaticResource FluentControl}"
+                          BorderBrush="{StaticResource FluentControlBorder}" BorderThickness="1"
+                          CornerRadius="6" Padding="10,5" Margin="0,0,0,4">
+                    <Grid>
+                      <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                      </Grid.ColumnDefinitions>
+
+                      <TextBlock Text="{Binding Position}" Foreground="{StaticResource FluentTextDim}"
+                                 FontSize="11" VerticalAlignment="Center" Width="20" />
+                      <TextBlock Grid.Column="1" Text="{Binding Name}" FontSize="12"
+                                 Foreground="{StaticResource FluentText}" VerticalAlignment="Center" />
+
+                      <Button Grid.Column="2" Style="{StaticResource FluentButton}" Padding="8,2"
+                              Click="OnPanelItemUp" Tag="{Binding Key}" ToolTip="Mover para a esquerda">
+                        <TextBlock Text="&#x2191;" FontSize="12" />
+                      </Button>
+                      <Button Grid.Column="3" Style="{StaticResource FluentButton}" Padding="8,2"
+                              Margin="4,0,0,0" Click="OnPanelItemDown" Tag="{Binding Key}"
+                              ToolTip="Mover para a direita">
+                        <TextBlock Text="&#x2193;" FontSize="12" />
+                      </Button>
+                    </Grid>
+                  </Border>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+
+            <Button Style="{StaticResource FluentButton}" HorizontalAlignment="Left"
+                    Margin="0,6,0,0" Click="OnResetPanelOrder" Content="Voltar à ordem padrão" />
+          </StackPanel>
+        </Border>
+
         <!-- Quais programas podem ocupar a barra de mídia. Nenhum marcado = todos, que é o
              comportamento de quem nunca abriu esta seção. -->
         <Border x:Name="MediaAppsCard" Style="{StaticResource FluentCardBorderStyle}"

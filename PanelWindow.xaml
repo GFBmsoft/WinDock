@@ -153,14 +153,22 @@
                    FontWeight="SemiBold" VerticalAlignment="Center" Margin="6,0,0,0" />
       </StackPanel>
 
-      <!-- canto direito: bateria, wi-fi, som, notificações e (fora do modo centralizado) o relógio -->
-      <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+      <!-- Canto direito: bandeja, mídia, bateria, wi-fi, som, notificações e (fora do modo
+           centralizado) o relógio.
+
+           A ordem daqui é só a inicial: cada item carrega uma chave no `Tag`, e a janela
+           reordena estes filhos no arranque conforme `DockConfig.PanelOrder` (veja
+           `ApplyPanelOrder`). Quem mexer aqui só define o padrão de quem nunca customizou —
+           e ao acrescentar um item novo, dê a ele um `Tag` e um nome em `PanelItems`, senão
+           ele fica de fora da lista das opções. -->
+      <StackPanel x:Name="RightItems" Orientation="Horizontal"
+                  HorizontalAlignment="Right" VerticalAlignment="Center">
 
         <!-- a bandeja: com a barra do Windows escondida, é aqui que o antivírus e os
              programas que só vivem na bandeja continuam alcançáveis. A seta abre um cartão
              com os ícones, como o "mostrar ícones ocultos" do Windows — e abri-lo relê a
              bandeja, porque só o painel do Windows sabe o que está lá agora. -->
-        <Button x:Name="TrayButton" Style="{StaticResource TrayButton}" Click="OnToggleTray"
+        <Button Tag="bandeja" x:Name="TrayButton" Style="{StaticResource TrayButton}" Click="OnToggleTray"
                 MouseLeave="OnTrayButtonLeave"
                 Margin="0,0,6,0" ToolTip="{Binding TrayTooltip}"
                 Visibility="{Binding ShowTray, Converter={StaticResource BoolToVisible}}">
@@ -171,35 +179,59 @@
         <!-- O que está tocando, com os controles na própria barra. O bloco inteiro some
              quando não há mídia (ShowMedia) — foi o pedido: item parado o dia inteiro pesa
              mais que o deslocamento dos vizinhos quando a música começa. -->
-        <StackPanel Orientation="Horizontal" VerticalAlignment="Center"
+        <Button Tag="midia" x:Name="MediaButton" Style="{StaticResource ClockButton}" Click="OnMedia"
+                ToolTip="{Binding Media.Summary}"
+                Visibility="{Binding ShowMedia, Converter={StaticResource BoolToVisible}}">
+          <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+
+            <!-- a capa em miniatura faz o papel do logo do app na referência, e diz de que
+                 faixa se trata antes mesmo de ler o texto -->
+            <Border Width="16" Height="16" CornerRadius="3" Background="#22FFFFFF"
+                    VerticalAlignment="Center" Margin="0,0,7,0">
+              <Image Source="{Binding Media.Cover}" Stretch="UniformToFill"
+                     RenderOptions.BitmapScalingMode="HighQuality" />
+            </Border>
+
+            <!-- Os chevrons ficam FORA do texto que trunca, e não como Run dentro dele: com
+                 tudo no mesmo TextBlock, uma faixa de nome longo levava o "❯" junto nas
+                 reticências e o par ficava aberto sem fechar. -->
+            <TextBlock Text="&#x276E;" Foreground="#FF8A8A8A" FontSize="12"
+                       VerticalAlignment="Center" Margin="0,0,5,0" />
+
+            <TextBlock Text="{Binding Media.Summary}" Foreground="#FFE8E8EA" FontSize="12"
+                       VerticalAlignment="Center" MaxWidth="220" TextTrimming="CharacterEllipsis" />
+
+            <TextBlock Text="&#x276F;" Foreground="#FF8A8A8A" FontSize="12"
+                       VerticalAlignment="Center" Margin="5,0,0,0" />
+          </StackPanel>
+        </Button>
+        <!-- Os controles, separados da informação da faixa por um respiro — a referência
+             (EV19) os joga para o fim da barra, e assim ficou primeiro, mas na tela deste
+             tamanho eles ficaram longe demais do que controlam. Ao lado da bateria mantêm a
+             separação visual e continuam perto da faixa. -->
+        <StackPanel Tag="midia-controles" Orientation="Horizontal" VerticalAlignment="Center" Margin="10,0,0,0"
                     Visibility="{Binding ShowMedia, Converter={StaticResource BoolToVisible}}">
 
-          <Button Style="{StaticResource PanelButton}" Click="OnMediaPrevious" Padding="5,2"
+          <Button Style="{StaticResource PanelButton}" Click="OnMediaPrevious" Padding="4,2"
                   IsEnabled="{Binding Media.CanPrevious}" ToolTip="Faixa anterior">
             <ui:GlyphIcon Glyph="&#xE892;" Fill="#FFF2F2F2" Size="13" VerticalAlignment="Center" />
           </Button>
 
-          <Button Style="{StaticResource PanelButton}" Click="OnMediaToggle" Padding="5,2"
+          <Button Style="{StaticResource PanelButton}" Click="OnMediaToggle" Padding="4,2"
                   ToolTip="Tocar ou pausar">
-            <ui:GlyphIcon Glyph="{Binding MediaGlyph}" Fill="#FFF2F2F2" Size="13" VerticalAlignment="Center" />
+            <ui:GlyphIcon Glyph="{Binding MediaGlyph}" Fill="#FFF2F2F2" Size="14" VerticalAlignment="Center" />
           </Button>
 
-          <Button Style="{StaticResource PanelButton}" Click="OnMediaNext" Padding="5,2"
+          <Button Style="{StaticResource PanelButton}" Click="OnMediaNext" Padding="4,2"
                   IsEnabled="{Binding Media.CanNext}" ToolTip="Próxima faixa">
             <ui:GlyphIcon Glyph="&#xE893;" Fill="#FFF2F2F2" Size="13" VerticalAlignment="Center" />
           </Button>
-
-          <!-- o texto abre o card; os botões acima agem direto, sem abrir nada -->
-          <Button x:Name="MediaButton" Style="{StaticResource ClockButton}" Click="OnMedia"
-                  ToolTip="{Binding Media.Summary}">
-            <TextBlock Text="{Binding Media.Title}" Foreground="#FFE8E8EA" FontSize="12"
-                       VerticalAlignment="Center" MaxWidth="150" TextTrimming="CharacterEllipsis" />
-          </Button>
         </StackPanel>
+
 
         <!-- a pilha do Windows: corpo, ponta e o miolo que enche conforme a carga.
              A porcentagem fica na dica do mouse: o desenho ja diz o quanto resta. -->
-        <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,10,0"
+        <StackPanel Tag="bateria" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,10,0"
                     ToolTip="{Binding BatteryTooltip}"
                     Visibility="{Binding HasBattery, Converter={StaticResource BoolToVisible}}">
           <Grid VerticalAlignment="Center">
@@ -213,18 +245,18 @@
           </Grid>
         </StackPanel>
 
-        <Button Style="{StaticResource PanelButton}" Click="OnQuickSettings" ToolTip="Wi-Fi">
+        <Button Tag="wifi" Style="{StaticResource PanelButton}" Click="OnQuickSettings" ToolTip="Wi-Fi">
           <ui:GlyphIcon Glyph="{Binding WifiGlyph}" Fill="#FFF2F2F2" Size="15" VerticalAlignment="Center" />
         </Button>
 
         <!-- apagado quando o radio esta desligado; o clique abre a lista de aparelhos -->
-        <Button x:Name="BluetoothButton" Style="{StaticResource PanelButton}" Click="OnBluetooth"
+        <Button Tag="bluetooth" x:Name="BluetoothButton" Style="{StaticResource PanelButton}" Click="OnBluetooth"
                 ToolTip="{Binding BluetoothTooltip}" Opacity="{Binding BluetoothOpacity}">
           <ui:GlyphIcon Glyph="{Binding BluetoothGlyph}" Fill="#FFF2F2F2" Size="15" VerticalAlignment="Center" />
         </Button>
 
         <!-- a roda do mouse sobe e desce o volume, como na barra do Windows -->
-        <Button x:Name="VolumeButton" Style="{StaticResource PanelButton}" Click="OnVolume"
+        <Button Tag="volume" x:Name="VolumeButton" Style="{StaticResource PanelButton}" Click="OnVolume"
                 PreviewMouseWheel="OnVolumeWheel">
           <!-- A dica é um objeto com nome, e não um texto solto, só para poder ser FECHADA
                ao rolar a roda. `ToolTipService.SetIsEnabled(false)` impede a próxima mas não
@@ -237,19 +269,19 @@
           <ui:GlyphIcon Glyph="{Binding VolumeGlyph}" Fill="#FFF2F2F2" Size="15" VerticalAlignment="Center" />
         </Button>
 
-        <Button Style="{StaticResource PanelButton}" Click="OnNotifications"
+        <Button Tag="notificacoes" Style="{StaticResource PanelButton}" Click="OnNotifications"
                 ToolTip="Notificações">
           <ui:GlyphIcon Glyph="{Binding BellGlyph}" Fill="#FFF2F2F2" Size="15" VerticalAlignment="Center" />
         </Button>
 
         <!-- energia: desligar, reiniciar, hibernar, bloquear e encerrar sessão -->
-        <Button x:Name="PowerButton" Style="{StaticResource PanelButton}" Click="OnPower"
+        <Button Tag="energia" x:Name="PowerButton" Style="{StaticResource PanelButton}" Click="OnPower"
                 ToolTip="Desligar, reiniciar, bloquear">
           <ui:GlyphIcon Glyph="{Binding PowerGlyph}" Fill="#FFF2F2F2" Size="15" VerticalAlignment="Center" />
         </Button>
 
         <!-- o relogio do canto: some quando a opção o manda para o meio da barra -->
-        <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="6,0,0,0"
+        <StackPanel Tag="relogio" Orientation="Horizontal" VerticalAlignment="Center" Margin="6,0,0,0"
                     Visibility="{Binding ClockAtRight, Converter={StaticResource BoolToVisible}}">
           <Button x:Name="RightDateButton" Style="{StaticResource ClockButton}" Click="OnCalendar"
                   ToolTip="Calendário">
@@ -560,8 +592,9 @@
           </Border.Effect>
           <StackPanel Width="280">
 
-            <!-- o mesmo cabeçalho dos outros cards: sem ele, o título da faixa (também em 14
-                 SemiBold) ocupava o lugar visual do cabeçalho e a fonte parecia destoar -->
+            <!-- Encostado à esquerda, como o dos outros cards: mesmo sem um controle à direita
+                 para dividir a linha, alinhar com o conteúdo abaixo pesa mais que centralizar
+                 (tentado, e o card ficou com dois eixos brigando). -->
             <Grid Margin="0,0,0,12">
               <StackPanel Orientation="Horizontal">
                 <ui:GlyphIcon Glyph="&#xE8D6;" Fill="#FFF2F2F2" Size="16"
@@ -605,20 +638,9 @@
                          HorizontalAlignment="Right" />
             </Grid>
 
-            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,10,0,0">
-              <Button Style="{StaticResource PanelButton}" Click="OnMediaPrevious" Padding="12,4"
-                      IsEnabled="{Binding Media.CanPrevious}" ToolTip="Faixa anterior">
-                <ui:GlyphIcon Glyph="&#xE892;" Fill="#FFF2F2F2" Size="16" VerticalAlignment="Center" />
-              </Button>
-              <Button Style="{StaticResource PanelButton}" Click="OnMediaToggle" Padding="14,4"
-                      ToolTip="Tocar ou pausar">
-                <ui:GlyphIcon Glyph="{Binding MediaGlyph}" Fill="#FFF2F2F2" Size="18" VerticalAlignment="Center" />
-              </Button>
-              <Button Style="{StaticResource PanelButton}" Click="OnMediaNext" Padding="12,4"
-                      IsEnabled="{Binding Media.CanNext}" ToolTip="Próxima faixa">
-                <ui:GlyphIcon Glyph="&#xE893;" Fill="#FFF2F2F2" Size="16" VerticalAlignment="Center" />
-              </Button>
-            </StackPanel>
+            <!-- Sem controles aqui: eles vivem na barra, a um clique de distância, e repetidos
+                 no card só engordavam a caixa. O que o card ainda faz além de informar é a
+                 linha do tempo acima, que aceita clique para pular na faixa. -->
           </StackPanel>
         </Border>
       </Popup>
@@ -712,20 +734,58 @@
             <DropShadowEffect BlurRadius="20" ShadowDepth="5" Opacity="0.55" Color="Black" />
           </Border.Effect>
           <StackPanel Width="235">
+
+            <!-- Quem está usando a máquina, no espírito do menu do GNOME (EV22): a foto da
+                 conta e o nome antes das opções. Sem foto configurada, as iniciais num
+                 círculo — dizem mais que o boneco cinza padrão do Windows. -->
+            <StackPanel Orientation="Horizontal" Margin="8,4,0,10">
+              <Grid Width="38" Height="38" VerticalAlignment="Center" Margin="0,0,12,0">
+                <Ellipse Fill="#33FFFFFF"
+                         Visibility="{Binding NoUserPicture, Converter={StaticResource BoolToVisible}}" />
+                <TextBlock Text="{Binding UserInitials}" Foreground="#FFF2F2F2" FontSize="14"
+                           FontWeight="SemiBold" HorizontalAlignment="Center" VerticalAlignment="Center"
+                           Visibility="{Binding NoUserPicture, Converter={StaticResource BoolToVisible}}" />
+
+                <!-- a foto vem quadrada; o recorte circular é o que a deixa igual à do
+                     Windows, e o Ellipse com ImageBrush é o jeito de fazer isso no WPF -->
+                <Ellipse Visibility="{Binding HasUserPicture, Converter={StaticResource BoolToVisible}}">
+                  <Ellipse.Fill>
+                    <ImageBrush ImageSource="{Binding UserPicture}" Stretch="UniformToFill"
+                                RenderOptions.BitmapScalingMode="HighQuality" />
+                  </Ellipse.Fill>
+                </Ellipse>
+              </Grid>
+
+              <StackPanel VerticalAlignment="Center">
+                <TextBlock Text="{Binding UserName}" Foreground="#FFF2F2F2" FontSize="14"
+                           FontWeight="SemiBold" TextTrimming="CharacterEllipsis" MaxWidth="160" />
+                <TextBlock Text="Conectado" Foreground="#FF9D9D9D" FontSize="11" Margin="0,1,0,0" />
+              </StackPanel>
+            </StackPanel>
+
+            <Border Height="1" Background="#22FFFFFF" Margin="0,0,0,6" />
+
             <!-- a ordem vem do serviço: o que interrompe o trabalho fica embaixo, longe
                  da borda de cima, onde o cursor chega primeiro -->
             <ItemsControl ItemsSource="{Binding PowerCommands}">
               <ItemsControl.ItemTemplate>
                 <DataTemplate>
-                  <Button Style="{StaticResource PanelRow}" Click="OnPowerCommand" Tag="{Binding Name}"
-                          ToolTip="{Binding Description}">
-                    <StackPanel Orientation="Horizontal">
-                      <ui:GlyphIcon Glyph="{Binding Glyph}" Fill="#FFF2F2F2" Size="15"
-                                    VerticalAlignment="Center" Margin="2,0,12,0" />
-                      <TextBlock Text="{Binding Name}" Foreground="#FFE8E8EA" FontSize="13"
-                                 VerticalAlignment="Center" />
-                    </StackPanel>
-                  </Button>
+                  <StackPanel>
+                    <!-- a linha entre o que mexe na sessão e o que mexe na máquina; quem
+                         decide onde ela cai é o serviço, pelo StartsGroup -->
+                    <Border Height="1" Background="#22FFFFFF" Margin="8,5,8,6"
+                            Visibility="{Binding StartsGroup, Converter={StaticResource BoolToVisible}}" />
+
+                    <Button Style="{StaticResource PanelRow}" Click="OnPowerCommand" Tag="{Binding Name}"
+                            ToolTip="{Binding Description}">
+                      <StackPanel Orientation="Horizontal">
+                        <ui:GlyphIcon Glyph="{Binding Glyph}" Fill="#FFF2F2F2" Size="15"
+                                      VerticalAlignment="Center" Margin="2,0,12,0" />
+                        <TextBlock Text="{Binding Name}" Foreground="#FFE8E8EA" FontSize="13"
+                                   VerticalAlignment="Center" />
+                      </StackPanel>
+                    </Button>
+                  </StackPanel>
                 </DataTemplate>
               </ItemsControl.ItemTemplate>
             </ItemsControl>

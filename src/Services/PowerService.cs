@@ -3,7 +3,17 @@ using static WinDock.Interop.Native;
 namespace WinDock.Services;
 
 /// <summary>Uma opção do menu de energia: o nome, o glifo e o que ela faz.</summary>
-public sealed record PowerCommand(string Name, string Glyph, string Description, Action Run);
+/// <summary>
+/// Uma opção do menu de energia.
+///
+/// <paramref name="StartsGroup"/> marca onde entra uma linha separadora <b>antes</b> do item:
+/// as opções se dividem entre o que mexe só na sua sessão (bloquear, sair) e o que mexe na
+/// máquina inteira (suspender, hibernar, reiniciar, desligar). São consequências de tamanhos
+/// bem diferentes, e a linha existe para o olho notar a fronteira antes de o dedo passar por
+/// ela — é o que o menu do GNOME faz entre "Lock" e "Power Off".
+/// </summary>
+public sealed record PowerCommand(string Name, string Glyph, string Description, Action Run,
+                                  bool StartsGroup = false);
 
 /// <summary>
 /// Desligar, reiniciar, hibernar, suspender, bloquear e encerrar a sessão.
@@ -44,8 +54,10 @@ public static class PowerService
         new PowerCommand("Encerrar sessão", SignOut, "Fecha seus programas e volta ao logon",
                          () => Shutdown("/l")),
 
+        // daqui para baixo o efeito é na máquina, não só na sua sessão: a linha separadora
+        // entra aqui
         new PowerCommand("Suspender", Moon, "Desliga a tela e dorme; volta na hora",
-                         () => SetSuspendState(false, false, false)),
+                         () => SetSuspendState(false, false, false), StartsGroup: true),
 
         new PowerCommand("Hibernar", MoonThin, "Salva a sessão em disco e desliga",
                          () => SetSuspendState(true, false, false)),
