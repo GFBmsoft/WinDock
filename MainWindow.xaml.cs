@@ -305,7 +305,7 @@ public partial class MainWindow : Window
     {
         if (_model is null) return;
 
-        _launcher ??= new LauncherWindow(new Launcher(_model));
+        _launcher ??= new LauncherWindow(new Launcher(_model), _config);
 
         // ja aberto: o mesmo atalho fecha, como o menu iniciar
         if (_launcher.IsVisible) { _launcher.Hide(); return; }

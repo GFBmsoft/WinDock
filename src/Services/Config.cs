@@ -111,6 +111,20 @@ public sealed class DockConfig : INotifyPropertyChanged
     /// <summary>Alt+Espaco abre a busca de aplicativos.</summary>
     public bool Launcher { get => _launcher; set => Set(ref _launcher, value); }
 
+    private int _launcherResults = 9;
+    /// <summary>
+    /// Quantos resultados a busca do Alt+Espaco mostra.
+    ///
+    /// A linha "Executar comando" nao entra nessa conta: ela e sempre acrescentada no fim,
+    /// depois do corte, porque digitar um caminho ou uma URL tem de funcionar mesmo quando a
+    /// lista de aplicativos ja encheu.
+    /// </summary>
+    public int LauncherResults
+    {
+        get => _launcherResults;
+        set => Set(ref _launcherResults, Clamp(value, 3, 20));
+    }
+
     private bool _panel;
     /// <summary>Barra no topo com relogio, data e os atalhos dos paineis do Windows.</summary>
     public bool Panel { get => _panel; set => Set(ref _panel, value); }

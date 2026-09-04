@@ -362,6 +362,28 @@
           </Grid>
         </Border>
 
+        <!-- só faz sentido com a busca ligada -->
+        <Border Style="{StaticResource FluentCardBorderStyle}"
+                Visibility="{Binding Launcher, Converter={StaticResource BoolToVisible}}">
+          <Grid>
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="*" />
+              <ColumnDefinition Width="180" />
+              <ColumnDefinition Width="52" />
+            </Grid.ColumnDefinitions>
+            <StackPanel VerticalAlignment="Center">
+              <TextBlock Text="Resultados na busca" Style="{StaticResource FluentTitle}" />
+              <TextBlock Text="Quantos aplicativos a lista mostra. A linha para executar um comando aparece sempre, além destes."
+                         Style="{StaticResource FluentCaption}" TextWrapping="Wrap" />
+            </StackPanel>
+            <Slider Grid.Column="1" Style="{StaticResource FluentSlider}" VerticalAlignment="Center"
+                    Minimum="3" Maximum="20" Value="{Binding LauncherResults, Mode=TwoWay}" />
+            <TextBlock Grid.Column="2" Text="{Binding LauncherResults}"
+                       Style="{StaticResource FluentCaption}" Margin="10,0,0,0"
+                       VerticalAlignment="Center" TextAlignment="Right" />
+          </Grid>
+        </Border>
+
         <Border Style="{StaticResource FluentCardBorderStyle}">
           <Grid>
             <Grid.ColumnDefinitions>

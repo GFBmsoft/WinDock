@@ -51,7 +51,7 @@
                  TextChanged="OnQueryChanged" />
 
         <!-- o texto-fantasma some no primeiro caractere digitado -->
-        <TextBlock Text="Buscar aplicativo, comando ou desligar…" FontSize="20" Padding="12,8"
+        <TextBlock Text="Buscar aplicativo…  ou  run &lt;comando&gt;" FontSize="20" Padding="12,8"
                    IsHitTestVisible="False">
           <TextBlock.Style>
             <Style TargetType="TextBlock">
@@ -72,7 +72,7 @@
               Visibility="{Binding Visibility, ElementName=Results}" />
 
       <ListBox x:Name="Results" Background="Transparent" BorderThickness="0"
-               ItemContainerStyle="{StaticResource Row}" MaxHeight="420"
+               ItemContainerStyle="{StaticResource Row}"
                ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                ScrollViewer.CanContentScroll="False"
                MouseLeftButtonUp="OnResultClick" KeyDown="OnResultKeyDown">

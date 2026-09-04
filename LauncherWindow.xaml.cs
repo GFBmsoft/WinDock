@@ -14,10 +14,19 @@ namespace WinDock;
 public partial class LauncherWindow : Window
 {
     private readonly Launcher _launcher;
+    private readonly DockConfig _config;
 
-    public LauncherWindow(Launcher launcher)
+    /// <summary>
+    /// Altura de uma linha da lista, em DIPs — o ícone de 26 px mais o respiro do estilo
+    /// `Row` (padding de 7 em cima e embaixo) e a margem entre elas. É a conta que dava os
+    /// 420 px que o XAML fixava para nove itens, agora feita para o limite escolhido.
+    /// </summary>
+    private const double RowHeight = 46;
+
+    public LauncherWindow(Launcher launcher, DockConfig config)
     {
         _launcher = launcher;
+        _config = config;
         InitializeComponent();
 
         _debounce.Tick += (_, _) => Refresh();
@@ -68,10 +77,19 @@ public partial class LauncherWindow : Window
     {
         _debounce.Stop();
 
-        var results = _launcher.Search(Query.Text);
+        var results = _launcher.Search(Query.Text, _config.LauncherResults);
         Results.ItemsSource = results;
         Results.Visibility = results.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
         if (results.Count > 0) Results.SelectedIndex = 0;
+
+        // A altura acompanha o limite escolhido, em vez do teto fixo que havia aqui: com um
+        // limite maior, o teto antigo (420 px, uns nove itens) deixava o resto só alcançável
+        // rolando — o oposto do que a pessoa pediu ao aumentar o número.
+        //
+        // O teto agora é a tela: metade da área útil, para a janela não virar uma coluna do
+        // topo ao rodapé quando alguém pedir vinte resultados.
+        Results.MaxHeight = Math.Min((results.Count + 1) * RowHeight,
+                                     SystemParameters.WorkArea.Height * 0.5);
     }
 
     /// <summary>

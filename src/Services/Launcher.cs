@@ -50,6 +50,10 @@ public sealed class Launcher
         // repetir a dock, que esta na tela do lado
         if (query.Length == 0) return Array.Empty<LauncherEntry>();
 
+        // "run <algo>": o texto inteiro vira comando, e a lista mostra so ele. Nada de
+        // misturar com aplicativos — quem escreveu o prefixo ja disse o que quer
+        if (CommandOf(query) is { } comando) return new[] { CommandEntry(comando) };
+
         var found = new List<LauncherEntry>();
         var needle = Text.Normalize(query);
 
@@ -97,23 +101,48 @@ public sealed class Launcher
             }
         }
 
-        var ordered = found.OrderByDescending(f => f.Score)
-                           .ThenBy(f => f.Name, StringComparer.CurrentCultureIgnoreCase)
-                           .Take(limit)
-                           .ToList();
-
-        // 4. sempre por ultimo: executar o texto como comando, caminho ou URL
-        var command = query;
-        ordered.Add(new LauncherEntry
-        {
-            Name = command,
-            Detail = "Executar comando",
-            Glyph = ">",
-            Run = () => AppCatalog.Run(command)
-        });
-
-        return ordered;
+        return found.OrderByDescending(f => f.Score)
+                    .ThenBy(f => f.Name, StringComparer.CurrentCultureIgnoreCase)
+                    .Take(limit)
+                    .ToList();
     }
+
+    /// <summary>
+    /// O prefixo que transforma o resto do texto num comando: <c>run notepad</c>, e o traço
+    /// é opcional (<c>run - notepad</c>).
+    ///
+    /// Antes, "executar comando" era uma linha acrescentada ao fim de <b>toda</b> busca, com
+    /// o texto digitado. Funcionava, mas ocupava um lugar na lista mesmo quando ninguém
+    /// queria comando nenhum — e com a lista limitada a poucos resultados, esse lugar passou
+    /// a ser caro. Como prefixo, ele só aparece quando é pedido.
+    /// </summary>
+    private const string RunPrefix = "run";
+
+    /// <summary>O texto é um pedido de comando? Devolve o comando, ou <c>null</c>.</summary>
+    public static string? CommandOf(string query)
+    {
+        var texto = query.TrimStart();
+
+        if (!texto.StartsWith(RunPrefix, StringComparison.CurrentCultureIgnoreCase)) return null;
+
+        var resto = texto[RunPrefix.Length..];
+
+        // "run" sozinho ainda não é um comando; é preciso o separador — assim quem procura
+        // um app chamado "Runtime..." continua achando o app, e não cai no modo comando
+        if (resto.Length == 0 || (resto[0] != ' ' && resto[0] != '-')) return null;
+
+        var comando = resto.TrimStart(' ', '-').Trim();
+        return comando.Length == 0 ? null : comando;
+    }
+
+    /// <summary>A única entrada quando o texto começa com o prefixo de comando.</summary>
+    public static LauncherEntry CommandEntry(string command) => new()
+    {
+        Name = command,
+        Detail = "Executar comando, caminho ou endereço",
+        Glyph = ">",
+        Run = () => AppCatalog.Run(command)
+    };
 
     private LauncherEntry Pinned(Models.DockItem item) => new()
     {
