@@ -46,7 +46,6 @@ public sealed class TilingService : IDisposable
     private readonly WinEventProc _proc;
     private readonly List<nint> _hooks = new();
     private DispatcherOperation? _pending;
-    private bool _reclaimFocusAfterMinimize;
 
     /// <summary>Reafirma o contorno sozinho, várias vezes por segundo, em vez de confiar só em
     /// pegar exatamente o evento certo do Windows pra cada jeito de o z-order desandar (o
@@ -260,11 +259,15 @@ public sealed class TilingService : IDisposable
             // retângulo antigo, sem receber o espaço que sobrou.
             if (!_tree.Contains(hWnd)) return;
 
-            // o Windows costuma largar o foco em qualquer janela do z-order quando uma
-            // some — inclusive numa de outro monitor. O Refresh conserta isso no final.
-            _reclaimFocusAfterMinimize = true;
-            _minimizedHwnd = hWnd;
-
+            // O mosaico recalcula, mas NÃO mexe no foco. Havia aqui uma reivindicação: ao
+            // minimizar, o foco era passado para outra janela do mosaico, porque o Windows às
+            // vezes o larga na área de trabalho. Na prática ela errava mais do que acertava —
+            // minimizando a última janela de uma tela, o foco pulava para a outra (o caso
+            // relatado: um Discord aberto sem foco no notebook virava o primeiro plano).
+            //
+            // Agora quem decide é o Windows, e o foco só muda por ação de quem usa: clique,
+            // Alt+Tab ou as teclas do próprio mosaico (Ctrl+Alt+setas). Previsível vale mais
+            // aqui do que esperto.
             if (_pending is not { Status: DispatcherOperationStatus.Pending })
                 _pending = _dispatcher.InvokeAsync(Refresh, DispatcherPriority.Background);
             return;
@@ -832,7 +835,7 @@ public sealed class TilingService : IDisposable
                   $"{rects.Count} retângulo(s): " +
                   string.Join(" | ", rects.Select(r => $"{r.Key:X} {r.Value.Left},{r.Value.Top} {r.Value.Width}x{r.Value.Height}")));
 
-        if (rects.Count == 0) { _rects = new(); UpdateBorder(); ReclaimFocusIfLost(); return; }
+        if (rects.Count == 0) { _rects = new(); UpdateBorder(); return; }
 
         ApplyAll(rects);
 
@@ -895,8 +898,6 @@ public sealed class TilingService : IDisposable
         if (_tree.Contains(focused)) _lastTileFocus = focused;
 
         UpdateBorder();
-        ReclaimFocusIfLost();
-
         // primeira falha, ninguém banido ainda: confere de novo em pouco tempo em vez de
         // esperar o próximo evento de verdade acontecer — sem isso a janela suspeita ficava
         // com o tamanho meio aplicado, sem contorno, até alguém abrir ou fechar outra coisa
@@ -926,54 +927,6 @@ public sealed class TilingService : IDisposable
         return Math.Abs(visual.Width - target.Width) <= tolerance &&
                Math.Abs(visual.Height - target.Height) <= tolerance;
     }
-
-    /// <summary>
-    /// Depois de minimizar, o Windows às vezes larga o foco na área de trabalho em vez de
-    /// passar pra próxima janela do mosaico — em especial quando a pessoa vai minimizando
-    /// várias em sequência rápida. Só age quando o gatilho foi mesmo um minimizar: nos
-    /// outros casos (uma janela nova abrindo, por exemplo) a pessoa pode ter ido de propósito
-    /// para outro app, inclusive num segundo monitor, e puxar o foco de volta seria o bug
-    /// inverso.
-    /// </summary>
-    /// <summary>
-    /// Devolve o foco a uma janela do mosaico quando minimizar deixou o primeiro plano com
-    /// quem não é do mosaico (a área de trabalho, em geral).
-    ///
-    /// A escolha é <b>no monitor de quem minimizou</b>. Antes era <c>_rects.Keys.First()</c>,
-    /// a primeira janela do dicionário inteiro — que numa máquina de duas telas é uma janela
-    /// qualquer, quase sempre da outra. Era isso que fazia o foco pular para o notebook ao
-    /// minimizar algo no monitor principal.
-    ///
-    /// O monitor vem da árvore, e não de <c>MonitorFromWindow</c>: a janela já está
-    /// minimizada a esta altura, e o Windows a guarda num canto fora da tela — perguntar a
-    /// posição dali responde qualquer coisa.
-    /// </summary>
-    private void ReclaimFocusIfLost()
-    {
-        if (!_reclaimFocusAfterMinimize) return;
-        _reclaimFocusAfterMinimize = false;
-
-        var minimizada = _minimizedHwnd;
-        _minimizedHwnd = 0;
-
-        var fg = GetForegroundWindow();
-        if (_rects.ContainsKey(fg) || _floating.Contains(fg) || _stubborn.Contains(fg)) return;
-
-        var monitor = minimizada != 0 ? _tree.MonitorOf(minimizada) : 0;
-
-        // a vizinha na mesma tela; só se não houver nenhuma é que se aceita a de outra
-        var vizinha = monitor != 0
-            ? _rects.Keys.FirstOrDefault(h => _tree.MonitorOf(h) == monitor)
-            : 0;
-
-        if (vizinha != 0) { WindowService.Activate(vizinha); return; }
-
-        if (_rects.Count > 0) WindowService.Activate(_rects.Keys.First());
-        else if (_floating.Count > 0) WindowService.Activate(_floating.First());
-    }
-
-    /// <summary>Quem minimizou por último — serve para devolver o foco na mesma tela.</summary>
-    private nint _minimizedHwnd;
 
     /// <summary>Em que sentido o grid de um monitor corta o espaço quando ganha a segunda janela:
     /// numa tela mais larga que alta, lado a lado; numa tela em pé, uma sobre a outra. É o único
