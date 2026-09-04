@@ -498,6 +498,20 @@ public partial class PanelWindow : Window
     private void OnCalendarNext(object sender, RoutedEventArgs e) => _model.Calendar.NextMonth();
     private void OnCalendarToday(object sender, RoutedEventArgs e) => _model.Calendar.GoToToday();
 
+    /// <summary>
+    /// Roda do mouse sobre o calendário: folheia os meses.
+    ///
+    /// Para cima volta no tempo, para baixo avança — a mesma direção das setas do cabeçalho e
+    /// a mesma do calendário do Windows.
+    /// </summary>
+    private void OnCalendarWheel(object sender, MouseWheelEventArgs e)
+    {
+        if (e.Delta > 0) _model.Calendar.PreviousMonth();
+        else _model.Calendar.NextMonth();
+
+        e.Handled = true;
+    }
+
     // ── bandeja ─────────────────────────────────────────────
 
     /// <summary>

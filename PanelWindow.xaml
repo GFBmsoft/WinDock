@@ -796,8 +796,12 @@
       <!-- o calendário do mês, desenhado aqui: o Calendar do WPF viria com o tema claro -->
       <Popup x:Name="CalendarPopup" Placement="Bottom" VerticalOffset="6"
              StaysOpen="True" AllowsTransparency="True" PopupAnimation="Fade">
+        <!-- a roda do mouse folheia os meses, como no calendário do Windows: as setas do
+             cabeçalho são pequenas e passam despercebidas, e rolar é o gesto que a pessoa
+             tenta primeiro -->
         <Border Background="#F7242424" BorderBrush="#2EFFFFFF" BorderThickness="1"
-                CornerRadius="10" Padding="14,12" Margin="10" DataContext="{Binding Calendar}">
+                CornerRadius="10" Padding="14,12" Margin="10" DataContext="{Binding Calendar}"
+                PreviewMouseWheel="OnCalendarWheel">
           <Border.Effect>
             <DropShadowEffect BlurRadius="20" ShadowDepth="5" Opacity="0.55" Color="Black" />
           </Border.Effect>
@@ -807,14 +811,16 @@
             <Grid Margin="0,0,0,8">
               <TextBlock Text="{Binding Title}" Foreground="#FFF2F2F2" FontSize="13"
                          FontWeight="SemiBold" VerticalAlignment="Center" Margin="4,0,0,0" />
+              <!-- em 11 px estas setas passavam despercebidas e a navegação parecia não
+                   existir; 13 px é o tamanho dos outros ícones dos cards -->
               <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
                 <Button Style="{StaticResource PanelButton}" Click="OnCalendarPrevious"
-                        Padding="7,2" ToolTip="Mês anterior">
-                  <ui:GlyphIcon Glyph="&#xE70E;" Fill="#FFF2F2F2" Size="11" VerticalAlignment="Center" />
+                        Padding="8,3" ToolTip="Mês anterior (ou role a roda do mouse)">
+                  <ui:GlyphIcon Glyph="&#xE70E;" Fill="#FFF2F2F2" Size="13" VerticalAlignment="Center" />
                 </Button>
                 <Button Style="{StaticResource PanelButton}" Click="OnCalendarNext"
-                        Padding="7,2" ToolTip="Próximo mês">
-                  <ui:GlyphIcon Glyph="&#xE70D;" Fill="#FFF2F2F2" Size="11" VerticalAlignment="Center" />
+                        Padding="8,3" ToolTip="Próximo mês (ou role a roda do mouse)">
+                  <ui:GlyphIcon Glyph="&#xE70D;" Fill="#FFF2F2F2" Size="13" VerticalAlignment="Center" />
                 </Button>
               </StackPanel>
             </Grid>
