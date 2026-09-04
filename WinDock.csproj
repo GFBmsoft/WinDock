@@ -2,7 +2,7 @@
 
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
-    <TargetFramework>net8.0-windows</TargetFramework>
+    <TargetFramework>net8.0-windows10.0.19041.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>true</UseWPF>
@@ -13,6 +13,15 @@
     <!-- icone do executavel: e o que o Explorer, o Alt+Tab e a chave Run mostram -->
     <ApplicationIcon>assets\windock.ico</ApplicationIcon>
   </PropertyGroup>
+
+  <ItemGroup>
+    <!--
+      tests/ tem projeto proprio (tests/TreeCheck). Sem isto, o glob recursivo do SDK puxaria os
+      .cs de la para dentro da dock: dois Program, e o LayoutTree.cs contado duas vezes.
+    -->
+    <Compile Remove="tests\**" />
+    <None Remove="tests\**" />
+  </ItemGroup>
 
   <ItemGroup>
     <!-- o mesmo arquivo embutido, para as janelas do app poderem usa-lo -->

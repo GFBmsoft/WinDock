@@ -21,6 +21,16 @@ namespace WinDock;
 /// O preço: sem controle de espessura nem raio de canto — o Windows decide isso (uma linha
 /// fina, uns 1-2px, cantos arredondados como o resto do Windows 11) — só a cor é configurável.
 /// Só existe a partir do Windows 11 22H2.
+///
+/// **E a espessura não tem volta por caminho nenhum do DWM** — medido, não suposto: o
+/// <c>DWMWA_BORDER_MARGINS</c>, que posicionaria a borda, devolve <c>E_ACCESSDENIED</c> em janela
+/// de outro processo mesmo com a dock elevada, enquanto um atributo inexistente devolve
+/// <c>E_INVALIDARG</c> — ou seja, o DWM reconhece o atributo e recusa por permissão, e um
+/// gerenciador de janelas só mexe em janela alheia.
+///
+/// Chegou a existir aqui um realce alternativo que pintava a barra de título inteira junto
+/// (<c>DWMWA_CAPTION_COLOR</c>, que é aceito de fora): funcionava, mas ficou pesado demais na tela
+/// e foi descartado depois de visto. Uma linha de 1 px é o que há, e basta.
 /// </summary>
 internal sealed class TilingBorderWindow
 {
@@ -77,5 +87,12 @@ internal sealed class TilingBorderWindow
     {
         var value = unchecked((int)DWMWA_COLOR_DEFAULT);
         DwmSetWindowAttribute(hwnd, DWMWA_BORDER_COLOR, ref value, sizeof(int));
+
+        // a barra de título também volta ao padrão: uma versão anterior chegou a pintá-la junto
+        // (a ideia foi testada e descartada — ficou pesada demais), e sem isto uma janela que
+        // ficou colorida por aquela versão não teria mais quem a devolvesse ao normal
+        var caption = unchecked((int)DWMWA_COLOR_DEFAULT);
+        DwmSetWindowAttribute(hwnd, DWMWA_CAPTION_COLOR, ref caption, sizeof(int));
+        DwmSetWindowAttribute(hwnd, DWMWA_TEXT_COLOR, ref caption, sizeof(int));
     }
 }

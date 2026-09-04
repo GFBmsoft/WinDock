@@ -162,6 +162,11 @@ public sealed class DockConfig : INotifyPropertyChanged
     /// <summary>Folga entre as janelas do mosaico e entre elas e a borda da tela, em pixels.</summary>
     public int TilingGap { get => _tilingGap; set => Set(ref _tilingGap, Clamp(value, 0, 60)); }
 
+    private int _tilingResizeStep = 20;
+    /// <summary>Quantos pixels cada Ctrl+Alt+Shift+seta tira da janela vizinha e dá pra janela em
+    /// foco. O espaço nunca vem do nada: quem cresce, cresce às custas de quem está do lado.</summary>
+    public int TilingResizeStep { get => _tilingResizeStep; set => Set(ref _tilingResizeStep, Clamp(value, 1, 200)); }
+
     private string _tilingBorderColor = "#4CC2FF";
     /// <summary>Cor do contorno ao redor da janela em foco, em hex.</summary>
     public string TilingBorderColor { get => _tilingBorderColor; set => Set(ref _tilingBorderColor, value); }
@@ -270,7 +275,7 @@ public sealed class DockConfig : INotifyPropertyChanged
         Panel = d.Panel; PanelSize = d.PanelSize;
         TilingEnabled = d.TilingEnabled; TilingGap = d.TilingGap;
         TilingBorderColor = d.TilingBorderColor; TilingBorderThickness = d.TilingBorderThickness;
-        TilingBorderRadius = d.TilingBorderRadius;
+        TilingBorderRadius = d.TilingBorderRadius; TilingResizeStep = d.TilingResizeStep;
     }
 
     private static int Clamp(int v, int min, int max) => v < min ? min : v > max ? max : v;

@@ -7,7 +7,7 @@
         WindowStartupLocation="CenterScreen"
         Background="{DynamicResource DialogSurface}"
         FontFamily="Segoe UI Variable Text, Segoe UI"
-        TextOptions.TextFormattingMode="Display" UseLayoutRounding="True">
+        TextOptions.TextFormattingMode="Ideal" UseLayoutRounding="True">
 
   <!--
     A caixa de diálogo no desenho do Windows 11: barra de título do sistema, instrução

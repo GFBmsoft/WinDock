@@ -872,14 +872,6 @@ public static class TrayService
         {
             if (Find(flyout, icon) is not { } button) return null!;
 
-            // O Windows move o cursor sozinho quando um menu abre pela tecla Menu — o mesmo
-            // que aconteceria com Shift+F10 num desktop qualquer, para casar mouse e teclado
-            // no que acabou de abrir. Não tem como evitar isso continuando a abrir o menu
-            // pelo teclado (veja os becos sem saída no comentário da assinatura do método), e
-            // devolver o cursor depois foi tentado e tirado: virava ida-e-volta, os dois
-            // visíveis, o que incomodava mais que o salto único. Ida sem volta é o mesmo que
-            // Shift+F10 faz em qualquer canto do Windows.
-            //
             // o retrato de antes: é a diferença que revela a janela do menu, que não tem
             // título nem classe previsível — o Discord desenha a dele em Chrome_WidgetWin_1 e
             // o Pageant usa o menu clássico do Windows (#32768)
@@ -896,21 +888,70 @@ public static class TrayService
 
             Thread.Sleep(FocusSettle);
 
-            keybd_event(VK_APPS, 0, 0, 0);
-            keybd_event(VK_APPS, 0, KEYEVENTF_KEYUP, 0);
+            using (PrendeCursor(icon))
+            {
+                keybd_event(VK_APPS, 0, 0, 0);
+                keybd_event(VK_APPS, 0, KEYEVENTF_KEYUP, 0);
 
-            Log.Trace($"tecla Menu enviada ao ícone '{icon.Label}'");
+                Log.Trace($"tecla Menu enviada ao ícone '{icon.Label}'");
 
-            MoveMenuToAnchor(before, anchor, icon);
+                MoveMenuToAnchor(before, anchor, icon);
+            }
 
-            // A devolução do cursor (`SetCursorPos` de volta para `cursorAntes`) foi tentada
-            // e tirada: o menu já pulava até o ícone sozinho (o Windows faz isso ao processar
-            // a tecla), e devolver o cursor depois criava um **vaivém** — ida e volta, os
-            // dois visíveis — que incomodava mais do que o salto único. Ida sem volta é o
-            // mesmo que Shift+F10 faz em qualquer lugar do Windows; ninguém acha isso
-            // quebrado. `cursorAntes` fica sem uso a partir daqui, de propósito.
             return icon;
         }, handsOff: true, quietClose: true) is not null;
+
+    /// <summary>
+    /// Segura o cursor onde a pessoa o deixou enquanto o menu do ícone abre.
+    ///
+    /// <para><b>O problema.</b> Abrir o menu pela tecla Menu (`VK_APPS`) é o único caminho que
+    /// funciona — os outros cinco estão documentados no APRENDIZADOS —, e ele vem com um
+    /// efeito colateral: o cursor salta do nosso cartão até a bandeja do Windows, do outro
+    /// lado da tela. Quem move é o **Explorer**, com `SetCursorPos`, como muleta para
+    /// programas que perguntam `GetCursorPos()` na hora de desenhar o próprio menu.</para>
+    ///
+    /// <para><b>O que se tenta aqui.</b> `SetCursorPos` respeita `ClipCursor`. Preso numa
+    /// caixa de 1×1 em cima de onde a pessoa clicou, o cursor não tem para onde ir — o salto
+    /// não acontece em vez de acontecer e ser desfeito, que era a tentativa antiga (removida
+    /// por criar um vaivém pior que o salto). De brinde, quem lê `GetCursorPos()` desenha o
+    /// menu já debaixo do nosso ícone.</para>
+    ///
+    /// <para><b>O risco, e por que o rastro mede.</b> O Windows solta o clip por conta
+    /// própria quando outra janela vira primeiro plano — e o menu, ao abrir, é exatamente
+    /// isso. Se o Explorer mover o cursor **depois** dessa troca, o clip não alcança e o
+    /// salto volta. O rastro registra a posição antes e depois para dizer qual dos dois
+    /// aconteceu, sem depender de quem estava olhando.</para>
+    /// </summary>
+    private static IDisposable PrendeCursor(TrayIcon icon)
+    {
+        if (!GetCursorPos(out var antes)) return new Solta(null, icon, default);
+
+        var caixa = new RECT { Left = antes.X, Top = antes.Y, Right = antes.X + 1, Bottom = antes.Y + 1 };
+        if (!ClipCursor(ref caixa))
+        {
+            Log.Trace($"não deu para prender o cursor em ({antes.X},{antes.Y}); o menu de '{icon.Label}' vai abrir sem isso");
+            return new Solta(null, icon, antes);
+        }
+
+        return new Solta(antes, icon, antes);
+    }
+
+    /// <summary>Solta o cursor e conta o que aconteceu com ele. Sempre roda.</summary>
+    private sealed class Solta(POINT? preso, TrayIcon icon, POINT antes) : IDisposable
+    {
+        public void Dispose()
+        {
+            if (preso is null) return;
+
+            ReleaseCursorClip(0);
+
+            if (!GetCursorPos(out var depois)) return;
+
+            Log.Trace(depois.X == antes.X && depois.Y == antes.Y
+                ? $"cursor ficou parado em ({antes.X},{antes.Y}) durante o menu de '{icon.Label}'"
+                : $"cursor escapou do limite no menu de '{icon.Label}': ({antes.X},{antes.Y}) -> ({depois.X},{depois.Y})");
+        }
+    }
 
     /// <summary>
     /// Entre pedir o foco e apertar a tecla: o XAML do painel move o foco por conta própria, e

@@ -9,7 +9,7 @@
         WindowStartupLocation="CenterScreen" ShowInTaskbar="True"
         Background="{StaticResource FluentWindow}"
         FontFamily="Segoe UI Variable Text, Segoe UI"
-        TextOptions.TextFormattingMode="Display" UseLayoutRounding="True">
+        TextOptions.TextFormattingMode="Ideal" UseLayoutRounding="True">
 
   <!--
     O painel segue o desenho do app Configuracoes do Windows 11: cada opcao em seu
@@ -585,6 +585,26 @@
             <Slider Grid.Column="1" Style="{StaticResource FluentSlider}"
                     Minimum="0" Maximum="60" Value="{Binding TilingGap, Mode=TwoWay}" />
             <TextBlock Grid.Column="2" Text="{Binding TilingGap, StringFormat='{}{0} px'}"
+                       Style="{StaticResource FluentCaption}" Margin="10,0,0,0"
+                       VerticalAlignment="Center" TextAlignment="Right" />
+          </Grid>
+        </Border>
+
+        <Border Style="{StaticResource FluentCardBorderStyle}">
+          <Grid>
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="*" />
+              <ColumnDefinition Width="180" />
+              <ColumnDefinition Width="52" />
+            </Grid.ColumnDefinitions>
+            <StackPanel VerticalAlignment="Center">
+              <TextBlock Text="Passo do redimensionamento" Style="{StaticResource FluentTitle}" />
+              <TextBlock Text="Quanto cada Ctrl+Alt+Shift+seta tira da janela vizinha"
+                         Style="{StaticResource FluentCaption}" />
+            </StackPanel>
+            <Slider Grid.Column="1" Style="{StaticResource FluentSlider}"
+                    Minimum="1" Maximum="200" Value="{Binding TilingResizeStep, Mode=TwoWay}" />
+            <TextBlock Grid.Column="2" Text="{Binding TilingResizeStep, StringFormat='{}{0} px'}"
                        Style="{StaticResource FluentCaption}" Margin="10,0,0,0"
                        VerticalAlignment="Center" TextAlignment="Right" />
           </Grid>

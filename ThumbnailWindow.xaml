@@ -6,7 +6,7 @@
         AllowsTransparency="False" Background="#F2242424"
         SizeToContent="WidthAndHeight"
         FontFamily="Segoe UI Variable Text, Segoe UI"
-        TextOptions.TextFormattingMode="Display" UseLayoutRounding="True">
+        TextOptions.TextFormattingMode="Ideal" UseLayoutRounding="True">
 
   <!--
     O preview de janelas, no espirito do que a barra de tarefas faz.

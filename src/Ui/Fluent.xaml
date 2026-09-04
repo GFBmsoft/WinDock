@@ -112,7 +112,9 @@
       <Setter.Value>
         <ControlTemplate TargetType="Thumb">
           <Grid Width="20" Height="20">
-            <Ellipse Fill="{StaticResource FluentAccent}" />
+            <!-- a cor vem do Slider de cima, nao daqui: assim uma instancia pode mudar de
+                 cor (o volume faz isso) sem que todos os outros sliders mudem junto -->
+            <Ellipse Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Slider}}" />
             <Ellipse x:Name="Center" Width="10" Height="10" Fill="{StaticResource FluentWindow}" />
           </Grid>
           <ControlTemplate.Triggers>
@@ -144,6 +146,8 @@
   </Style>
 
   <Style x:Key="FluentSlider" TargetType="Slider">
+    <!-- o destaque padrao, que uma instancia pode trocar so para ela -->
+    <Setter Property="Foreground" Value="{StaticResource FluentAccent}" />
     <Setter Property="VerticalAlignment" Value="Center" />
     <Setter Property="IsSnapToTickEnabled" Value="True" />
     <Setter Property="TickFrequency" Value="1" />
@@ -161,8 +165,10 @@
                               Command="Slider.DecreaseLarge">
                   <RepeatButton.Template>
                     <ControlTemplate TargetType="RepeatButton">
+                      <!-- TemplateBinding aqui apontaria para o RepeatButton; quem tem a cor
+                           e o Slider, dois niveis acima -->
                       <Border Height="4" CornerRadius="2" VerticalAlignment="Center"
-                              Background="{StaticResource FluentAccent}" />
+                              Background="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Slider}}" />
                     </ControlTemplate>
                   </RepeatButton.Template>
                 </RepeatButton>

@@ -128,15 +128,22 @@ public static class VolumeService
     /// Guarda a interface COM da sessao em vez de reabri-la a cada ajuste: arrastar o
     /// controle dispara dezenas de escritas por segundo, e cada uma custaria enumerar as
     /// sessoes do dispositivo de novo.
+    ///
+    /// Sao <b>varias</b> interfaces, e nao uma: um programa pode abrir mais de um fluxo de
+    /// audio na mesma saida, e cada fluxo e uma sessao separada. Veja o comentario de
+    /// <see cref="Sessions"/> — a lista chegava com duas linhas de Discord por causa disso.
+    /// A leitura sai da primeira; a escrita vai para todas, senao mexer no controle
+    /// abaixaria metade do som do programa.
     /// </summary>
     public sealed class AppSession : System.ComponentModel.INotifyPropertyChanged, IDisposable
     {
-        private readonly ISimpleAudioVolume _volume;
+        private readonly IReadOnlyList<ISimpleAudioVolume> _volumes;
+        private ISimpleAudioVolume _volume => _volumes[0];
 
-        internal AppSession(ISimpleAudioVolume volume, uint processId, string name,
+        internal AppSession(IReadOnlyList<ISimpleAudioVolume> volumes, uint processId, string name,
                             System.Windows.Media.Imaging.BitmapSource? icon)
         {
-            _volume = volume;
+            _volumes = volumes;
             ProcessId = processId;
             Name = name;
             Icon = icon;
@@ -156,7 +163,9 @@ public static class VolumeService
             set
             {
                 var context = Guid.Empty;
-                _volume.SetMasterVolume(Math.Clamp(value, 0, 100) / 100f, ref context);
+                var nivel = Math.Clamp(value, 0, 100) / 100f;
+                foreach (var volume in _volumes) volume.SetMasterVolume(nivel, ref context);
+
                 Changed(nameof(Level));
                 Changed(nameof(Glyph));
             }
@@ -168,7 +177,8 @@ public static class VolumeService
             set
             {
                 var context = Guid.Empty;
-                _volume.SetMute(value, ref context);
+                foreach (var volume in _volumes) volume.SetMute(value, ref context);
+
                 Changed(nameof(Muted));
                 Changed(nameof(Glyph));
             }
@@ -182,7 +192,8 @@ public static class VolumeService
 
         public void Dispose()
         {
-            try { Marshal.ReleaseComObject(_volume); } catch { }
+            foreach (var volume in _volumes)
+                try { Marshal.ReleaseComObject(volume); } catch { }
         }
 
         public event System.ComponentModel.PropertyChangedEventHandler? PropertyChanged;
@@ -191,12 +202,23 @@ public static class VolumeService
     }
 
     /// <summary>
-    /// Os programas com som na saida atual.
+    /// Os programas com som na saida atual — um por programa, nao um por fluxo de audio.
     ///
     /// Sessoes "expiradas" ficam de fora — sao programas que ja fecharam e cuja sessao o
     /// Windows ainda nao recolheu; elas apareceriam no mixer como linhas mortas. As
     /// inativas ficam: e o programa que existe e esta em silencio no momento, e poder
     /// ajusta-lo antes de ele tocar e metade da utilidade disto.
+    ///
+    /// <para><b>Por que agrupar.</b> O Discord aparecia duas vezes na lista. Medido nesta
+    /// maquina: sao mesmo duas sessoes <i>de saida</i> — os pids 4956 (inativa) e 5272
+    /// (ativa) —, e nao o microfone, como parecia; a entrada tem sessao propria mas fica em
+    /// outro dispositivo, que este metodo nunca le. Programas feitos de varios processos
+    /// (Discord, Chrome, Teams) abrem um fluxo por processo, e cada fluxo e uma sessao.</para>
+    ///
+    /// <para>A chave do agrupamento e o <c>SessionIdentifier</c>, que existe exatamente para
+    /// isso: nas duas sessoes do Discord ele vem <b>identico byte a byte</b> — o que difere
+    /// e o <c>SessionInstanceIdentifier</c>, que leva o pid no fim. E o mesmo criterio que o
+    /// mixer do Windows usa, e por isso la o Discord sempre apareceu uma vez so.</para>
     /// </summary>
     public static IReadOnlyList<AppSession> Sessions()
     {
@@ -215,6 +237,9 @@ public static class VolumeService
             if (manager.GetSessionEnumerator(out var sessions) != 0) return found;
             if (sessions.GetCount(out var count) != 0) return found;
 
+            // um balde por programa, na ordem em que os programas apareceram
+            var grupos = new List<Grupo>();
+
             for (var i = 0; i < count; i++)
             {
                 if (sessions.GetSession(i, out var control) != 0) continue;
@@ -228,8 +253,29 @@ public static class VolumeService
 
                 if (control is not ISimpleAudioVolume volume) continue;
 
-                var (name, icon) = Describe(pid, control);
-                found.Add(new AppSession(volume, pid, name, icon));
+                // sem identificador (nunca visto, mas nao custa): o pid vira a chave, e o
+                // programa volta a aparecer uma vez por processo — o comportamento antigo
+                var chave = control2.GetSessionIdentifier(out var id) == 0 && !string.IsNullOrEmpty(id)
+                    ? id : $"pid:{pid}";
+
+                var grupo = grupos.Find(g => g.Chave == chave);
+                if (grupo is null)
+                {
+                    grupos.Add(new Grupo(chave) { Pid = pid, Control = control, Volumes = { volume } });
+                    continue;
+                }
+
+                grupo.Volumes.Add(volume);
+
+                // o nome e o icone saem do processo, e um processo auxiliar pode ja ter
+                // morrido: quem representa o grupo e a sessao ATIVA, se houver uma
+                if (state == SessionActive) { grupo.Pid = pid; grupo.Control = control; }
+            }
+
+            foreach (var grupo in grupos)
+            {
+                var (name, icon) = Describe(grupo.Pid, grupo.Control!);
+                found.Add(new AppSession(grupo.Volumes, grupo.Pid, name, icon));
             }
         }
         catch { /* sem audio ou sem sessoes: a lista fica vazia */ }
@@ -265,6 +311,16 @@ public static class VolumeService
         return (name.Length > 0 ? name : "Aplicativo", path.Length > 0 ? IconService.For(path) : null);
     }
 
+    /// <summary>As sessoes de um mesmo programa, juntadas pelo <c>SessionIdentifier</c>.</summary>
+    private sealed class Grupo(string chave)
+    {
+        public string Chave { get; } = chave;
+        public uint Pid { get; set; }
+        public IAudioSessionControl? Control { get; set; }
+        public List<ISimpleAudioVolume> Volumes { get; } = new();
+    }
+
+    private const int SessionActive = 1;
     private const int SessionExpired = 2;
 
     [DllImport("kernel32.dll")]

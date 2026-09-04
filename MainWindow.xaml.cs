@@ -40,6 +40,10 @@ public partial class MainWindow : Window
     private const int TilingSwapUpId = 10;
     private const int TilingSwapDownId = 11;
     private const int TilingCloseId = 12;
+    private const int TilingResizeLeftId = 13;
+    private const int TilingResizeRightId = 14;
+    private const int TilingResizeUpId = 15;
+    private const int TilingResizeDownId = 16;
 
     public MainWindow()
     {
@@ -228,6 +232,10 @@ public partial class MainWindow : Window
             case TilingSwapRightId:  _tiling?.SwapFocused(TilingDirection.Right); break;
             case TilingSwapUpId:     _tiling?.SwapFocused(TilingDirection.Up); break;
             case TilingSwapDownId:   _tiling?.SwapFocused(TilingDirection.Down); break;
+            case TilingResizeLeftId:  _tiling?.Resize(TilingDirection.Left); break;
+            case TilingResizeRightId: _tiling?.Resize(TilingDirection.Right); break;
+            case TilingResizeUpId:    _tiling?.Resize(TilingDirection.Up); break;
+            case TilingResizeDownId:  _tiling?.Resize(TilingDirection.Down); break;
             default: return 0;
         }
 
@@ -259,6 +267,10 @@ public partial class MainWindow : Window
         UnregisterHotKey(hWnd, TilingSwapRightId);
         UnregisterHotKey(hWnd, TilingSwapUpId);
         UnregisterHotKey(hWnd, TilingSwapDownId);
+        UnregisterHotKey(hWnd, TilingResizeLeftId);
+        UnregisterHotKey(hWnd, TilingResizeRightId);
+        UnregisterHotKey(hWnd, TilingResizeUpId);
+        UnregisterHotKey(hWnd, TilingResizeDownId);
         if (!on) return;
 
         RegisterHotKey(hWnd, TilingFocusLeftId,  MOD_CONTROL | MOD_ALT | MOD_NOREPEAT, VK_LEFT);
@@ -272,6 +284,15 @@ public partial class MainWindow : Window
         RegisterHotKey(hWnd, TilingSwapRightId, MOD_CONTROL | MOD_SHIFT | MOD_NOREPEAT, VK_RIGHT);
         RegisterHotKey(hWnd, TilingSwapUpId,    MOD_CONTROL | MOD_SHIFT | MOD_NOREPEAT, VK_UP);
         RegisterHotKey(hWnd, TilingSwapDownId,  MOD_CONTROL | MOD_SHIFT | MOD_NOREPEAT, VK_DOWN);
+
+        // Ctrl+Alt+Shift+seta redimensiona. Alt+Shift+seta seria mais curto, mas Alt+Shift e o
+        // atalho de trocar o layout do teclado no Windows — territorio arriscado demais para um
+        // hotkey global, e o projeto ja levou essa licao com o Shift+seta quebrando a selecao de
+        // texto no sistema inteiro (docs/APRENDIZADOS.md, secao do mosaico).
+        RegisterHotKey(hWnd, TilingResizeLeftId,  MOD_CONTROL | MOD_ALT | MOD_SHIFT | MOD_NOREPEAT, VK_LEFT);
+        RegisterHotKey(hWnd, TilingResizeRightId, MOD_CONTROL | MOD_ALT | MOD_SHIFT | MOD_NOREPEAT, VK_RIGHT);
+        RegisterHotKey(hWnd, TilingResizeUpId,    MOD_CONTROL | MOD_ALT | MOD_SHIFT | MOD_NOREPEAT, VK_UP);
+        RegisterHotKey(hWnd, TilingResizeDownId,  MOD_CONTROL | MOD_ALT | MOD_SHIFT | MOD_NOREPEAT, VK_DOWN);
 
         // sem aviso se algum desses falhar: Shift+seta e Alt+C/Z sao atalhos comuns o
         // bastante para colidir com outros programas, e um MessageBox por atalho perdido
@@ -718,6 +739,10 @@ public partial class MainWindow : Window
         UnregisterHotKey(hWnd, TilingSwapRightId);
         UnregisterHotKey(hWnd, TilingSwapUpId);
         UnregisterHotKey(hWnd, TilingSwapDownId);
+        UnregisterHotKey(hWnd, TilingResizeLeftId);
+        UnregisterHotKey(hWnd, TilingResizeRightId);
+        UnregisterHotKey(hWnd, TilingResizeUpId);
+        UnregisterHotKey(hWnd, TilingResizeDownId);
 
         // as miniaturas seguram registros no compositor: soltar antes de sair
         _previewDelay.Stop();

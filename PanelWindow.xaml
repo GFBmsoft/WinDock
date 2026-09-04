@@ -6,7 +6,7 @@
         WindowStyle="None" AllowsTransparency="True" Background="{x:Null}"
         ShowInTaskbar="False" Topmost="True" ResizeMode="NoResize"
         FontFamily="Segoe UI Variable Text, Segoe UI"
-        TextOptions.TextFormattingMode="Display" UseLayoutRounding="True">
+        TextOptions.TextFormattingMode="Ideal" UseLayoutRounding="True">
 
   <!--
     A barra de cima: o relogio que se perde ao esconder a barra do Windows, mais os
@@ -196,7 +196,15 @@
 
         <!-- a roda do mouse sobe e desce o volume, como na barra do Windows -->
         <Button x:Name="VolumeButton" Style="{StaticResource PanelButton}" Click="OnVolume"
-                PreviewMouseWheel="OnVolumeWheel" ToolTip="Volume — role para ajustar">
+                PreviewMouseWheel="OnVolumeWheel">
+          <!-- A dica é um objeto com nome, e não um texto solto, só para poder ser FECHADA
+               ao rolar a roda. `ToolTipService.SetIsEnabled(false)` impede a próxima mas não
+               tira da tela a que já está aberta — e ela sempre está, porque o cursor ficou
+               parado sobre o ícone tempo suficiente para abri-la. O resultado era a dica
+               aparecendo por baixo do mostrador, dois cartões empilhados. -->
+          <Button.ToolTip>
+            <ToolTip x:Name="VolumeTip" Content="Volume — role para ajustar" />
+          </Button.ToolTip>
           <ui:GlyphIcon Glyph="{Binding VolumeGlyph}" Fill="#FFF2F2F2" Size="15" VerticalAlignment="Center" />
         </Button>
 
@@ -243,20 +251,68 @@
                 <TextBlock Text="Bluetooth" Foreground="#FFF2F2F2" FontSize="14"
                            FontWeight="SemiBold" VerticalAlignment="Center" />
               </StackPanel>
-              <TextBlock HorizontalAlignment="Right" VerticalAlignment="Center" FontSize="12">
-                <TextBlock.Style>
-                  <Style TargetType="TextBlock">
-                    <Setter Property="Text" Value="desligado" />
-                    <Setter Property="Foreground" Value="#FF9D9D9D" />
-                    <Style.Triggers>
+              <!-- Interruptor no desenho do Windows: clicar alterna o rádio. A alça desliza
+                   dentro do trilho (36 px de área interna, alça de 14 com 3 de folga de cada
+                   lado, logo um percurso de 16). Enquanto o rádio muda de estado o botão
+                   fica desabilitado, e a opacidade é o que mostra isso. -->
+              <Button HorizontalAlignment="Right" VerticalAlignment="Center"
+                      Background="Transparent" BorderThickness="0" Cursor="Hand"
+                      Click="OnToggleBluetooth" IsEnabled="{Binding BluetoothReady}"
+                      ToolTip="Ligar ou desligar o Bluetooth">
+                <Button.Template>
+                  <ControlTemplate TargetType="Button">
+                    <Border x:Name="Trilho" Width="38" Height="20" CornerRadius="10"
+                            Background="#00000000" BorderBrush="#8AFFFFFF" BorderThickness="1">
+                      <Ellipse x:Name="Alca" Width="14" Height="14" Fill="#FFD8D8DA"
+                               HorizontalAlignment="Left" VerticalAlignment="Center"
+                               Margin="3,0,0,0">
+                        <Ellipse.RenderTransform>
+                          <TranslateTransform x:Name="Desliza" X="0" />
+                        </Ellipse.RenderTransform>
+                      </Ellipse>
+                    </Border>
+
+                    <ControlTemplate.Triggers>
                       <DataTrigger Binding="{Binding BluetoothOn}" Value="True">
-                        <Setter Property="Text" Value="ligado" />
-                        <Setter Property="Foreground" Value="#FF4CC2FF" />
+                        <Setter TargetName="Trilho" Property="Background" Value="#FF3FA34D" />
+                        <Setter TargetName="Trilho" Property="BorderBrush" Value="#FF3FA34D" />
+                        <Setter TargetName="Alca" Property="Fill" Value="#FFFFFFFF" />
+                        <DataTrigger.EnterActions>
+                          <BeginStoryboard>
+                            <Storyboard>
+                              <DoubleAnimation Storyboard.TargetName="Desliza"
+                                               Storyboard.TargetProperty="X"
+                                               To="16" Duration="0:0:0.12" />
+                            </Storyboard>
+                          </BeginStoryboard>
+                        </DataTrigger.EnterActions>
+                        <DataTrigger.ExitActions>
+                          <BeginStoryboard>
+                            <Storyboard>
+                              <DoubleAnimation Storyboard.TargetName="Desliza"
+                                               Storyboard.TargetProperty="X"
+                                               To="0" Duration="0:0:0.12" />
+                            </Storyboard>
+                          </BeginStoryboard>
+                        </DataTrigger.ExitActions>
                       </DataTrigger>
-                    </Style.Triggers>
-                  </Style>
-                </TextBlock.Style>
-              </TextBlock>
+
+                      <!-- só a opacidade, que nenhum outro gatilho aqui disputa: mexer no
+                           tamanho da alça desalinharia o percurso, e mexer no fundo perderia
+                           para o verde do gatilho de cima -->
+                      <Trigger Property="IsMouseOver" Value="True">
+                        <Setter TargetName="Trilho" Property="Opacity" Value="0.82" />
+                      </Trigger>
+
+                      <!-- o rádio está mudando de estado: nada de um segundo clique. Vem por
+                           último de propósito, para vencer o realce do mouse -->
+                      <Trigger Property="IsEnabled" Value="False">
+                        <Setter TargetName="Trilho" Property="Opacity" Value="0.4" />
+                      </Trigger>
+                    </ControlTemplate.Triggers>
+                  </ControlTemplate>
+                </Button.Template>
+              </Button>
             </Grid>
 
             <ItemsControl ItemsSource="{Binding BluetoothDevices}">
@@ -270,9 +326,10 @@
                       <ColumnDefinition Width="*" />
                       <ColumnDefinition Width="Auto" />
                       <ColumnDefinition Width="Auto" />
+                      <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
 
-                    <!-- azul quando conectado, so contorno quando apenas pareado -->
+                    <!-- verde quando conectado de verdade, so contorno quando apenas pareado -->
                     <Ellipse Width="7" Height="7" VerticalAlignment="Center" Margin="0,0,8,0">
                       <Ellipse.Style>
                         <Style TargetType="Ellipse">
@@ -281,8 +338,8 @@
                           <Setter Property="StrokeThickness" Value="1" />
                           <Style.Triggers>
                             <DataTrigger Binding="{Binding Connected}" Value="True">
-                              <Setter Property="Fill" Value="#FF4CC2FF" />
-                              <Setter Property="Stroke" Value="#FF4CC2FF" />
+                              <Setter Property="Fill" Value="#FF6CCB5F" />
+                              <Setter Property="Stroke" Value="#FF6CCB5F" />
                             </DataTrigger>
                           </Style.Triggers>
                         </Style>
@@ -291,15 +348,28 @@
 
                     <TextBlock Grid.Column="1" Text="{Binding Name}" Foreground="#FFE8E8EA"
                                FontSize="12" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
-                    <TextBlock Grid.Column="2" Foreground="#FF9D9D9D" FontSize="11"
+
+                    <!-- só quem informa a bateria mostra esta coluna -->
+                    <TextBlock Grid.Column="2" Text="{Binding BatteryText}" Foreground="#FF9D9D9D"
+                               FontSize="11" VerticalAlignment="Center" Margin="8,0,0,0"
+                               Visibility="{Binding HasBattery, Converter={StaticResource BoolToVisible}}" />
+
+                    <!-- A cor NÃO pode vir como atributo aqui. Um valor local vence setter de
+                         gatilho de Style no WPF, então um `Foreground=...` no elemento deixaria
+                         a palavra cinza para sempre — o `Text` mudava (não é local) e a cor
+                         não. Era o caso antes, e passou despercebido porque o ponto ao lado do
+                         nome já dava o sinal. Cor padrão e cor de conectado saem as duas do
+                         Style, que é onde o gatilho alcança. -->
+                    <TextBlock Grid.Column="3" FontSize="11"
                                VerticalAlignment="Center" Margin="8,0,0,0">
                       <TextBlock.Style>
                         <Style TargetType="TextBlock">
                           <Setter Property="Text" Value="pareado" />
+                          <Setter Property="Foreground" Value="#FF9D9D9D" />
                           <Style.Triggers>
                             <DataTrigger Binding="{Binding Connected}" Value="True">
                               <Setter Property="Text" Value="conectado" />
-                              <Setter Property="Foreground" Value="#FF4CC2FF" />
+                              <Setter Property="Foreground" Value="#FF6CCB5F" />
                             </DataTrigger>
                           </Style.Triggers>
                         </Style>
@@ -308,7 +378,7 @@
 
                     <!-- tira este aparelho da lista da barra; ele continua pareado no Windows.
                          Só aparece com o mouse na linha, para a lista ficar limpa. -->
-                    <Button x:Name="Hide" Grid.Column="3" Style="{StaticResource PanelButton}"
+                    <Button x:Name="Hide" Grid.Column="4" Style="{StaticResource PanelButton}"
                             Padding="6,0" Margin="6,0,0,0" Opacity="0"
                             Click="OnHideBluetoothDevice" Tag="{Binding Name}"
                             ToolTip="Não mostrar este aparelho na barra">
@@ -373,6 +443,7 @@
                 <ui:GlyphIcon Glyph="{Binding VolumeGlyph}" Fill="#FFF2F2F2" Size="15" VerticalAlignment="Center" />
               </Button>
               <Slider Style="{StaticResource FluentSlider}" Width="205" Margin="8,0,0,0"
+                      Foreground="{Binding VolumeBrush}"
                       Minimum="0" Maximum="100" Value="{Binding Volume, Mode=TwoWay}" />
             </StackPanel>
 
@@ -444,6 +515,38 @@
                 </DataTemplate>
               </ItemsControl.ItemTemplate>
             </ItemsControl>
+          </StackPanel>
+        </Border>
+      </Popup>
+
+      <!-- Mostrador do volume ao rolar a roda sobre o alto-falante, no espírito do OSD do
+           Windows: aparece no primeiro giro, acompanha os seguintes e some sozinho.
+
+           IsHitTestVisible="False" é o que o mantém inofensivo — ele nasce debaixo do
+           cursor, e sem isso roubaria a roda do próprio botão já no segundo giro. Pela
+           mesma razão fica fora de AnyPopupOpen: não é um painel que o clique fora fecha. -->
+      <Popup x:Name="VolumeOsd" PlacementTarget="{Binding ElementName=VolumeButton}"
+             Placement="Bottom" VerticalOffset="6" HorizontalOffset="-8"
+             StaysOpen="True" AllowsTransparency="True" IsHitTestVisible="False">
+        <Border Background="#F7242424" BorderBrush="#2EFFFFFF" BorderThickness="1"
+                CornerRadius="10" Padding="14,10" Margin="10" IsHitTestVisible="False">
+          <Border.Effect>
+            <DropShadowEffect BlurRadius="20" ShadowDepth="5" Opacity="0.55" Color="Black" />
+          </Border.Effect>
+          <StackPanel Width="150">
+            <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+              <ui:GlyphIcon Glyph="{Binding VolumeGlyph}" Fill="#FFF2F2F2" Size="16"
+                            VerticalAlignment="Center" Margin="0,0,10,0" />
+              <TextBlock Text="{Binding Volume, StringFormat='{}{0}%'}" Foreground="#FFF2F2F2"
+                         FontSize="15" FontWeight="SemiBold" VerticalAlignment="Center" />
+            </StackPanel>
+
+            <!-- o trilho, e por cima dele a parte preenchida — o mesmo desenho da pilha da
+                 bateria, com a largura vindo pronta do modelo (veja VolumeFill) -->
+            <Border Height="4" CornerRadius="2" Background="#33FFFFFF">
+              <Rectangle Width="{Binding VolumeFill}" Fill="{Binding VolumeBrush}"
+                         RadiusX="2" RadiusY="2" HorizontalAlignment="Left" />
+            </Border>
           </StackPanel>
         </Border>
       </Popup>

@@ -31,12 +31,14 @@ public partial class PanelWindow : Window
 
         _outsideClick.Tick += (_, _) => CheckOutsideClick();
         _trayCardTimeout.Tick += (_, _) => { _trayCardTimeout.Stop(); TrayPopup.IsOpen = false; };
+        _volumeOsd.Tick += (_, _) => HideVolumeOsd();
         TrayPopup.CustomPopupPlacementCallback = PlaceTrayCard;
 
         SourceInitialized += OnSourceInitialized;
         Closed += (_, _) =>
         {
             _outsideClick.Stop();
+            _volumeOsd.Stop();
             _model.Dispose();
             _appBar?.Dispose();
         };
@@ -99,13 +101,35 @@ public partial class PanelWindow : Window
 
     private void Toggle(string uri)
     {
+        // os nossos saem de cena de qualquer jeito: este botão abre um painel do Windows,
+        // e sem isto o nosso ficava aberto por baixo dele
+        CloseAllPopups();
+
         if (_shellPanelWasOpen) PanelModel.CloseShellPanel();
         else PanelModel.OpenSystemPanel(uri);
     }
 
+    /// <summary>
+    /// Tira da tela tudo o que estiver aberto, antes de um botão da barra abrir o seu.
+    ///
+    /// São duas famílias de painel e cada uma só sabia fechar a própria: os nossos popups
+    /// (bluetooth, volume, energia, calendário, cartão da bandeja) e os do Windows que o
+    /// wi-fi e o sino abrem. O resultado era clicar num ícone com outro painel aberto e
+    /// ficar com os dois na tela ao mesmo tempo, um por cima do outro.
+    ///
+    /// O painel do Windows só é fechado se estava mesmo aberto: fechá-lo é um <c>Esc</c>
+    /// sintético (veja <see cref="PanelModel.CloseShellPanel"/>), e um Esc solto vai parar
+    /// em quem estiver em primeiro plano.
+    /// </summary>
+    private void CloseOpenPanels()
+    {
+        CloseAllPopups();
+        if (_shellPanelWasOpen) PanelModel.CloseShellPanel();
+    }
+
     private void OnBluetooth(object sender, RoutedEventArgs e)
     {
-        CloseAllPopups();   // um painel de cada vez
+        CloseOpenPanels();   // um painel de cada vez
 
         if (!_bluetoothWasOpen)
         {
@@ -194,6 +218,13 @@ public partial class PanelWindow : Window
                screenPoint.Y >= origin.Y && screenPoint.Y <= origin.Y + ActualHeight;
     }
 
+    /// <summary>
+    /// Liga ou desliga o rádio. O painel fica aberto de propósito: o estado no cabeçalho e a
+    /// lista de aparelhos mudam à vista, que é a confirmação de que o clique fez algo.
+    /// </summary>
+    private async void OnToggleBluetooth(object sender, RoutedEventArgs e) =>
+        await _model.ToggleBluetooth();
+
     private void OnHideBluetoothDevice(object sender, RoutedEventArgs e)
     {
         if ((sender as FrameworkElement)?.Tag is string name) _model.HideBluetoothDevice(name);
@@ -210,7 +241,7 @@ public partial class PanelWindow : Window
 
     private void OnVolume(object sender, RoutedEventArgs e)
     {
-        CloseAllPopups();   // um painel de cada vez
+        CloseOpenPanels();   // um painel de cada vez
 
         if (!_volumeWasOpen)
         {
@@ -235,8 +266,44 @@ public partial class PanelWindow : Window
     private void OnVolumeWheel(object sender, System.Windows.Input.MouseWheelEventArgs e)
     {
         _model.Nudge(e.Delta);
+        ShowVolumeOsd();
         e.Handled = true;
     }
+
+    /// <summary>
+    /// Mostra o número do volume ao lado do ícone e recomeça a contagem para escondê-lo.
+    ///
+    /// Com o controle de volume aberto o mostrador não aparece: o painel já traz o número e
+    /// a barra, e os dois juntos seriam a mesma informação duas vezes, uma por cima da outra.
+    /// </summary>
+    private void ShowVolumeOsd()
+    {
+        if (VolumePopup.IsOpen) { VolumeOsd.IsOpen = false; return; }
+
+        // A dica do botão já está aberta quando a roda gira — o cursor ficou parado sobre o
+        // ícone tempo suficiente —, e sem tirá-la os dois cartões aparecem empilhados. São
+        // dois passos porque um só não basta: `IsOpen = false` tira da tela a que está
+        // aberta, `SetIsEnabled(false)` impede a próxima enquanto o mostrador durar.
+        VolumeTip.IsOpen = false;
+        ToolTipService.SetIsEnabled(VolumeButton, false);
+        VolumeOsd.IsOpen = true;
+
+        // reiniciar é o ponto: durante uma rolagem longa a contagem nunca chega ao fim, e o
+        // mostrador some uma vez só, quando a pessoa realmente parou
+        _volumeOsd.Stop();
+        _volumeOsd.Start();
+    }
+
+    /// <summary>Tira o mostrador e devolve a dica ao botão.</summary>
+    private void HideVolumeOsd()
+    {
+        _volumeOsd.Stop();
+        VolumeOsd.IsOpen = false;
+        ToolTipService.SetIsEnabled(VolumeButton, true);
+    }
+
+    private readonly System.Windows.Threading.DispatcherTimer _volumeOsd =
+        new() { Interval = TimeSpan.FromMilliseconds(1200) };
 
     private void OnMute(object sender, RoutedEventArgs e) => _model.Muted = !_model.Muted;
 
@@ -253,7 +320,7 @@ public partial class PanelWindow : Window
 
     private void OnPower(object sender, RoutedEventArgs e)
     {
-        CloseAllPopups();
+        CloseOpenPanels();
         if (!_powerWasOpen) PowerPopup.IsOpen = true;
         WatchOutsideClick();
     }
@@ -276,7 +343,7 @@ public partial class PanelWindow : Window
 
     private void OnCalendar(object sender, RoutedEventArgs e)
     {
-        CloseAllPopups();
+        CloseOpenPanels();
         if (_calendarWasOpen) { WatchOutsideClick(); return; }
 
         // abre sempre no mês de hoje, mesmo que da última vez tenham folheado para longe
@@ -411,7 +478,7 @@ public partial class PanelWindow : Window
         // da última vez que alguém clicou, e a seta só sabia fechar.
         var wasOpen = TrayPopup.IsOpen;
 
-        CloseAllPopups();
+        CloseOpenPanels();
 
         // A dica fica suprimida **em qualquer clique**, inclusive no que fecha o cartão, e só
         // volta quando o mouse sai da seta (`OnTrayButtonLeave`). Devolvê-la ao fechar fazia
@@ -522,6 +589,10 @@ public partial class PanelWindow : Window
         CalendarPopup.IsOpen = false;
         TrayPopup.IsOpen = false;
         _trayCardTimeout.Stop();
+
+        // o mostrador de volume não é um painel, mas some junto: o controle de volume já
+        // traz o número, e deixá-lo por cima seria a mesma informação duas vezes
+        HideVolumeOsd();
 
         // a dica do botão da bandeja volta a valer quando o cartão sai de cena
         // a dica nao volta aqui: quem a devolve e a saida do mouse da seta

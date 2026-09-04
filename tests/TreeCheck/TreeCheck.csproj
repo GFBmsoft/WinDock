@@ -1,0 +1,35 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Confere o cálculo de layout do mosaico sem subir a dock e sem tocar em janela nenhuma.
+
+    Existe por um motivo específico: automação externa não consegue trocar o foco no Windows
+    (o SetForegroundWindow de um processo sem input real de usuário é recusado em silêncio —
+    ver docs/APRENDIZADOS.md), então não há como simular um atalho do mosaico de fora. O que
+    dá para conferir sozinho é a parte que decide os retângulos, e ela foi deixada sem nenhum
+    P/Invoke justamente para isso.
+
+    Roda com:  dotnet run  (a partir desta pasta)
+    Sai com código 1 se alguma conferência falhar.
+  -->
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <!-- net8.0 puro, sem -windows: nada aqui depende do WPF nem do Win32 -->
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>WinDock.Tests</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!--
+      O arquivo de verdade, compilado aqui dentro — não uma cópia. Uma cópia divergiria do
+      original no primeiro ajuste, e uma conferência que não roda sobre o código de produção
+      não confere nada. Compilar a fonte neste assembly também é o que dá acesso ao que é
+      `internal` lá, sem precisar abrir nada no projeto principal.
+    -->
+    <Compile Include="..\..\src\Services\Tiling\LayoutTree.cs" Link="LayoutTree.cs" />
+  </ItemGroup>
+
+</Project>

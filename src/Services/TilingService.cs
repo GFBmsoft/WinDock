@@ -2,6 +2,7 @@ using System.IO;
 using System.Runtime.InteropServices;
 using System.Windows.Threading;
 using System.ComponentModel;
+using WinDock.Services.Tiling;
 using static WinDock.Interop.Native;
 
 namespace WinDock.Services;
@@ -14,13 +15,18 @@ public enum TilingDirection { Left, Right, Up, Down }
 /// outros — Ctrl+Shift+seta manda uma janela pro monitor vizinho quando ela já está na ponta
 /// do grid atual.
 ///
-/// **O modelo, de propósito simples.** Cada janela nova entra no fim de uma lista (a ordem
-/// de quando apareceu); o espaço é dividido recursivamente ao meio, alternando entre corte
-/// vertical e horizontal a cada nível — a primeira janela da lista fica com a primeira
-/// metade, o resto recorre na segunda. Não existe uma árvore de verdade guardada em lugar
-/// nenhum: a divisão é recalculada do zero a cada mudança, só a partir da lista e da ordem
-/// dela — mais simples de acompanhar do que manter uma estrutura e ter que atualizá-la em
-/// cada inserção e remoção.
+/// **O modelo é uma árvore, e ela é guardada** (ver <see cref="LayoutTree"/>): uma raiz por
+/// monitor e cada nó sabendo quanto ocupa do pai. As janelas de um monitor repartem o espaço por
+/// igual, lado a lado — a janela nova entra ao lado da que está em foco (não no fim da fila), e
+/// por isso aparece perto de onde a pessoa estava olhando, mas no mesmo nível das outras. O
+/// <see cref="Refresh"/> reconcilia essa árvore com o que está aberto agora, em vez de refazê-la:
+/// é o que faz uma proporção escolhida à mão sobreviver a abrir e fechar janela. Antes disso o
+/// arranjo era recalculado do zero em metades iguais, e não havia onde guardar "esta eu quero
+/// maior".
+///
+/// **Redimensionar sempre tira de alguém.** Ctrl+Alt+Shift+seta (e arrastar a divisória de uma
+/// tile) passa uma fatia da vizinha daquele lado para a janela em foco; na ponta do grid não há
+/// de quem tirar, e nada acontece.
 ///
 /// **Foco direcional por geometria, não por ordem na lista.** Ctrl+Alt+seta acha, entre as
 /// janelas do mosaico, a que tem o centro mais alinhado na direção pedida — é o que faz
@@ -54,8 +60,14 @@ public sealed class TilingService : IDisposable
     private nint _dragHook;
     private nint _draggedHwnd;
 
-    /// <summary>A ordem em que as janelas entraram no mosaico — é toda a "árvore" que existe.</summary>
-    private readonly List<nint> _tiles = new();
+    /// <summary>Onde cada janela está no arranjo, e quanto do espaço do vizinho ela tomou. Uma
+    /// raiz por monitor; ver <see cref="LayoutTree"/>.</summary>
+    private readonly LayoutTree _tree = new();
+
+    /// <summary>A última janela do mosaico que teve foco — é ao lado dela que a próxima janela
+    /// nova entra. Guardada porque no instante em que o mosaico recalcula, quem está em primeiro
+    /// plano costuma ser justamente a janela recém-aberta, que ainda não faz parte de nada.</summary>
+    private nint _lastTileFocus;
 
     /// <summary>Fora do mosaico por pedido da pessoa (Alt+C), mas ainda rastreada.</summary>
     private readonly HashSet<nint> _floating = new();
@@ -135,7 +147,7 @@ public sealed class TilingService : IDisposable
         _borderHeartbeat?.Stop();
         _borderHeartbeat = null;
 
-        _tiles.Clear();
+        _tree.Clear();
         _floating.Clear();
         _rects.Clear();
         _border.Hide();
@@ -160,6 +172,9 @@ public sealed class TilingService : IDisposable
 
         if (ev == EVENT_SYSTEM_FOREGROUND)
         {
+            // guarda a referência para a próxima janela nova entrar ao lado desta
+            if (_tree.Contains(hWnd)) _lastTileFocus = hWnd;
+
             // só reposiciona o contorno — não precisa recalcular o mosaico inteiro para
             // uma simples troca de foco. O "batimento" (_borderHeartbeat) cobre qualquer
             // z-order que desande depois disso, então não precisa de recheck avulso aqui.
@@ -172,7 +187,7 @@ public sealed class TilingService : IDisposable
             // da vida: sem contorno e fora do alcance do Alt+C. Agora que está em foco de
             // verdade, ela já teve tempo de se estabelecer — se ainda é desconhecida do
             // mosaico e passa nos critérios, entra.
-            if (hWnd != 0 && !_tiles.Contains(hWnd) && !_floating.Contains(hWnd) && !_stubborn.Contains(hWnd)
+            if (hWnd != 0 && !_tree.Contains(hWnd) && !_floating.Contains(hWnd) && !_stubborn.Contains(hWnd)
                 && Concerns(hWnd) && IsResizable(hWnd)
                 && _pending is not { Status: DispatcherOperationStatus.Pending })
             {
@@ -213,31 +228,69 @@ public sealed class TilingService : IDisposable
             if (_floating.Contains(hWnd) || _stubborn.Contains(hWnd)) return;
             var dragged = WindowService.Enumerate().FirstOrDefault(w => w.Handle == hWnd);
             if (dragged != null && IsExcluded(dragged)) return;
+
+            AbsorbDrag(hWnd);
         }
 
-        // o MINIMIZESTART dispara antes da animação acabar — o IsIconic() da janela ainda podia
-        // ler falso nesse instante, e um Refresh() rodando aí a mantinha candidata: o Apply()
-        // reaplicava o retângulo de tile bem no meio do minimizar e cancelava a animação (a
-        // tela piscava e a janela nunca minimizava de verdade). Só o fim importa.
-        if (ev == EVENT_SYSTEM_MINIMIZESTART) return;
-
-        if (ev == EVENT_SYSTEM_MINIMIZEEND)
+        // ── Cuidado com os nomes destes dois eventos: eles enganam. ──────────────────────
+        //
+        // Medido nesta máquina (build 26200), com uma janela própria e um hook só de escuta:
+        //
+        //     MINIMIZESTART  IsIconic=True    <- a janela MINIMIZOU
+        //     MINIMIZEEND    IsIconic=False   <- a janela RESTAUROU
+        //
+        // "Start" e "End" não são o começo e o fim de uma minimização: são o começo e o fim
+        // do *estado* minimizado. MINIMIZESTART é o gesto de minimizar e MINIMIZEEND é o de
+        // restaurar — e o `IsIconic` já responde certo no instante em que cada um chega.
+        //
+        // Este código lia os dois ao contrário: descartava o MINIMIZESTART e tratava o
+        // MINIMIZEEND como "acabou de minimizar". Daí os dois sintomas: minimizar pelo botão
+        // do Windows não refazia o mosaico (o evento era jogado fora), e restaurar roubava o
+        // foco da janela recém-restaurada para outra qualquer.
+        //
+        // O comentário antigo dizia que o `IsIconic` "ainda podia ler falso" no
+        // MINIMIZESTART, e que um Refresh ali cancelava a animação de minimizar. A medição
+        // não confirma a leitura falsa. Se aquele travamento voltar a aparecer, o lugar de
+        // consertar é o `Apply` — que restaura toda janela iconificada que receba retângulo —
+        // e não descartar o evento.
+        if (ev == EVENT_SYSTEM_MINIMIZESTART)
         {
-            // não passa pelo Concerns() como os outros eventos: é a própria janela que acabou de
-            // minimizar, e o estado dela (visível? cloaked?) pode ainda estar instável bem no
-            // instante em que a animação termina — recusar aqui deixava a vizinha no mosaico com
-            // o retângulo antigo, sem redistribuir o espaço que sobrou. O Refresh() de qualquer
-            // forma recalcula do zero a partir de quem está de verdade elegível agora.
-            //
-            // o Windows às vezes larga o foco na área de trabalho em vez de passar pra próxima
-            // janela do mosaico quando uma se minimiza — o Refresh() confere isso no final
+            // não passa pelo Concerns(): é a própria janela que acabou de minimizar, e para o
+            // IsAltTabWindow ela já não é candidata. Recusar aqui deixava a vizinha com o
+            // retângulo antigo, sem receber o espaço que sobrou.
+            if (!_tree.Contains(hWnd)) return;
+
+            // o Windows costuma largar o foco em qualquer janela do z-order quando uma
+            // some — inclusive numa de outro monitor. O Refresh conserta isso no final.
             _reclaimFocusAfterMinimize = true;
+            _minimizedHwnd = hWnd;
+
             if (_pending is not { Status: DispatcherOperationStatus.Pending })
                 _pending = _dispatcher.InvokeAsync(Refresh, DispatcherPriority.Background);
             return;
         }
 
-        if (!Concerns(hWnd)) return;
+        if (ev == EVENT_SYSTEM_MINIMIZEEND)
+        {
+            // restaurar: a janela volta a ocupar o lugar dela no mosaico. Sem reivindicar
+            // foco nenhum — quem acabou de ser restaurada é justamente quem deve ficar em
+            // primeiro plano, e mexer nisso aqui era o que jogava o foco para outra tela.
+            if (_pending is not { Status: DispatcherOperationStatus.Pending })
+                _pending = _dispatcher.InvokeAsync(Refresh, DispatcherPriority.Background);
+            return;
+        }
+
+        // Uma janela fechando não passa pelo Concerns(): no instante em que o evento chega o hwnd
+        // já está morto (ou escondido), e o IsAltTabWindow — que pede janela visível e com título
+        // — recusa. Era por isso que fechar uma de três não devolvia o espaço às outras duas: o
+        // recálculo nunca era agendado, e o arranjo só se acertava quando outra coisa qualquer
+        // acontecia. A pergunta certa para esses dois eventos não é "essa janela nos interessa?"
+        // (já não dá para saber) e sim "essa janela era nossa?", que a árvore ainda responde.
+        if (ev is EVENT_OBJECT_DESTROY or EVENT_OBJECT_HIDE)
+        {
+            if (!_tree.Contains(hWnd) && !_floating.Contains(hWnd) && !_stubborn.Contains(hWnd)) return;
+        }
+        else if (!Concerns(hWnd)) return;
 
         if (_pending is { Status: DispatcherOperationStatus.Pending }) return;
         _pending = _dispatcher.InvokeAsync(Refresh, DispatcherPriority.Background);
@@ -381,10 +434,9 @@ public sealed class TilingService : IDisposable
             var target = FindNeighbor(current, from, direction);
             if (target != 0)
             {
-                var i = _tiles.IndexOf(current);
-                var j = _tiles.IndexOf(target);
-                (_tiles[i], _tiles[j]) = (_tiles[j], _tiles[i]);
-
+                // as duas trocam de lugar sem levar o tamanho junto: quem vai pro lugar maior
+                // fica maior — é a posição no arranjo que tem tamanho, não a janela
+                _tree.Swap(current, target);
                 Refresh();
                 return;
             }
@@ -440,7 +492,7 @@ public sealed class TilingService : IDisposable
         var targetInfo = new MONITORINFO { cbSize = Marshal.SizeOf<MONITORINFO>() };
         if (!GetMonitorInfo(bestMonitor, ref targetInfo)) return;
 
-        _tiles.Remove(hwnd);
+        _tree.Remove(hwnd);
         _floating.Remove(hwnd);
         _stubborn.Remove(hwnd);
         _suspect.Remove(hwnd);
@@ -572,6 +624,69 @@ public sealed class TilingService : IDisposable
         Refresh();
     }
 
+    /// <summary>
+    /// Ctrl+Alt+Shift+seta: alarga a janela em foco naquele lado, encolhendo a vizinha de lá na
+    /// mesma medida. O espaço nunca vem do nada.
+    ///
+    /// Na ponta do grid não há de quem tirar — a árvore devolve que não deu, e nada é reaplicado
+    /// em vez de mexer nas outras janelas à toa.
+    /// </summary>
+    public void Resize(TilingDirection direction)
+    {
+        if (!_config.TilingEnabled) return;
+
+        var hwnd = GetForegroundWindow();
+        if (hwnd == 0 || !_tree.Contains(hwnd)) return;
+
+        var axis = direction is TilingDirection.Left or TilingDirection.Right
+            ? SplitLayout.Horizontal
+            : SplitLayout.Vertical;
+        var towardsEnd = direction is TilingDirection.Right or TilingDirection.Down;
+
+        if (!_tree.Resize(hwnd, axis, towardsEnd, _config.TilingResizeStep))
+        {
+            Log.Trace($"Resize {direction}: {hwnd:X} não tem vizinho desse lado — nada a fazer");
+            return;
+        }
+
+        Refresh();
+    }
+
+    /// <summary>
+    /// Fim de um arraste numa janela do grid: se ela mudou de tamanho, guarda essa mudança como
+    /// proporção em vez de descartá-la. Antes, arrastar a divisória de uma tile não levava a nada
+    /// — o <see cref="Refresh"/> seguinte devolvia a janela ao tamanho antigo, e não havia onde
+    /// registrar "eu quero esta maior".
+    ///
+    /// Só o tamanho conta, não a posição: arrastar a janela pela barra de título move as duas
+    /// bordas na mesma medida e não muda largura nem altura — nesse caso ela volta pro lugar,
+    /// como sempre voltou.
+    /// </summary>
+    private void AbsorbDrag(nint hwnd)
+    {
+        if (!_rects.TryGetValue(hwnd, out var before)) return;
+        if (!TryGetVisualRect(hwnd, out var after)) return;
+
+        // folga contra o arredondamento de DPI e contra a margem invisível da moldura: sem ela,
+        // um arraste que não mexeu em tamanho nenhum ainda registraria uns pixels de diferença
+        const int tolerance = 4;
+
+        var widthChange = after.Width - before.Width;
+        if (Math.Abs(widthChange) > tolerance)
+        {
+            // qual das duas bordas verticais se mexeu mais é o que diz de que lado o espaço saiu
+            var movedRight = Math.Abs(after.Right - before.Right) >= Math.Abs(after.Left - before.Left);
+            _tree.Resize(hwnd, SplitLayout.Horizontal, movedRight, widthChange);
+        }
+
+        var heightChange = after.Height - before.Height;
+        if (Math.Abs(heightChange) > tolerance)
+        {
+            var movedDown = Math.Abs(after.Bottom - before.Bottom) >= Math.Abs(after.Top - before.Top);
+            _tree.Resize(hwnd, SplitLayout.Vertical, movedDown, heightChange);
+        }
+    }
+
     /// <summary>Alt+Z: minimiza a janela em foco. Some do mosaico até ser restaurada.</summary>
     public void HideFocused()
     {
@@ -581,7 +696,8 @@ public sealed class TilingService : IDisposable
         if (hwnd == 0) return;
 
         ShowWindow(hwnd, SW_MINIMIZE);
-        // o EVENT_SYSTEM_MINIMIZEEND já dispara um Refresh sozinho; nada mais a fazer aqui
+        // o EVENT_SYSTEM_MINIMIZESTART — que, apesar do nome, é o evento de *minimizar*;
+        // veja o OnWinEvent — já dispara um Refresh sozinho; nada mais a fazer aqui
     }
 
     /// <summary>Alt+W: fecha a janela em foco — o mesmo WM_CLOSE educado que a dock manda pelo
@@ -599,39 +715,126 @@ public sealed class TilingService : IDisposable
 
     // ── layout ────────────────────────────────────────────────
 
+    /// <summary>
+    /// Reconcilia a árvore com o que está aberto agora e reaplica os retângulos. Reconciliar, e
+    /// não reconstruir: é o que preserva as proporções que a pessoa escolheu — refazer a estrutura
+    /// do zero a cada evento devolvia tudo pra metades iguais assim que qualquer janela abrisse ou
+    /// fechasse.
+    /// </summary>
+    /// <summary>Quantos <see cref="Refresh"/> encadeados estão em andamento. O recálculo se
+    /// rechama quando aprende algo que muda o arranjo (uma janela que saiu do mosaico, um tamanho
+    /// mínimo recém-descoberto); as duas coisas só crescem, então a cadeia sempre termina — mas
+    /// uma janela que devolvesse tamanhos diferentes a cada medição travaria a interface, e um
+    /// teto é mais barato que confiar no bom comportamento alheio.</summary>
+    private int _refreshDepth;
+    private const int MaxRefreshDepth = 4;
+
     private void Refresh()
     {
         if (!_config.TilingEnabled) return;
+        if (_refreshDepth >= MaxRefreshDepth)
+        {
+            Log.Trace($"Refresh: parando a cadeia em {MaxRefreshDepth} — alguma janela não " +
+                      "estabiliza no tamanho, e insistir só travaria a dock");
+            return;
+        }
 
-        var candidates = WindowService.Enumerate()
-            .Where(w => !w.IsMinimized)
+        _refreshDepth++;
+        try { RefreshCore(); }
+        finally { _refreshDepth--; }
+    }
+
+    private void RefreshCore()
+    {
+
+        // minimizada continua sendo candidata: ela fica guardada na árvore, no lugar dela, só sem
+        // ocupar espaço — é o que a faz voltar pra mesma posição ao ser restaurada, em vez de
+        // reentrar no fim como uma janela nova qualquer
+        var todas = WindowService.Enumerate();
+        var managed = todas
             .Where(w => !_floating.Contains(w.Handle))
             .Where(w => !_stubborn.Contains(w.Handle))
             .Where(w => IsResizable(w.Handle))
             .Where(w => !IsExcluded(w))
-            .Select(w => w.Handle)
-            .ToHashSet();
+            .ToList();
 
-        _tiles.RemoveAll(h => !candidates.Contains(h) || !IsWindow(h));
-        _floating.RemoveWhere(h => !IsWindow(h));
-        _stubborn.RemoveWhere(h => !IsWindow(h));
-        foreach (var h in candidates) if (!_tiles.Contains(h)) _tiles.Add(h);
-
-        if (_tiles.Count == 0) { _rects = new(); UpdateBorder(); ReclaimFocusIfLost(); return; }
-
-        // cada monitor tem o próprio grid, independente dos outros — a ordem de entrada de
-        // cada janela no seu monitor é a mesma ordem em que apareceu em _tiles
-        var rects = new Dictionary<nint, RECT>();
-        foreach (var group in _tiles.GroupBy(h => MonitorFromWindow(h, MONITOR_DEFAULTTONEAREST)))
+        // quem ficou de fora, e por qual dos filtros — a pergunta que mais aparece quando uma
+        // janela "some" do mosaico sem motivo aparente
+        foreach (var w in todas.Where(w => !w.IsMinimized && !managed.Contains(w)))
         {
-            var info = new MONITORINFO { cbSize = Marshal.SizeOf<MONITORINFO>() };
-            if (!GetMonitorInfo(group.Key, ref info)) continue;
-
-            var area = Inset(info.rcWork, _config.TilingGap);
-            Split(area, group.ToList(), 0, rects);
+            var razao = _floating.Contains(w.Handle) ? "flutuando (Alt+C)"
+                      : _stubborn.Contains(w.Handle) ? "teimosa (recusou o tamanho duas vezes)"
+                      : !IsResizable(w.Handle) ? "sem WS_THICKFRAME nem WS_MAXIMIZEBOX"
+                      : "na lista de exceções";
+            Log.Trace($"Refresh: {w.Handle:X} '{w.Title}' fora do mosaico — {razao}");
         }
 
-        foreach (var (hwnd, rect) in rects) Apply(hwnd, rect);
+        var handles = managed.Select(w => w.Handle).ToHashSet();
+        var minimized = managed.Where(w => w.IsMinimized).Select(w => w.Handle).ToHashSet();
+
+        _floating.RemoveWhere(h => !IsWindow(h));
+        _stubborn.RemoveWhere(h => !IsWindow(h));
+
+        // saiu do mosaico — fechou, foi flutuar, virou "teimosa", entrou na lista de exceções
+        foreach (var hwnd in _tree.AllWindows())
+            if (!handles.Contains(hwnd) || !IsWindow(hwnd)) _tree.Remove(hwnd);
+
+        // mudou de tela: sai da árvore de origem aqui pra entrar na de destino logo abaixo. Uma
+        // janela minimizada fica de fora dessa conferência — o Windows guarda ela num canto fora
+        // da tela enquanto está minimizada, e o MonitorFromWindow dali responde qualquer coisa
+        foreach (var hwnd in _tree.AllWindows())
+        {
+            if (minimized.Contains(hwnd)) continue;
+            if (_tree.MonitorOf(hwnd) != MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST)) _tree.Remove(hwnd);
+        }
+
+        // Janela nova entra ao lado de quem estava em foco — é o que faz ela aparecer onde a
+        // pessoa estava olhando, e o que reparte o espaço de uma janela só em vez de espremer
+        // todas em colunas.
+        //
+        // A referência tem de ser o último foco *que está no mosaico*, não o foco de agora: no
+        // instante em que este Refresh roda, quem está em primeiro plano costuma ser a própria
+        // janela que acabou de abrir — ainda desconhecida da árvore. Perguntar o foco aqui
+        // devolvia uma janela que a árvore não acha, e toda inserção caía no fim da raiz: três
+        // janelas viravam três colunas iguais em vez de a terceira dividir o espaço da segunda.
+        var current = GetForegroundWindow();
+        var beside = _tree.Contains(current) ? current : _lastTileFocus;
+
+        foreach (var w in managed)
+        {
+            if (_tree.Contains(w.Handle)) continue;
+
+            var monitor = MonitorFromWindow(w.Handle, MONITOR_DEFAULTTONEAREST);
+            Log.Trace($"Refresh: entrando {w.Handle:X} '{w.Title}' ao lado de {beside:X} " +
+                      $"(na árvore={_tree.Contains(beside)}, foco agora={current:X}, último foco no mosaico={_lastTileFocus:X})");
+            _tree.Insert(w.Handle, monitor, beside, RootLayout(monitor));
+
+            // as próximas entram ao lado desta, não todas ao lado da mesma — é o que dá o
+            // aninhamento sucessivo quando várias janelas entram de uma vez (no arranque, por
+            // exemplo), em vez de uma fileira de irmãos
+            beside = w.Handle;
+        }
+
+        // cada monitor tem o próprio grid, independente dos outros
+        var rects = new Dictionary<nint, RECT>();
+        foreach (var monitor in _tree.Monitors)
+        {
+            var info = new MONITORINFO { cbSize = Marshal.SizeOf<MONITORINFO>() };
+            if (!GetMonitorInfo(monitor, ref info)) continue;
+
+            var area = Inset(info.rcWork, _config.TilingGap);
+            foreach (var (hwnd, rect) in _tree.ComputeRects(monitor, area, _config.TilingGap, minimized))
+                rects[hwnd] = rect;
+        }
+
+        Log.Trace($"Refresh: {managed.Count} candidatas ({minimized.Count} minimizadas), " +
+                  $"árvore com {_tree.AllWindows().Count()} em {_tree.Monitors.Count()} monitor(es), " +
+                  $"{rects.Count} retângulo(s): " +
+                  string.Join(" | ", rects.Select(r => $"{r.Key:X} {r.Value.Left},{r.Value.Top} {r.Value.Width}x{r.Value.Height}")));
+
+        if (rects.Count == 0) { _rects = new(); UpdateBorder(); ReclaimFocusIfLost(); return; }
+
+        ApplyAll(rects);
 
         // alguns formulários (Delphi com `Constraints`, sobretudo) têm botão de maximizar mas
         // ignoram o tamanho pedido — pegos no flagra, saem do mosaico em vez de ficar
@@ -639,21 +842,58 @@ public sealed class TilingService : IDisposable
         // ser o DWM ainda não ter processado o SetWindowPos a tempo desta medição — por isso
         // só bane de verdade quem falhar duas vezes seguidas.
         var stuck = new List<nint>();
+        var aprendeuMinimo = false;
+
         foreach (var (hwnd, rect) in rects)
         {
             if (FitsTarget(hwnd, rect)) { _suspect.Remove(hwnd); continue; }
+
+            TryGetVisualRect(hwnd, out var real);
+
+            // A janela devolveu um tamanho MAIOR do que o pedido em algum eixo: isso não é
+            // desobediência, é o menor tamanho que ela aceita — o Windows Terminal não desce de
+            // 466 px de largura, e pedir 423 devolvia 466 para sempre. Antes isso contava como
+            // "não obedece" e a expulsava do mosaico na segunda tentativa, que é o pior desfecho
+            // possível para o que era só um limite legítimo. Agora o limite é anotado e o cálculo
+            // passa a respeitá-lo, tirando o espaço de quem tem folga.
+            var largura = real.Width > rect.Width ? real.Width : 0;
+            var altura = real.Height > rect.Height ? real.Height : 0;
+
+            if (largura > 0 || altura > 0)
+            {
+                Log.Trace($"Refresh: {hwnd:X} não encolhe além de {real.Width}x{real.Height} " +
+                          $"(pedimos {rect.Width}x{rect.Height}) — anotando o mínimo dela");
+                _tree.SetMinimum(hwnd, largura, altura);
+                _suspect.Remove(hwnd);
+                aprendeuMinimo = true;
+                continue;
+            }
+
+            Log.Trace($"Refresh: {hwnd:X} não bateu o tamanho pedido — queria {rect.Width}x{rect.Height}, " +
+                      $"ficou {real.Width}x{real.Height}{(_suspect.Contains(hwnd) ? " (segunda vez: sai do mosaico)" : " (primeira vez: fica sob suspeita)")}");
 
             if (!_suspect.Add(hwnd)) stuck.Add(hwnd); // já era suspeita: essa é a segunda falha
         }
 
         if (stuck.Count > 0)
         {
-            foreach (var h in stuck) { _stubborn.Add(h); _suspect.Remove(h); _tiles.Remove(h); }
+            foreach (var h in stuck) { _stubborn.Add(h); _suspect.Remove(h); _tree.Remove(h); }
             Refresh();
             return;
         }
 
+        // com um mínimo novo anotado, o arranjo que acabou de ser aplicado já não é o certo:
+        // refaz agora, respeitando o limite descoberto
+        if (aprendeuMinimo) { Refresh(); return; }
+
         _rects = rects;
+
+        // a janela que acabou de entrar já está na árvore agora: se é ela que está em foco, é a
+        // referência da próxima. O evento de foco dela passou antes de ela existir aqui, então
+        // não seria pego pelo hook.
+        var focused = GetForegroundWindow();
+        if (_tree.Contains(focused)) _lastTileFocus = focused;
+
         UpdateBorder();
         ReclaimFocusIfLost();
 
@@ -695,46 +935,58 @@ public sealed class TilingService : IDisposable
     /// para outro app, inclusive num segundo monitor, e puxar o foco de volta seria o bug
     /// inverso.
     /// </summary>
+    /// <summary>
+    /// Devolve o foco a uma janela do mosaico quando minimizar deixou o primeiro plano com
+    /// quem não é do mosaico (a área de trabalho, em geral).
+    ///
+    /// A escolha é <b>no monitor de quem minimizou</b>. Antes era <c>_rects.Keys.First()</c>,
+    /// a primeira janela do dicionário inteiro — que numa máquina de duas telas é uma janela
+    /// qualquer, quase sempre da outra. Era isso que fazia o foco pular para o notebook ao
+    /// minimizar algo no monitor principal.
+    ///
+    /// O monitor vem da árvore, e não de <c>MonitorFromWindow</c>: a janela já está
+    /// minimizada a esta altura, e o Windows a guarda num canto fora da tela — perguntar a
+    /// posição dali responde qualquer coisa.
+    /// </summary>
     private void ReclaimFocusIfLost()
     {
         if (!_reclaimFocusAfterMinimize) return;
         _reclaimFocusAfterMinimize = false;
 
+        var minimizada = _minimizedHwnd;
+        _minimizedHwnd = 0;
+
         var fg = GetForegroundWindow();
         if (_rects.ContainsKey(fg) || _floating.Contains(fg) || _stubborn.Contains(fg)) return;
 
-        if (_tiles.Count > 0) WindowService.Activate(_tiles[0]);
+        var monitor = minimizada != 0 ? _tree.MonitorOf(minimizada) : 0;
+
+        // a vizinha na mesma tela; só se não houver nenhuma é que se aceita a de outra
+        var vizinha = monitor != 0
+            ? _rects.Keys.FirstOrDefault(h => _tree.MonitorOf(h) == monitor)
+            : 0;
+
+        if (vizinha != 0) { WindowService.Activate(vizinha); return; }
+
+        if (_rects.Count > 0) WindowService.Activate(_rects.Keys.First());
         else if (_floating.Count > 0) WindowService.Activate(_floating.First());
     }
 
-    /// <summary>
-    /// Divide <paramref name="area"/> ao meio, primeira janela fica com a primeira metade,
-    /// o resto recorre na segunda — alternando o eixo do corte a cada nível.
-    /// </summary>
-    private void Split(RECT area, List<nint> windows, int depth, Dictionary<nint, RECT> outRects)
+    /// <summary>Quem minimizou por último — serve para devolver o foco na mesma tela.</summary>
+    private nint _minimizedHwnd;
+
+    /// <summary>Em que sentido o grid de um monitor corta o espaço quando ganha a segunda janela:
+    /// numa tela mais larga que alta, lado a lado; numa tela em pé, uma sobre a outra. É o único
+    /// palpite dado pelo mosaico — daí em diante quem decide o arranjo é a pessoa, movendo e
+    /// redimensionando.</summary>
+    private static SplitLayout RootLayout(nint monitor)
     {
-        if (windows.Count == 0) return;
-        if (windows.Count == 1) { outRects[windows[0]] = area; return; }
+        var info = new MONITORINFO { cbSize = Marshal.SizeOf<MONITORINFO>() };
+        if (!GetMonitorInfo(monitor, ref info)) return SplitLayout.Horizontal;
 
-        var gap = _config.TilingGap;
-        var vertical = depth % 2 == 0;   // corte vertical: lado a lado (esquerda/direita)
-
-        RECT a, b;
-        if (vertical)
-        {
-            var mid = area.Left + (area.Width - gap) / 2;
-            a = new RECT { Left = area.Left, Top = area.Top, Right = mid, Bottom = area.Bottom };
-            b = new RECT { Left = mid + gap, Top = area.Top, Right = area.Right, Bottom = area.Bottom };
-        }
-        else
-        {
-            var mid = area.Top + (area.Height - gap) / 2;
-            a = new RECT { Left = area.Left, Top = area.Top, Right = area.Right, Bottom = mid };
-            b = new RECT { Left = area.Left, Top = mid + gap, Right = area.Right, Bottom = area.Bottom };
-        }
-
-        outRects[windows[0]] = a;
-        Split(b, windows.Skip(1).ToList(), depth + 1, outRects);
+        return info.rcMonitor.Width >= info.rcMonitor.Height
+            ? SplitLayout.Horizontal
+            : SplitLayout.Vertical;
     }
 
     private static RECT Inset(RECT r, int amount) => new()
@@ -759,6 +1011,44 @@ public sealed class TilingService : IDisposable
             target.Width + margin.Left + margin.Right,
             target.Height + margin.Top + margin.Bottom,
             extraFlags | SWP_NOACTIVATE);
+    }
+
+    /// <summary>
+    /// Move o grid inteiro de uma vez. Uma janela por vez, cada uma se redesenhava no lugar novo
+    /// enquanto as vizinhas ainda estavam no antigo, e o rearranjo aparecia como um tremor —
+    /// coisa que passou a acontecer muito mais depois que redimensionar virou uma sequência de
+    /// pressionadas de tecla, não um evento isolado.
+    ///
+    /// Se o Windows recusar a lista em qualquer ponto (o identificador volta zero), cai no
+    /// caminho antigo, uma a uma: é só perder o ganho visual, não o rearranjo.
+    /// </summary>
+    private static void ApplyAll(Dictionary<nint, RECT> rects)
+    {
+        // sair do minimizado tem de vir antes: uma janela minimizada ignora o retângulo pedido,
+        // e a margem invisível dela nem existe ainda pra ser medida
+        foreach (var hwnd in rects.Keys) if (IsIconic(hwnd)) ShowWindow(hwnd, SW_RESTORE);
+
+        var batch = BeginDeferWindowPos(rects.Count);
+        if (batch != 0)
+        {
+            foreach (var (hwnd, target) in rects)
+            {
+                var margin = FrameMargin(hwnd);
+                batch = DeferWindowPos(batch, hwnd, 0,
+                    target.Left - margin.Left,
+                    target.Top - margin.Top,
+                    target.Width + margin.Left + margin.Right,
+                    target.Height + margin.Top + margin.Bottom,
+                    SWP_NOZORDER | SWP_NOACTIVATE);
+
+                if (batch == 0) break;
+            }
+        }
+
+        if (batch != 0) { EndDeferWindowPos(batch); return; }
+
+        Log.Trace("ApplyAll: o Windows recusou a lista em bloco — reaplicando uma a uma");
+        foreach (var (hwnd, rect) in rects) Apply(hwnd, rect);
     }
 
     /// <summary>Alt+C: tamanho e posição de uma janela flutuando — 60% da tela, centralizada,

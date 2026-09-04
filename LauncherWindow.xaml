@@ -5,7 +5,7 @@
         WindowStyle="None" AllowsTransparency="True" Background="{x:Null}"
         ShowInTaskbar="False" Topmost="True" ResizeMode="NoResize"
         WindowStartupLocation="Manual"
-        TextOptions.TextFormattingMode="Display" UseLayoutRounding="True">
+        TextOptions.TextFormattingMode="Ideal" UseLayoutRounding="True">
 
   <!--
     A janela do launcher: uma caixa de texto e a lista de resultados. Fecha sozinha

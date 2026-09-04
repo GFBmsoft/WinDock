@@ -1,0 +1,47 @@
+# ── saída de compilação ──────────────────────────────────────
+bin/
+obj/
+
+# O publish vai para dist/ (veja o MANUAL). São ~25 MB de executável regenerável
+# a cada `dotnet publish`; nada aqui é fonte.
+dist/
+
+# O WPF cria um projeto temporário ao compilar (WinDock_xxxxxxxx_wpftmp.csproj) e
+# nem sempre o apaga — sobra na raiz depois de um build interrompido.
+*_wpftmp.csproj
+
+# ── ferramentas ──────────────────────────────────────────────
+.vs/
+*.user
+*.suo
+*.userprefs
+.idea/
+
+# ── material de depuração ────────────────────────────────────
+# Quadros de captura de tela usados para investigar piscadas e reposicionamento.
+# São dezenas de PNGs de ~2,5 MB cada: úteis na hora, peso morto no histórico.
+gravacao/
+
+# Recortes soltos de tela na raiz. As evidências que valem ficar estão em
+# docs/EVs/, com nome (EV12, EV13…) e citadas no APRENDIZADOS.
+/recorte*.png
+
+# ── material de processo ─────────────────────────────────────
+# O repositório carrega o que serve a quem for clonar ou bifurcar: o código, o README,
+# o MANUAL (instalar/usar/remover) e o APRENDIZADOS (por que cada coisa é como é). O
+# que fica de fora é o material de trabalho de sessão:
+#
+#   EVs/       capturas de tela das investigações. São telas reais, com janelas e
+#              nomes visíveis. O APRENDIZADOS cita "EV08", "EV14" etc. como rótulo de
+#              rastreabilidade em texto corrido, nunca como link — sem as imagens o
+#              texto continua inteiro.
+#   RETOMAR    "onde paramos" de um dia específico; envelhece em uma sessão.
+#   conversa-* transcrições, e nem todas só do WinDock.
+docs/EVs/
+docs/RETOMAR.md
+docs/conversa-*.md
+
+# ── preferências ─────────────────────────────────────────────
+# O config.json real mora em %APPDATA%\WinDock e nunca esteve aqui; esta linha é
+# só para o caso de alguém copiá-lo para dentro do projeto ao investigar algo.
+config.json

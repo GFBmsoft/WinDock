@@ -143,7 +143,38 @@ public sealed class PanelModel : INotifyPropertyChanged, IDisposable
             if (!Set(ref _volume, value)) return;
             VolumeService.Level = value;
             OnChanged(nameof(VolumeGlyph));
+            OnChanged(nameof(VolumeBrush));
+            OnChanged(nameof(VolumeFill));
         }
+    }
+
+    /// <summary>
+    /// A cor da barra de volume, no mesmo espirito da pilha: so muda quando a cor diz alguma
+    /// coisa. Aqui a escala e ao contrario da bateria — volume alto e que merece aviso.
+    /// </summary>
+    public Brush VolumeBrush => VolumeColor(_volume, _muted);
+
+    /// <summary>
+    /// Largura da parte preenchida da barra do mostrador, em pixels.
+    ///
+    /// E o mesmo caminho da pilha (<see cref="BatteryFill"/>), e nao um <c>ProgressBar</c>:
+    /// tentou-se com um, e ele nao desenha nada. O WPF so calcula a largura do
+    /// <c>PART_Indicator</c> quando o template tambem tem um <c>PART_Track</c> para medir —
+    /// sem ele o indicador fica do tamanho todo e o que aparece e a barra de fundo, cheia.
+    /// Uma conta aqui e previsivel e nao depende de peca nomeada nenhuma.
+    /// </summary>
+    public double VolumeFill => Math.Round(VolumeBarWidth * Math.Clamp(_volume, 0, 100) / 100.0);
+
+    /// <summary>Largura da barra do mostrador de volume. Casa com a do cartao no XAML.</summary>
+    public const double VolumeBarWidth = 150;
+
+    /// <summary>A regra da cor, separada para poder ser conferida sem depender do audio real.</summary>
+    public static Brush VolumeColor(int percent, bool muted)
+    {
+        if (muted || percent == 0) return Frozen(Color.FromRgb(0x9D, 0x9D, 0x9D));   // cinza
+        if (percent < 30) return Frozen(Color.FromRgb(0x6C, 0xCB, 0x5F));            // verde
+        if (percent <= 70) return Frozen(Color.FromRgb(0xE8, 0xBF, 0x2E));           // amarelo
+        return Frozen(Color.FromRgb(0xE8, 0x11, 0x23));                              // vermelho
     }
 
     private bool _muted;
@@ -155,6 +186,7 @@ public sealed class PanelModel : INotifyPropertyChanged, IDisposable
             if (!Set(ref _muted, value)) return;
             VolumeService.Muted = value;
             OnChanged(nameof(VolumeGlyph));
+            OnChanged(nameof(VolumeBrush));
         }
     }
 
@@ -229,6 +261,35 @@ public sealed class PanelModel : INotifyPropertyChanged, IDisposable
             .Where(d => !hidden.Contains(d.Name, StringComparer.CurrentCultureIgnoreCase))
             .ToList();
     }
+
+    /// <summary>
+    /// Liga ou desliga o radio, e remonta a lista com a resposta.
+    ///
+    /// O radio demora um instante para mudar de estado — pedir e perguntar na mesma linha
+    /// devolveria o valor antigo. Por isso o <c>SetOn</c> e esperado e so depois a lista e
+    /// remontada; enquanto isso <see cref="BluetoothBusy"/> desliga o botao, para dois
+    /// cliques seguidos nao virarem dois pedidos concorrentes.
+    /// </summary>
+    public async Task ToggleBluetooth()
+    {
+        if (BluetoothBusy) return;
+
+        BluetoothBusy = true;
+        try { await BluetoothService.SetOn(!BluetoothOn); }
+        finally { BluetoothBusy = false; }
+
+        RefreshBluetoothDevices();
+    }
+
+    private bool _bluetoothBusy;
+    /// <summary>O radio esta mudando de estado agora: o botao fica desabilitado.</summary>
+    public bool BluetoothBusy
+    {
+        get => _bluetoothBusy;
+        private set { if (Set(ref _bluetoothBusy, value)) OnChanged(nameof(BluetoothReady)); }
+    }
+
+    public bool BluetoothReady => !_bluetoothBusy;
 
     /// <summary>Tira um aparelho da lista da barra. Ele continua pareado no Windows.</summary>
     public void HideBluetoothDevice(string name)
@@ -475,7 +536,11 @@ public sealed class PanelModel : INotifyPropertyChanged, IDisposable
         }
 
         var devices = BluetoothService.Devices();
-        var connected = devices.Where(d => d.Connected).Select(d => d.Name).ToList();
+
+        // na dica, a bateria vem junto do nome de quem informa: "AULA-F99Pro 5.0 (93%)"
+        var connected = devices.Where(d => d.Connected)
+                               .Select(d => d.HasBattery ? $"{d.Name} ({d.BatteryText})" : d.Name)
+                               .ToList();
 
         BluetoothTooltip = connected.Count > 0
             ? "Conectado: " + string.Join(", ", connected)

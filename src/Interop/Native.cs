@@ -129,6 +129,16 @@ internal static class Native
     /// perder contra outra janela). Só existe a partir do Windows 11 22H2.</summary>
     public const int DWMWA_BORDER_COLOR = 34;
 
+    /// <summary>Cor da barra de título. Da mesma família do <see cref="DWMWA_BORDER_COLOR"/>, e
+    /// como ele é dos poucos que o DWM aceita aplicar numa janela de OUTRO processo — a maior
+    /// parte dessa família devolve E_ACCESSDENIED de fora, e é o que inviabiliza escolher a
+    /// espessura da borda (ver a seção de mosaico em docs/APRENDIZADOS.md). Windows 11 22H2+.</summary>
+    public const int DWMWA_CAPTION_COLOR = 35;
+
+    /// <summary>Cor do texto da barra de título — anda junto com a de cima: sem ajustar o texto,
+    /// um fundo escuro deixa o título preto ilegível (e vice-versa).</summary>
+    public const int DWMWA_TEXT_COLOR = 36;
+
     /// <summary>Valor especial: devolve a borda pro padrão do sistema (não desenha nada
     /// nosso).</summary>
     public const uint DWMWA_COLOR_DEFAULT = 0xFFFFFFFF;
@@ -229,6 +239,29 @@ internal static class Native
     public const uint SWP_NOMOVE     = 0x0002;
     public const uint SWP_NOZORDER   = 0x0004;
     public const uint SWP_NOACTIVATE = 0x0010;
+
+    /// <summary>
+    /// Move varias janelas de uma vez so. Reserva espaco para <paramref name="count"/> janelas,
+    /// acumula cada uma com <see cref="DeferWindowPos"/>, e o <see cref="EndDeferWindowPos"/>
+    /// aplica todas juntas.
+    ///
+    /// A diferenca em relacao a chamar <see cref="SetWindowPos"/> em sequencia e visual: uma a
+    /// uma, cada janela se redesenha no lugar novo enquanto as outras ainda estao no antigo, e o
+    /// rearranjo do mosaico aparece como um tremor. O <c>count</c> e so uma dica de tamanho — o
+    /// Windows cresce a lista sozinho se passar disso.
+    /// </summary>
+    [DllImport("user32.dll")]
+    public static extern nint BeginDeferWindowPos(int count);
+
+    /// <summary>Acumula uma janela na lista. Devolve um identificador NOVO (a lista pode ter sido
+    /// realocada) — quem chama tem de sempre continuar com o valor devolvido, nunca com o que
+    /// passou. Zero quer dizer que a lista se perdeu e nao ha mais o que aplicar.</summary>
+    [DllImport("user32.dll")]
+    public static extern nint DeferWindowPos(nint hWinPosInfo, nint hWnd, nint after,
+                                             int x, int y, int cx, int cy, uint flags);
+
+    [DllImport("user32.dll")]
+    public static extern bool EndDeferWindowPos(nint hWinPosInfo);
 
     /// <summary>after: manda a janela para o topo da pilha de Z sem virar topmost permanente.</summary>
     public const nint HWND_TOP = 0;
@@ -351,6 +384,23 @@ internal static class Native
     /// </summary>
     [DllImport("user32.dll")]
     public static extern bool SetCursorPos(int x, int y);
+
+    /// <summary>
+    /// Prende o cursor dentro de um retângulo; <c>null</c> solta.
+    ///
+    /// Aqui serve para uma coisa só: impedir o salto do cursor quando o menu de um ícone da
+    /// bandeja abre pela tecla Menu. Quem move o cursor nessa hora é o Explorer, com o
+    /// próprio <c>SetCursorPos</c> — e <c>SetCursorPos</c> respeita este limite. Preso numa
+    /// caixa de 1×1 em cima de onde a pessoa clicou, ele simplesmente não sai do lugar.
+    ///
+    /// <b>Solte sempre</b>, em <c>finally</c>: um clip que vaza deixa o mouse da pessoa
+    /// travado num pixel, que é muito pior que o salto que ele conserta.
+    /// </summary>
+    [DllImport("user32.dll")]
+    public static extern bool ClipCursor(ref RECT rect);
+
+    [DllImport("user32.dll", EntryPoint = "ClipCursor")]
+    public static extern bool ReleaseCursorClip(nint zero);
 
     [DllImport("user32.dll")]
     public static extern nint MonitorFromPoint(POINT point, uint flags);
