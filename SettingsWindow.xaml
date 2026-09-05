@@ -559,6 +559,22 @@
           </Grid>
         </Border>
 
+        <Border Style="{StaticResource FluentCardBorderStyle}">
+          <Grid>
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="*" />
+              <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <StackPanel VerticalAlignment="Center">
+              <TextBlock Text="Indicador de brilho" Style="{StaticResource FluentTitle}" />
+              <TextBlock Text="O controle de brilho do monitor na barra. Some sozinho num monitor que não fala DDC/CI — o painel do notebook, em geral."
+                         Style="{StaticResource FluentCaption}" TextWrapping="Wrap" />
+            </StackPanel>
+            <CheckBox Grid.Column="1" Style="{StaticResource FluentToggle}"
+                      IsChecked="{Binding PanelBrightness, Mode=TwoWay}" />
+          </Grid>
+        </Border>
+
         <!-- A ordem dos itens do canto direito da barra. Vale para o que existe hoje; item
              novo entra no fim até ser movido. -->
         <Border Style="{StaticResource FluentCardBorderStyle}">

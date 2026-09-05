@@ -22,6 +22,18 @@ public sealed class PanelModel : INotifyPropertyChanged, IDisposable
         _config = config;
         _config.PropertyChanged += OnConfigChanged;
 
+        // O monitor costuma recusar a conversa DDC/CI no meio do arranque (veja
+        // BrightnessService.Retentar): quando ele passa a responder, o item precisa aparecer
+        // na barra, que já perguntou uma vez e recebeu "não". Volta para a thread da interface
+        // porque o aviso chega de uma tarefa de fundo.
+        _brightness.AvailabilityChanged += (_, _) =>
+            Application.Current?.Dispatcher.BeginInvoke(() =>
+            {
+                _brightnessLevel = _brightness.Level;
+                OnChanged(nameof(Brightness));
+                OnChanged(nameof(HasBrightness));
+            });
+
         // de segundo em segundo, mas as propriedades so avisam a interface quando o valor
         // muda de verdade: o relogio nao mostra segundos
         _timer = new DispatcherTimer(DispatcherPriority.Background)
@@ -43,6 +55,10 @@ public sealed class PanelModel : INotifyPropertyChanged, IDisposable
         _media.Changed += () => _dispatcher.InvokeAsync(() => Media = _media.Current);
         _media.SetAllowed(_config.MediaApps);
         _ = _media.Start();
+
+        // o brilho é lido uma vez: ninguém o muda por fora com frequência, e cada leitura
+        // conversa com o monitor por I²C
+        _brightnessLevel = _brightness.Level;
     }
 
     /// <summary>
@@ -147,6 +163,46 @@ public sealed class PanelModel : INotifyPropertyChanged, IDisposable
     public bool HasUserPicture => UserService.HasPicture;
     public bool NoUserPicture => !UserService.HasPicture;
     public string UserInitials => UserService.Initials;
+
+    // ── brilho ──────────────────────────────────────────────
+    private readonly BrightnessService _brightness = new();
+
+    private int _brightnessLevel;
+
+    /// <summary>
+    /// Brilho do monitor, de 0 a 100.
+    ///
+    /// O valor exibido muda na hora; a escrita no monitor é que sai por fora (veja
+    /// <see cref="BrightnessService.Set"/>), porque custa uns 60 ms e travaria o arraste.
+    /// </summary>
+    public int Brightness
+    {
+        get => _brightnessLevel;
+        set
+        {
+            var novo = Math.Clamp(value, 0, 100);
+            if (!Set(ref _brightnessLevel, novo)) return;
+
+            _brightness.Set(novo);
+            OnChanged(nameof(BrightnessGlyph));
+        }
+    }
+
+    /// <summary>Falso num monitor que não fala DDC/CI: o item some da barra.</summary>
+    public bool HasBrightness => _config.PanelBrightness && _brightness.Available;
+
+    /// <summary>
+    /// O sol da Segoe Fluent Icons.
+    ///
+    /// Sem varia\u00E7\u00E3o por n\u00EDvel, ao contr\u00E1rio do alto-falante do volume: a fonte tem um \u00FAnico
+    /// desenho de brilho, e inventar varia\u00E7\u00E3o com outros glifos daria um \u00EDcone que n\u00E3o
+    /// combina com o resto da barra. Quem diz o n\u00EDvel \u00E9 a barrinha do card.
+    /// </summary>
+    public string BrightnessGlyph => "\uE706";
+
+    /// <summary>Roda do mouse sobre o ícone: sobe ou desce de cinco em cinco.</summary>
+    public void NudgeBrightness(int direction) =>
+        Brightness = _brightnessLevel + (direction > 0 ? 5 : -5);
 
     // ── mídia ───────────────────────────────────────────────
     private readonly MediaService _media = new();
@@ -612,6 +668,7 @@ public sealed class PanelModel : INotifyPropertyChanged, IDisposable
         // ligar ou desligar os controles de mídia muda o item da barra na hora, sem esperar
         // a próxima troca de faixa
         if (e.PropertyName is nameof(DockConfig.PanelMedia)) OnChanged(nameof(ShowMedia));
+        if (e.PropertyName is nameof(DockConfig.PanelBrightness)) OnChanged(nameof(HasBrightness));
 
         // marcar ou desmarcar um programa reavalia qual sessão a barra segue, na hora
         if (e.PropertyName is nameof(DockConfig.MediaApps)) _media.SetAllowed(_config.MediaApps);
@@ -781,6 +838,9 @@ public sealed class PanelModel : INotifyPropertyChanged, IDisposable
         // solta os eventos da sessão de mídia: sem isto o WinRT segue chamando de volta uma
         // barra que já não existe
         _media.Dispose();
+
+        // e o handle do monitor físico, que o DDC/CI mantém aberto
+        _brightness.Dispose();
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;

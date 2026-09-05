@@ -161,6 +161,15 @@ public sealed class DockConfig : INotifyPropertyChanged
     /// <summary>Listar o volume de cada programa dentro do controle de volume.</summary>
     public bool PanelAppVolume { get => _panelAppVolume; set => Set(ref _panelAppVolume, value); }
 
+    private bool _panelBrightness = true;
+    /// <summary>
+    /// Controle de brilho na barra.
+    ///
+    /// Some sozinho num monitor que nao fala DDC/CI (o painel de notebook costuma nao falar);
+    /// esta opcao e para quem nao quer o item nem onde ele funciona.
+    /// </summary>
+    public bool PanelBrightness { get => _panelBrightness; set => Set(ref _panelBrightness, value); }
+
     private bool _panelMedia = true;
     /// <summary>
     /// Mostrar na barra o que está tocando, com os controles de reprodução.
@@ -336,6 +345,7 @@ public sealed class DockConfig : INotifyPropertyChanged
         PanelBackground = d.PanelBackground; PanelOpacity = d.PanelOpacity;
         PanelCenterClock = d.PanelCenterClock;
         PanelTray = d.PanelTray; PanelAppVolume = d.PanelAppVolume; PanelMedia = d.PanelMedia;
+        PanelBrightness = d.PanelBrightness;
         Panel = d.Panel; PanelSize = d.PanelSize;
         TilingEnabled = d.TilingEnabled; TilingGap = d.TilingGap;
         TilingBorderColor = d.TilingBorderColor; TilingBorderThickness = d.TilingBorderThickness;

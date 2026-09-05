@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyName>BrightnessCheck</AssemblyName>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+</PropertyGroup>
+
+  <ItemGroup>
+    <!-- o arquivo REAL, para o teste exercitar o mesmo código que roda na dock -->
+    <Compile Include="..\..\src\Services\BrightnessService.cs" Link="BrightnessService.cs" />
+  </ItemGroup>
+</Project>

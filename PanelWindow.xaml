@@ -255,6 +255,16 @@
           <ui:GlyphIcon Glyph="{Binding BluetoothGlyph}" Fill="#FFF2F2F2" Size="15" VerticalAlignment="Center" />
         </Button>
 
+        <!-- Brilho: some sozinho num monitor que não fala DDC/CI (o painel de notebook, em
+             geral). A roda ajusta sem abrir nada, como no volume. -->
+        <Button Tag="brilho" x:Name="BrightnessButton" Style="{StaticResource PanelButton}"
+                Click="OnBrightness" PreviewMouseWheel="OnBrightnessWheel"
+                Visibility="{Binding HasBrightness, Converter={StaticResource BoolToVisible}}">
+          <Button.ToolTip>
+            <ToolTip x:Name="BrightnessTip" Content="Brilho — role para ajustar" />
+          </Button.ToolTip>
+          <ui:GlyphIcon Glyph="{Binding BrightnessGlyph}" Fill="#FFF2F2F2" Size="15" VerticalAlignment="Center" />
+        </Button>
         <!-- a roda do mouse sobe e desce o volume, como na barra do Windows -->
         <Button Tag="volume" x:Name="VolumeButton" Style="{StaticResource PanelButton}" Click="OnVolume"
                 PreviewMouseWheel="OnVolumeWheel">
@@ -641,6 +651,34 @@
             <!-- Sem controles aqui: eles vivem na barra, a um clique de distância, e repetidos
                  no card só engordavam a caixa. O que o card ainda faz além de informar é a
                  linha do tempo acima, que aceita clique para pular na faixa. -->
+          </StackPanel>
+        </Border>
+      </Popup>
+
+      <!-- O card do brilho: o mesmo desenho do de volume, sem a lista de aplicativos —
+           brilho é um só. -->
+      <Popup x:Name="BrightnessPopup" PlacementTarget="{Binding ElementName=BrightnessButton}"
+             Placement="Bottom" VerticalOffset="6" HorizontalOffset="-8"
+             StaysOpen="True" AllowsTransparency="True" PopupAnimation="Fade">
+        <Border Background="#F7242424" BorderBrush="#2EFFFFFF" BorderThickness="1"
+                CornerRadius="10" Padding="16,14" Margin="10">
+          <Border.Effect>
+            <DropShadowEffect BlurRadius="20" ShadowDepth="5" Opacity="0.55" Color="Black" />
+          </Border.Effect>
+          <StackPanel Width="280">
+            <Grid Margin="0,0,0,10">
+              <StackPanel Orientation="Horizontal">
+                <ui:GlyphIcon Glyph="{Binding BrightnessGlyph}" Fill="#FFF2F2F2" Size="16"
+                              VerticalAlignment="Center" Margin="0,0,10,0" />
+                <TextBlock Text="Brilho" Foreground="#FFF2F2F2" FontSize="14"
+                           FontWeight="SemiBold" VerticalAlignment="Center" />
+              </StackPanel>
+              <TextBlock Text="{Binding Brightness, StringFormat='{}{0}%'}" HorizontalAlignment="Right"
+                         VerticalAlignment="Center" Foreground="#FF9D9D9D" FontSize="12" />
+            </Grid>
+
+            <Slider Style="{StaticResource FluentSlider}" Minimum="0" Maximum="100"
+                    Value="{Binding Brightness, Mode=TwoWay}" />
           </StackPanel>
         </Border>
       </Popup>

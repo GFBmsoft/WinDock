@@ -89,6 +89,7 @@ public partial class PanelWindow : Window
     private bool _powerWasOpen;
     private bool _calendarWasOpen;
     private bool _mediaWasOpen;
+    private bool _brightnessWasOpen;
 
     protected override void OnPreviewMouseDown(System.Windows.Input.MouseButtonEventArgs e)
     {
@@ -98,6 +99,7 @@ public partial class PanelWindow : Window
         _powerWasOpen = PowerPopup.IsOpen;
         _calendarWasOpen = CalendarPopup.IsOpen;
         _mediaWasOpen = MediaPopup.IsOpen;
+        _brightnessWasOpen = BrightnessPopup.IsOpen;
 
         base.OnPreviewMouseDown(e);
     }
@@ -155,6 +157,7 @@ public partial class PanelWindow : Window
         ("wifi",            "Wi-Fi"),
         ("bluetooth",       "Bluetooth"),
         ("volume",          "Volume"),
+        ("brilho",          "Brilho"),
         ("notificacoes",    "Notificações"),
         ("energia",         "Energia"),
         ("relogio",         "Relógio"),
@@ -199,6 +202,30 @@ public partial class PanelWindow : Window
     private void OnPanelConfigChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
         if (e.PropertyName is nameof(DockConfig.PanelOrder)) ApplyPanelOrder();
+    }
+
+    // ── brilho ───────────────────────────────────────────────
+
+    private void OnBrightness(object sender, RoutedEventArgs e)
+    {
+        var estavaAberto = _brightnessWasOpen;
+        CloseOpenPanels();
+
+        if (!estavaAberto) BrightnessPopup.IsOpen = true;
+        WatchOutsideClick();
+    }
+
+    /// <summary>
+    /// Roda do mouse sobre o ícone: ajusta sem abrir nada, como no volume.
+    ///
+    /// A dica é fechada junto, pelo mesmo motivo do volume: ela já está na tela quando a roda
+    /// gira, e sem tirá-la ficaria empilhada com o que aparecer.
+    /// </summary>
+    private void OnBrightnessWheel(object sender, System.Windows.Input.MouseWheelEventArgs e)
+    {
+        BrightnessTip.IsOpen = false;
+        _model.NudgeBrightness(e.Delta);
+        e.Handled = true;
     }
 
     // ── mídia ────────────────────────────────────────────────
@@ -310,7 +337,7 @@ public partial class PanelWindow : Window
 
     private bool AnyPopupOpen =>
         BluetoothPopup.IsOpen || VolumePopup.IsOpen || PowerPopup.IsOpen ||
-        CalendarPopup.IsOpen || TrayPopup.IsOpen || MediaPopup.IsOpen;
+        CalendarPopup.IsOpen || TrayPopup.IsOpen || MediaPopup.IsOpen || BrightnessPopup.IsOpen;
 
     private void CheckOutsideClick()
     {
@@ -333,7 +360,8 @@ public partial class PanelWindow : Window
         // fechar aqui faria o clique no icone reabrir logo em seguida
         if (Contains(BluetoothPopup, point) || Contains(VolumePopup, point) ||
             Contains(PowerPopup, point) || Contains(CalendarPopup, point) ||
-            Contains(TrayPopup, point) || Contains(MediaPopup, point) || ContainsBar(point)) return;
+            Contains(TrayPopup, point) || Contains(MediaPopup, point) ||
+            Contains(BrightnessPopup, point) || ContainsBar(point)) return;
 
         Log.Trace($"clique fora dos painéis em ({cursor.X},{cursor.Y}): fechando");
         CloseAllPopups();
@@ -744,6 +772,7 @@ public partial class PanelWindow : Window
 
         MediaPopup.IsOpen = false;
         _mediaTick.Stop();
+        BrightnessPopup.IsOpen = false;
 
         // o mostrador de volume não é um painel, mas some junto: o controle de volume já
         // traz o número, e deixá-lo por cima seria a mesma informação duas vezes

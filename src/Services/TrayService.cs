@@ -479,46 +479,32 @@ public static class TrayService
                 }
                 else
                 {
+                    // O Esc pede ao shell para fechar o painel de verdade — é a troca de
+                    // estado que o mantém consistente para a próxima abertura.
                     CloseOverflow();
 
-                    // O Esc fecha o painel de fora para dentro — é uma animação do shell, não
-                    // uma troca de estado instantânea. Sem esperar por ela, o `using` que
-                    // esconde esta janela (a `hiddenFlyout` lá em cima) é desfeito **antes**
-                    // do painel realmente terminar de fechar: a camada de alfa zero sai e o
-                    // painel, que naquele instante ainda está de verdade na tela, pisca opaco
-                    // e visível no canto da bandeja do Windows — bem no meio da animação de
-                    // fechar. Era isso que parecia "um segundo cartão" abrindo sozinho toda
-                    // vez que se clicava na seta: a leitura que a seta dispara termina, o Esc
-                    // é mandado, e a piscada acontecia bem ali.
-                    WaitForOverflowToClose();
-
-                    // A espera acima tem prazo (400 ms) porque é só isso que a animação custa
-                    // num sistema tranquilo — mas ela é uma aposta, não uma garantia. Sob
-                    // carga (muitos cliques seguidos abrindo e fechando o cartão, o que deixa
-                    // a thread da bandeja ocupada e a animação do shell mais lenta), medido
-                    // aqui em 676 ms — acima do prazo —, o relógio estourava e o `using`
-                    // soltava a camada de qualquer jeito, com a janela ainda de pé de verdade.
-                    // Por isso o vazamento só aparecia depois de várias trocas rápidas de
-                    // aberto/fechado, e não a cada leitura: só quando o sistema estava ocupado
-                    // o bastante para o Esc não terminar a tempo.
+                    // E o esconder vem logo atrás, sem esperar nada.
                     //
-                    // Em vez de confiar no relógio, aqui se confere o resultado: se o painel
-                    // ainda estiver de pé quando o prazo acaba, força o esconder de verdade
-                    // (`SW_HIDE`, o mesmo do clique num ícone) — que é instantâneo e não
-                    // depende de nenhuma animação terminar. Com isso o `using` nunca mais
-                    // encontra a janela visível na hora de soltar a camada, não importa quanto
-                    // tempo o Esc estiver levando.
-                    if (Overflow() != 0)
-                    {
-                        Log.Trace("o painel não fechou a tempo pelo Esc; escondendo à força " +
-                                  "antes de soltar a camada");
-                        HideOverflow();
-                    }
+                    // <para><b>Por que não se espera mais.</b> O Esc fecha o painel de fora
+                    // para dentro, com animação do shell. O que não podia acontecer era o
+                    // `using` soltar a camada de alfa zero com a janela ainda na tela — ela
+                    // piscava opaca no canto da bandeja, o que já pareceu "um segundo cartão
+                    // abrindo sozinho". A defesa era esperar a animação (até 400 ms) e, se
+                    // ainda estivesse de pé, esconder à força.</para>
+                    //
+                    // <para>Só que o `SW_HIDE` resolve o mesmo problema <b>instantaneamente</b>
+                    // e sem depender de animação nenhuma: janela escondida não pisca, esteja
+                    // a animação em que ponto estiver. A espera era a parte cara do fechamento
+                    // — medido, ~510 ms dos 653 de uma leitura, e o log mostrava que quase
+                    // sempre ela estourava o prazo e o esconder à força acontecia do mesmo
+                    // jeito. Ou seja: pagava-se a espera para, no fim, fazer o que agora se
+                    // faz de saída.</para>
+                    HideOverflow();
                 }
             }
 
             Log.Trace($"  fechar o painel: {relogio.ElapsedMilliseconds - tTrabalho} ms " +
-                      $"({(quietClose ? "sem Esc" : "Esc + espera pela animação")})");
+                      $"({(quietClose ? "sem Esc" : "Esc + esconder")})");
 
             SweepShellPopups();
             return result;

@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<assembly manifestVersion="1.0" xmlns="urn:schemas-microsoft-com:asm.v1">
+  <assemblyIdentity version="1.0.0.0" name="WinDock.app" />
+
+  <application xmlns="urn:schemas-microsoft-com:asm.v3">
+    <windowsSettings>
+      <!-- a dock precisa saber o DPI real de cada monitor para nao sair borrada -->
+      <dpiAwareness xmlns="http://schemas.microsoft.com/SMI/2016/WindowsSettings">PerMonitorV2</dpiAwareness>
+      <dpiAware xmlns="http://schemas.microsoft.com/SMI/2005/WindowsSettings">true/pm</dpiAware>
+    </windowsSettings>
+  </application>
+
+  <compatibility xmlns="urn:schemas-microsoft-com:compatibility.v1">
+    <application>
+      <supportedOS Id="{8e0f7a12-bfb3-4fe8-b9a5-48fd50a15a9a}" /><!-- Windows 10/11 -->
+    </application>
+  </compatibility>
+
+  <!--
+    O Windows aplica UIPI (User Interface Privilege Isolation) entre processos de
+    integridade diferente: uma janela nossa, sem elevacao, nao consegue ficar de
+    verdade por cima de uma janela elevada (Terminal ou Notepad++ "Executar como
+    administrador", por exemplo) por mais que o SetWindowPos diga que funcionou -
+    o contorno do mosaico ficava sempre por baixo dela, sumido, e nenhuma tecnica
+    de desenho resolvia isso porque o problema nunca foi a tecnica. Precisa de
+    "asInvoker" para o contorno funcionar com apps elevados; o custo
+    conhecido e o Explorer nao conseguir soltar arquivo nenhum por arrastar numa
+    janela elevada (UIPI de novo, na direcao contraria).
+  -->
+  <trustInfo xmlns="urn:schemas-microsoft-com:asm.v3">
+    <security>
+      <requestedPrivileges>
+        <requestedExecutionLevel level="asInvoker" uiAccess="false" />
+      </requestedPrivileges>
+    </security>
+  </trustInfo>
+</assembly>
