@@ -49,6 +49,9 @@ public partial class MainWindow : Window
     /// faixa 17..25, que é dos Alt+número.</summary>
     private const int TilingForgetSizeId = 26;
 
+    /// <summary>Alt+T: prende a janela em foco acima das outras.</summary>
+    private const int TopmostId = 27;
+
     /// <summary>
     /// Id do Alt+1; os outros oito vem somando (NumberHotkeyId + 1 e o Alt+2). Deixar por
     /// ultimo mantem a faixa 17..25 livre de choque com os ids fixos acima.
@@ -90,6 +93,13 @@ public partial class MainWindow : Window
         HwndSource.FromHwnd(hWnd)?.AddHook(OnWindowMessage);
         SetLauncherHotkey(_config.Launcher);
         SetNumberHotkeys(_config.NumberHotkeys);
+
+        // Alt+T fica fora do grupo do mosaico de propósito: prender uma janela acima das outras
+        // não tem a ver com o grid, e quem desliga o mosaico continua com o recurso. Sem aviso
+        // na tela se a tecla já estiver tomada — é a mesma escolha dos atalhos do mosaico, e um
+        // MessageBox no logon por causa de uma tecla seria barulho demais; fica no log.
+        if (!RegisterHotKey(hWnd, TopmostId, MOD_ALT | MOD_NOREPEAT, VK_T))
+            Log.Write("Alt+T ja esta em uso por outro programa: fixar a janela acima ficou sem atalho");
 
         // adianta a lista de apps e os icones: a primeira busca ja acha tudo pronto
         if (_config.Launcher) AppCatalog.Warm();
@@ -293,6 +303,7 @@ public partial class MainWindow : Window
             case TilingFocusDownId:  _tiling?.MoveFocus(TilingDirection.Down); break;
             case TilingFloatId:      _tiling?.ToggleFloat(); break;
             case TilingForgetSizeId: _tiling?.ForgetFloatingSize(); break;
+            case TopmostId:          WindowService.ToggleTopmost(GetForegroundWindow()); break;
             case TilingHideId:       _tiling?.HideFocused(); break;
             case TilingCloseId:      _tiling?.CloseFocused(); break;
             case TilingSwapLeftId:   _tiling?.SwapFocused(TilingDirection.Left); break;
@@ -800,6 +811,7 @@ public partial class MainWindow : Window
 
         var hWnd = new WindowInteropHelper(this).Handle;
         UnregisterHotKey(hWnd, LauncherHotkeyId);
+        UnregisterHotKey(hWnd, TopmostId);
         for (var i = 0; i < 9; i++) UnregisterHotKey(hWnd, NumberHotkeyId + i);
         UnregisterHotKey(hWnd, TilingFocusLeftId);
         UnregisterHotKey(hWnd, TilingFocusRightId);

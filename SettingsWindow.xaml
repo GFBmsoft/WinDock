@@ -703,6 +703,8 @@
                                    TextWrapping="Wrap" Margin="0,8,0,0" />
                         <TextBlock Text="Alt + C — flutua a janela em foco, centralizada; se ela já flutua fora do lugar, recentraliza; se já está centralizada, devolve ao mosaico"
                                    TextWrapping="Wrap" Margin="0,8,0,0" />
+                        <TextBlock Text="Alt + T — prende a janela em foco acima das outras (de novo, solta)"
+                                   TextWrapping="Wrap" Margin="0,8,0,0" />
                         <TextBlock Text="Alt + Z — esconde (minimiza) a janela em foco"
                                    TextWrapping="Wrap" Margin="0,8,0,0" />
                         <TextBlock Text="Alt + W — fecha a janela em foco"

@@ -270,6 +270,15 @@ internal static class Native
     /// <summary>after: manda a janela para o topo da pilha de Z sem virar topmost permanente.</summary>
     public const nint HWND_TOP = 0;
 
+    /// <summary>after: prende a janela acima das comuns — ela fica lá até alguém desfazer.</summary>
+    public static readonly nint HWND_TOPMOST = -1;
+
+    /// <summary>after: devolve a janela ao convívio normal, saindo do topo permanente.</summary>
+    public static readonly nint HWND_NOTOPMOST = -2;
+
+    /// <summary>Quem está preso acima das outras. É por ele que se sabe qual dos dois aplicar.</summary>
+    public const long WS_EX_TOPMOST = 0x00000008;
+
     public const uint ABM_NEW         = 0x00;
     public const uint ABM_REMOVE      = 0x01;
     public const uint ABM_QUERYPOS    = 0x02;
@@ -525,6 +534,7 @@ internal static class Native
     public const uint VK_DOWN  = 0x28;
     public const uint VK_C     = 0x43;
     public const uint VK_W     = 0x57;
+    public const uint VK_T     = 0x54;
     public const uint VK_Z     = 0x5A;
     public const uint WM_HOTKEY = 0x0312;
 

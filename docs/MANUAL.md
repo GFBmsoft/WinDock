@@ -229,6 +229,7 @@ programas. Liga em **Configurações > Mosaico**.
 | `Alt+Z` | minimiza a janela em foco |
 | `Alt+W` | fecha a janela em foco |
 | `Ctrl+Alt+C` | esquece o tamanho flutuante guardado do programa em foco |
+| `Alt+T` | prende a janela em foco acima das outras (de novo, solta) |
 
 Arrastar a divisória entre duas janelas também redimensiona. Uma janela minimizada **guarda o
 lugar dela** e volta para a mesma posição ao ser restaurada.

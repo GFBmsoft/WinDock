@@ -198,6 +198,32 @@ public static class WindowService
     public static void Close(nint hWnd) => PostMessage(hWnd, WM_CLOSE, 0, 0);
 
     /// <summary>
+    /// Prende (ou solta) a janela acima das outras.
+    ///
+    /// É a mesma coisa que a barra e a dock fazem consigo próprias, aplicada a uma janela
+    /// alheia: nada de estado guardado aqui, o Windows já sabe responder quem está preso pelo
+    /// <see cref="WS_EX_TOPMOST"/>, e é essa leitura que decide entre prender e soltar. Guardar
+    /// uma lista nossa daria a chance clássica de ela discordar da realidade — a pessoa fixa
+    /// por outro programa, ou a janela morre, e o nosso registro fica mentindo.
+    ///
+    /// Devolve o estado em que a janela ficou.
+    /// </summary>
+    public static bool ToggleTopmost(nint hWnd)
+    {
+        if (!Alive(hWnd, "fixar acima")) return false;
+
+        var preso = (GetWindowLongPtr(hWnd, GWL_EXSTYLE).ToInt64() & WS_EX_TOPMOST) != 0;
+
+        // sem mexer em posição, tamanho nem foco: fixar não é trazer para frente, é decidir
+        // onde a janela mora na pilha — quem está digitando noutra continua digitando nela
+        SetWindowPos(hWnd, preso ? HWND_NOTOPMOST : HWND_TOPMOST, 0, 0, 0, 0,
+                     SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+
+        Log.Trace($"janela {hWnd:X}: {(preso ? "solta do topo" : "presa acima das outras")}");
+        return !preso;
+    }
+
+    /// <summary>
     /// Mata o processo dono da janela — o que o <c>taskkill /f</c> faz.
     ///
     /// É o último recurso, para quando o app travou e não responde nem ao pedido educado de
