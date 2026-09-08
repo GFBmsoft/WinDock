@@ -660,7 +660,7 @@
 
             <TextBlock x:Name="MediaAppsEmpty" Style="{StaticResource FluentCaption}"
                        TextWrapping="Wrap" Visibility="Collapsed"
-                       Text="Nenhum programa de mídia visto ainda. Toque algo no Spotify (ou no navegador) e reabra esta janela." />
+                       Text="Nenhum programa de mídia visto ainda. Dê play em algo — no Spotify, ou num vídeo do navegador — e o programa aparece aqui assim que você voltar para esta janela." />
           </StackPanel>
         </Border>
 

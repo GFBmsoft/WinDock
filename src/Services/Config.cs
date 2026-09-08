@@ -214,6 +214,19 @@ public sealed class DockConfig : INotifyPropertyChanged
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(MediaApps)));
 
     /// <summary>
+    /// Todo programa que já apareceu tocando alguma coisa nesta máquina — é o que a tela de
+    /// opções tem para listar.
+    ///
+    /// Fica no disco porque a lista em memória só conhecia o que tocou depois que a dock subiu:
+    /// quem quisesse marcar o navegador precisava deixar um vídeo tocando **e** abrir as opções
+    /// sem reiniciar a dock no meio, senão a lista aparecia vazia sem explicação.
+    ///
+    /// Identificadores que o Windows entrega, sem tradução: <c>Chrome</c> para o navegador,
+    /// <c>SpotifyAB.SpotifyMusic_zpdnekdrzrea0!Spotify</c> para o Spotify.
+    /// </summary>
+    public List<string> MediaAppsSeen { get; set; } = new();
+
+    /// <summary>
     /// A ordem dos itens do canto direito da barra, por chave.
     ///
     /// Vazia quer dizer "a ordem que veio no XAML". Chave desconhecida é ignorada, e item

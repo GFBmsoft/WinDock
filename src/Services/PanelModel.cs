@@ -53,6 +53,7 @@ public sealed class PanelModel : INotifyPropertyChanged, IDisposable
         // A mídia avisa sozinha quando muda, mas o evento vem de thread do WinRT — a
         // interface só pode ser tocada pelo dispatcher.
         _media.Changed += () => _dispatcher.InvokeAsync(() => Media = _media.Current);
+        MediaService.UseStore(_config);   // a lista de vistos vem do disco e volta pra ele
         _media.SetAllowed(_config.MediaApps);
         _ = _media.Start();
 

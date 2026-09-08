@@ -27,19 +27,25 @@ gravacao/
 /recorte*.png
 
 # ── material de processo ─────────────────────────────────────
-# O repositório carrega o que serve a quem for clonar ou bifurcar: o código, o README,
-# o MANUAL (instalar/usar/remover) e o APRENDIZADOS (por que cada coisa é como é). O
-# que fica de fora é o material de trabalho de sessão:
+# O repositório carrega o que serve a quem for clonar ou bifurcar: o código, o README e
+# o MANUAL (instalar/usar/remover). O que fica de fora é o material de trabalho:
 #
-#   EVs/       capturas de tela das investigações. São telas reais, com janelas e
-#              nomes visíveis. O APRENDIZADOS cita "EV08", "EV14" etc. como rótulo de
-#              rastreabilidade em texto corrido, nunca como link — sem as imagens o
-#              texto continua inteiro.
-#   RETOMAR    "onde paramos" de um dia específico; envelhece em uma sessão.
-#   conversa-* transcrições, e nem todas só do WinDock.
+#   EVs/         capturas de tela das investigações. São telas reais, com janelas e
+#                nomes visíveis. O APRENDIZADOS cita "EV08", "EV14" etc. como rótulo de
+#                rastreabilidade em texto corrido, nunca como link — sem as imagens o
+#                texto continua inteiro.
+#   RETOMAR      "onde paramos" de um dia específico; envelhece em uma sessão.
+#   conversa-*   transcrições, e nem todas só do WinDock.
+#   APRENDIZADOS o diário de bordo desta máquina: medições, becos sem saída e o porquê
+#                de cada decisão. Saiu do repositório em 08/09/2026 pensando na
+#                publicação — é aprendizado de quem construiu, não documentação de quem
+#                usa, e cita máquina, apps e telas deste ambiente. Continua no disco e
+#                continua sendo o primeiro lugar a ler antes de mexer em barra, foco,
+#                ícones ou bandeja.
 docs/EVs/
 docs/RETOMAR.md
 docs/conversa-*.md
+docs/APRENDIZADOS.md
 
 # ── preferências ─────────────────────────────────────────────
 # O config.json real mora em %APPDATA%\WinDock e nunca esteve aqui; esta linha é

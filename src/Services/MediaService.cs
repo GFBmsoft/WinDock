@@ -92,12 +92,42 @@ public sealed class MediaService : IDisposable
     public HashSet<string> Allowed { get; } = new(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>
-    /// Todo programa de mídia visto nesta sessão, para as Configurações terem o que listar.
+    /// Todo programa de mídia já visto, para as Configurações terem o que listar.
     ///
     /// Acumula em vez de refletir só o momento: a pessoa abre as opções quando quer, e a essa
-    /// altura o programa que ela quer marcar pode já ter parado de tocar.
+    /// altura o programa que ela quer marcar pode já ter parado de tocar. E acumula **entre
+    /// sessões** (<see cref="DockConfig.MediaAppsSeen"/>) — enquanto isto vivia só na memória, a
+    /// lista voltava a zero a cada vez que a dock subia, e quem tinha tocado um vídeo de manhã
+    /// abria as opções à tarde e encontrava a lista vazia, sem nada explicando o porquê.
     /// </summary>
     public static HashSet<string> KnownApps { get; } = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>Onde os vistos são guardados. Fica nulo até a dock passar o config.</summary>
+    private static DockConfig? _store;
+
+    /// <summary>
+    /// Liga a lista de vistos ao arquivo de configuração: carrega o que já estava lá e passa a
+    /// gravar cada programa novo.
+    /// </summary>
+    public static void UseStore(DockConfig config)
+    {
+        _store = config;
+        foreach (var app in config.MediaAppsSeen)
+            if (!string.IsNullOrWhiteSpace(app)) KnownApps.Add(app);
+    }
+
+    /// <summary>Anota um programa recém-visto, gravando só quando ele é realmente novo — isto
+    /// roda a cada mudança de sessão, e salvar o arquivo em toda troca de faixa seria escrever
+    /// em disco por música.</summary>
+    private static void Remember(string appId)
+    {
+        if (!KnownApps.Add(appId)) return;
+        if (_store is null) return;
+
+        _store.MediaAppsSeen.Add(appId);
+        _store.Save();
+        Log.Trace($"programa de mídia novo: '{appId}'");
+    }
 
     /// <summary>
     /// Escolhe qual sessão a barra vai seguir e passa a ouvi-la.
@@ -143,7 +173,7 @@ public sealed class MediaService : IDisposable
 
         // aproveita a passagem para anotar quem existe: é o que alimenta a lista das opções
         foreach (var s in sessoes)
-            if (!string.IsNullOrEmpty(s.SourceAppUserModelId)) KnownApps.Add(s.SourceAppUserModelId);
+            if (!string.IsNullOrEmpty(s.SourceAppUserModelId)) Remember(s.SourceAppUserModelId);
 
         if (Allowed.Count == 0) return _manager.GetCurrentSession();
 
@@ -210,6 +240,33 @@ public sealed class MediaService : IDisposable
         if (mudou) Changed?.Invoke();
     }
 
+    /// <summary>
+    /// Onde a faixa está **agora**, e não onde ela estava quando o programa contou.
+    ///
+    /// A <c>Position</c> da API é um retrato tirado no instante <c>LastUpdatedTime</c>, e cabe a
+    /// quem lê somar o tempo decorrido desde então. O Spotify reescreve a timeline tantas vezes
+    /// por minuto que o retrato parece um relógio, e por isso a barra parecia certa; o Chrome
+    /// publica **uma vez** e nunca mais — medido com um vídeo tocando: três leituras em 6 s,
+    /// `Position` parada em 00:01:01 e `LastUpdatedTime` no mesmo milissegundo nas três. Sem
+    /// esta conta, a barra do navegador ficava congelada onde o vídeo estava quando começou.
+    ///
+    /// Pausado não anda: o retrato é justamente o ponto onde parou. O teto em <c>EndTime</c>
+    /// evita a barra passar do fim quando a faixa acaba e o programa demora a avisar.
+    /// </summary>
+    private static TimeSpan PositionNow(GlobalSystemMediaTransportControlsSessionTimelineProperties t,
+                                        bool tocando, double taxa)
+    {
+        var pos = t.Position;
+        if (!tocando || t.LastUpdatedTime == default) return pos;
+
+        var desde = DateTimeOffset.Now - t.LastUpdatedTime;
+        if (desde <= TimeSpan.Zero) return pos;
+
+        pos += desde * (taxa <= 0 ? 1 : taxa);
+
+        return t.EndTime > TimeSpan.Zero && pos > t.EndTime ? t.EndTime : pos;
+    }
+
     private async Task<MediaInfo> Read()
     {
         var s = _session;
@@ -221,17 +278,19 @@ public sealed class MediaService : IDisposable
             var m = await s.TryGetMediaPropertiesAsync();
             var t = s.GetTimelineProperties();
 
+            var tocando = p.PlaybackStatus == GlobalSystemMediaTransportControlsSessionPlaybackStatus.Playing;
+
             return new MediaInfo(
                 s.SourceAppUserModelId ?? "",
                 m.Title ?? "",
                 m.Artist ?? "",
                 m.AlbumTitle ?? "",
-                p.PlaybackStatus == GlobalSystemMediaTransportControlsSessionPlaybackStatus.Playing,
+                tocando,
                 p.Controls.IsPlayEnabled,
                 p.Controls.IsPauseEnabled,
                 p.Controls.IsNextEnabled,
                 p.Controls.IsPreviousEnabled,
-                t.Position,
+                PositionNow(t, tocando, p.PlaybackRate ?? 1),
                 t.EndTime,
                 await Cover(m));
         }

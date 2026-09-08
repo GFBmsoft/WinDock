@@ -49,6 +49,11 @@ public partial class SettingsWindow : Window
 
         SourceInitialized += OnSourceInitialized;
 
+        // A lista de programas de mídia é a única que muda **enquanto** esta janela está aberta:
+        // basta a pessoa dar play em algo. Sem isto ela teria de fechar e reabrir as opções pra
+        // ver o programa aparecer — e, sem saber disso, concluiria que a captura não funciona.
+        Activated += (_, _) => LoadMediaApps();
+
         // marcar aquele interruptor la embaixo faz o WPF rolar ate ele; o painel tem que
         // abrir no comeco, e nao no meio da lista
         Loaded += (_, _) => Scroller.ScrollToTop();
