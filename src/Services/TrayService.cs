@@ -1515,12 +1515,12 @@ public static class TrayService
     /// <summary>Quanto se espera o painel se fechar sozinho depois de um ícone ser acionado.</summary>
     private static readonly TimeSpan SelfClose = TimeSpan.FromMilliseconds(400);
 
-    /// <summary>O Esc é o que fecha o painel: ele não é uma janela que se possa mandar fechar.</summary>
-    private static void CloseOverflow()
-    {
-        keybd_event(VK_ESCAPE, 0, 0, 0);
-        keybd_event(VK_ESCAPE, 0, KEYEVENTF_KEYUP, 0);
-    }
+    /// <summary>O Esc é o que fecha o painel: ele não é uma janela que se possa mandar fechar.
+    ///
+    /// Passa pelo <see cref="SyntheticKeys"/> para a barra saber que este Esc é nosso — ela
+    /// escuta o teclado para fechar os cartões dela, e sem o carimbo fechava o cartão da bandeja
+    /// no meio da própria leitura que o abastece.</summary>
+    private static void CloseOverflow() => SyntheticKeys.SendEscape();
 
     /// <summary>
     /// Tira o painel da tela sem mandar tecla nenhuma.

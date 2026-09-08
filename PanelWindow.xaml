@@ -832,7 +832,7 @@
       </Popup>
 
       <!-- o calendário do mês, desenhado aqui: o Calendar do WPF viria com o tema claro -->
-      <Popup x:Name="CalendarPopup" Placement="Bottom" VerticalOffset="6"
+      <Popup x:Name="CalendarPopup" Placement="Custom"
              StaysOpen="True" AllowsTransparency="True" PopupAnimation="Fade">
         <!-- a roda do mouse folheia os meses, como no calendário do Windows: as setas do
              cabeçalho são pequenas e passam despercebidas, e rolar é o gesto que a pessoa
@@ -883,33 +883,70 @@
               </ItemsControl.ItemsPanel>
               <ItemsControl.ItemTemplate>
                 <DataTemplate>
-                  <Border x:Name="Cell" Width="32" Height="30" CornerRadius="15" Background="Transparent">
-                    <TextBlock x:Name="Number" Text="{Binding Text}" FontSize="12"
-                               HorizontalAlignment="Center" VerticalAlignment="Center">
-                      <TextBlock.Style>
-                        <Style TargetType="TextBlock">
-                          <Setter Property="Foreground" Value="#FFE8E8EA" />
-                          <Style.Triggers>
-                            <!-- dias do mês vizinho entram apagados: eles existem só para a
-                                 primeira e a última semana não ficarem tortas -->
-                            <DataTrigger Binding="{Binding InMonth}" Value="False">
-                              <Setter Property="Foreground" Value="#FF6A6A6A" />
-                            </DataTrigger>
-                          </Style.Triggers>
-                        </Style>
-                      </TextBlock.Style>
-                    </TextBlock>
+                  <!-- o dia inteiro é clicável: é assim que se escreve a anotação dele -->
+                  <Border x:Name="Cell" Width="32" Height="30" CornerRadius="15" Background="Transparent"
+                          Cursor="Hand" MouseLeftButtonUp="OnCalendarDay"
+                          ToolTip="{Binding Tooltip}" ToolTipService.IsEnabled="{Binding HasTooltip}">
+                    <Grid>
+                      <TextBlock x:Name="Number" Text="{Binding Text}" FontSize="12"
+                                 HorizontalAlignment="Center" VerticalAlignment="Center">
+                        <TextBlock.Style>
+                          <Style TargetType="TextBlock">
+                            <Setter Property="Foreground" Value="#FFE8E8EA" />
+                            <Style.Triggers>
+                              <!-- dias do mês vizinho entram apagados: eles existem só para a
+                                   primeira e a última semana não ficarem tortas -->
+                              <DataTrigger Binding="{Binding InMonth}" Value="False">
+                                <Setter Property="Foreground" Value="#FF6A6A6A" />
+                              </DataTrigger>
+                            </Style.Triggers>
+                          </Style>
+                        </TextBlock.Style>
+                      </TextBlock>
+
+                      <!-- o pontinho embaixo do número marca quem tem anotação: a cor do texto
+                           já está ocupada pelo feriado, e um dia pode ser as duas coisas -->
+                      <Ellipse x:Name="NoteDot" Width="4" Height="4" Fill="#FF4CC2FF"
+                               HorizontalAlignment="Center" VerticalAlignment="Bottom"
+                               Margin="0,0,0,3" Visibility="Collapsed" />
+                    </Grid>
                   </Border>
                   <DataTemplate.Triggers>
+                    <!-- feriado em vermelho; anotação em azul. A ordem importa: hoje vem por
+                         último e ganha de todos, porque o círculo azul cheio já diz tudo -->
+                    <DataTrigger Binding="{Binding IsHoliday}" Value="True">
+                      <Setter TargetName="Number" Property="Foreground" Value="#FFFF6B6B" />
+                      <Setter TargetName="Number" Property="FontWeight" Value="SemiBold" />
+                    </DataTrigger>
+                    <DataTrigger Binding="{Binding HasNote}" Value="True">
+                      <Setter TargetName="NoteDot" Property="Visibility" Value="Visible" />
+                    </DataTrigger>
+                    <!-- tudo do dia resolvido: o ponto fica verde. É o "já cuidei disso" sem
+                         precisar abrir a caixa para conferir -->
+                    <DataTrigger Binding="{Binding AllDone}" Value="True">
+                      <Setter TargetName="NoteDot" Property="Fill" Value="#FF6CCB5F" />
+                    </DataTrigger>
+                    <MultiDataTrigger>
+                      <MultiDataTrigger.Conditions>
+                        <Condition Binding="{Binding HasNote}" Value="True" />
+                        <Condition Binding="{Binding IsHoliday}" Value="False" />
+                      </MultiDataTrigger.Conditions>
+                      <Setter TargetName="Number" Property="Foreground" Value="#FF4CC2FF" />
+                      <Setter TargetName="Number" Property="FontWeight" Value="SemiBold" />
+                    </MultiDataTrigger>
                     <DataTrigger Binding="{Binding IsToday}" Value="True">
                       <Setter TargetName="Cell" Property="Background" Value="#FF0F6CBD" />
                       <Setter TargetName="Number" Property="Foreground" Value="White" />
                       <Setter TargetName="Number" Property="FontWeight" Value="SemiBold" />
+                      <Setter TargetName="NoteDot" Property="Fill" Value="White" />
                     </DataTrigger>
                   </DataTemplate.Triggers>
                 </DataTemplate>
               </ItemsControl.ItemTemplate>
             </ItemsControl>
+
+            <TextBlock Text="Clique num dia para anotar" Foreground="#FF8A8A8A" FontSize="10"
+                       HorizontalAlignment="Center" Margin="0,6,0,0" />
 
             <!-- só aparece depois de folhear para outro mês -->
             <Button Style="{StaticResource PanelButton}" Click="OnCalendarToday" Margin="0,6,0,0"

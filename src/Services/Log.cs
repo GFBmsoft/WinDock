@@ -13,7 +13,17 @@ public static class Log
 {
     public static readonly string FilePath = Path.Combine(DockConfig.Dir, "windock.log");
 
-    /// <summary>Acima disto o arquivo recomeca: e um diario de bordo, nao um historico.</summary>
+    /// <summary>
+    /// A volta anterior, guardada inteira quando o arquivo atual enche.
+    ///
+    /// Existe porque investigar é sempre olhar para trás: o registro que interessa é o do
+    /// minuto em que a coisa aconteceu, e ele é justamente o que já passou quando alguém vai
+    /// procurar. Em 08/09/2026 o rastro de um teste sumiu entre o gesto e a leitura.
+    /// </summary>
+    public static readonly string PreviousPath = Path.Combine(DockConfig.Dir, "windock.1.log");
+
+    /// <summary>Acima disto o arquivo dá lugar a um novo — e vira o <see cref="PreviousPath"/>.
+    /// São duas voltas guardadas, meio mega no total: um diário de bordo, não um histórico.</summary>
     private const long MaxBytes = 256 * 1024;
 
     private static readonly object Gate = new();
@@ -25,13 +35,31 @@ public static class Log
             lock (Gate)
             {
                 Directory.CreateDirectory(DockConfig.Dir);
-                if (File.Exists(FilePath) && new FileInfo(FilePath).Length > MaxBytes)
-                    File.Delete(FilePath);
+                Rotate();
 
                 File.AppendAllText(FilePath, $"{DateTime.Now:yyyy-MM-dd HH:mm:ss}  {message}{Environment.NewLine}");
             }
         }
         catch { /* nem o log pode atrapalhar a dock */ }
+    }
+
+    /// <summary>
+    /// Cheio, o arquivo vira "a volta anterior" e um novo começa — em vez de apagar tudo.
+    ///
+    /// Apagar era barato e custou caro: com o rastro ligado o limite chega em minutos, e o que
+    /// se perdia era sempre o começo da história (o arranque da dock, o instante do gesto que
+    /// se queria entender). Guardar uma volta atrás significa que a janela de tempo do registro
+    /// nunca é menor que <see cref="MaxBytes"/> — antes, logo depois de encher, ela era zero.
+    ///
+    /// O <c>Move</c> com sobrescrita é uma operação só do sistema de arquivos: não há instante
+    /// em que as duas voltas estejam perdidas.
+    /// </summary>
+    private static void Rotate()
+    {
+        if (!File.Exists(FilePath)) return;
+        if (new FileInfo(FilePath).Length <= MaxBytes) return;
+
+        File.Move(FilePath, PreviousPath, overwrite: true);
     }
 
     public static void Write(string message, Exception ex) =>

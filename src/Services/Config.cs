@@ -12,6 +12,135 @@ namespace WinDock.Services;
 /// <see cref="Path"/> o que abrir — normalmente o .lnk, que carrega os argumentos do
 /// perfil. Sao campos distintos porque dois perfis do Chrome tem o mesmo executavel.
 /// </summary>
+/// <summary>
+/// Uma anotação de um dia: o texto e se já foi resolvida.
+///
+/// Avisa quando muda porque a lista da caixa de edição desenha o texto riscado na hora em que
+/// se marca o item — sem o aviso, só ao fechar e reabrir.
+/// </summary>
+public sealed class CalendarNote : INotifyPropertyChanged
+{
+    public string Text { get; set; } = string.Empty;
+
+    private bool _done;
+    public bool Done
+    {
+        get => _done;
+        set
+        {
+            if (_done == value) return;
+            _done = value;
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Done)));
+        }
+    }
+
+    public event PropertyChangedEventHandler? PropertyChanged;
+}
+
+/// <summary>
+/// Lê as anotações do calendário nos três formatos que o arquivo já teve: o texto único por dia
+/// (de quando cada dia comportava uma anotação só), a lista de textos, e a lista de objetos com
+/// o "concluído" de agora.
+///
+/// Sem isto, cada mudança de formato apagaria em silêncio o que a pessoa já tinha anotado — o
+/// <c>System.Text.Json</c> falha ao ler um texto onde espera um vetor, e o <c>catch</c> que
+/// protege o carregamento do config devolveria **todas** as preferências em branco. Gravar é
+/// sempre no formato de agora, então o arquivo se converte sozinho na primeira anotação.
+/// </summary>
+public sealed class CalendarNotesConverter : JsonConverter<Dictionary<string, List<CalendarNote>>>
+{
+    public override Dictionary<string, List<CalendarNote>> Read(ref Utf8JsonReader reader, Type type,
+                                                                JsonSerializerOptions options)
+    {
+        var notas = new Dictionary<string, List<CalendarNote>>();
+        if (reader.TokenType != JsonTokenType.StartObject) return notas;
+
+        while (reader.Read())
+        {
+            if (reader.TokenType == JsonTokenType.EndObject) return notas;
+            if (reader.TokenType != JsonTokenType.PropertyName) continue;
+
+            var dia = reader.GetString() ?? string.Empty;
+            reader.Read();
+
+            var itens = new List<CalendarNote>();
+            switch (reader.TokenType)
+            {
+                case JsonTokenType.String:                       // o mais antigo: um texto só
+                    Add(itens, reader.GetString(), false);
+                    break;
+
+                case JsonTokenType.StartArray:
+                    while (reader.Read() && reader.TokenType != JsonTokenType.EndArray)
+                    {
+                        if (reader.TokenType == JsonTokenType.String)
+                        {
+                            Add(itens, reader.GetString(), false);
+                        }
+                        else if (reader.TokenType == JsonTokenType.StartObject)
+                        {
+                            string? texto = null;
+                            var feito = false;
+
+                            while (reader.Read() && reader.TokenType != JsonTokenType.EndObject)
+                            {
+                                if (reader.TokenType != JsonTokenType.PropertyName) continue;
+
+                                var campo = reader.GetString();
+                                reader.Read();
+
+                                if (string.Equals(campo, "Text", StringComparison.OrdinalIgnoreCase))
+                                    texto = reader.TokenType == JsonTokenType.String ? reader.GetString() : null;
+                                else if (string.Equals(campo, "Done", StringComparison.OrdinalIgnoreCase))
+                                    feito = reader.TokenType == JsonTokenType.True;
+                                else
+                                    reader.Skip();
+                            }
+
+                            Add(itens, texto, feito);
+                        }
+                        else reader.Skip();
+                    }
+                    break;
+
+                default:
+                    reader.Skip();
+                    break;
+            }
+
+            if (dia.Length > 0 && itens.Count > 0) notas[dia] = itens;
+        }
+
+        return notas;
+    }
+
+    private static void Add(List<CalendarNote> itens, string? texto, bool feito)
+    {
+        if (string.IsNullOrWhiteSpace(texto)) return;
+        itens.Add(new CalendarNote { Text = texto.Trim(), Done = feito });
+    }
+
+    public override void Write(Utf8JsonWriter writer, Dictionary<string, List<CalendarNote>> value,
+                               JsonSerializerOptions options)
+    {
+        writer.WriteStartObject();
+        foreach (var (dia, itens) in value)
+        {
+            writer.WritePropertyName(dia);
+            writer.WriteStartArray();
+            foreach (var item in itens)
+            {
+                writer.WriteStartObject();
+                writer.WriteString("Text", item.Text);
+                writer.WriteBoolean("Done", item.Done);
+                writer.WriteEndObject();
+            }
+            writer.WriteEndArray();
+        }
+        writer.WriteEndObject();
+    }
+}
+
 /// <summary>Largura e altura que um app usa flutuando, em pixels da tela.</summary>
 public sealed class FloatingSize
 {
@@ -313,6 +442,20 @@ public sealed class DockConfig : INotifyPropertyChanged
     /// monitor onde está. Quem não tem tamanho guardado usa os 60% da área útil de sempre.
     /// </summary>
     public Dictionary<string, FloatingSize> FloatingSizes { get; set; } = new();
+
+    /// <summary>
+    /// Anotações do calendário: a data no formato <c>yyyy-MM-dd</c> e o que foi anotado nela.
+    ///
+    /// A chave é texto, e não <c>DateTime</c>, porque é o que sobrevive a um JSON legível e
+    /// editável à mão — e porque data com hora dentro de dicionário vira armadilha (o mesmo
+    /// dia guardado duas vezes por causa de um horário diferente).
+    ///
+    /// O valor é uma lista porque um dia tem mais de um compromisso. Quem já tinha anotações
+    /// gravadas quando isto era um texto só não perde nada: o conversor lê os dois formatos
+    /// (ver <see cref="CalendarNotesConverter"/>) e a primeira gravação passa tudo para lista.
+    /// </summary>
+    [JsonConverter(typeof(CalendarNotesConverter))]
+    public Dictionary<string, List<CalendarNote>> CalendarNotes { get; set; } = new();
 
     /// <summary>Apps fixados, na ordem em que aparecem.</summary>
     public List<PinnedApp> Pinned { get; set; } = new();

@@ -1,0 +1,189 @@
+<Window x:Class="WinDock.NoteWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Anotação do dia" Icon="assets/windock.ico"
+        SizeToContent="Height" Width="420"
+        ResizeMode="NoResize" ShowInTaskbar="False"
+        WindowStartupLocation="CenterScreen"
+        Background="{DynamicResource DialogSurface}"
+        FontFamily="Segoe UI Variable Text, Segoe UI"
+        TextOptions.TextFormattingMode="Ideal" UseLayoutRounding="True">
+
+  <!--
+    A anotação de um dia do calendário, no mesmo desenho da caixa de pergunta (ConfirmWindow):
+    barra de título do sistema, conteúdo em cima, botões numa faixa no rodapé.
+
+    É uma janela, e não um campo dentro do cartão do calendário, por um motivo de sistema: a
+    barra é `WS_EX_NOACTIVATE` e nunca recebe o foco do teclado — um campo de texto ali dentro
+    apareceria, aceitaria o clique e não receberia uma letra sequer, com o que fosse digitado
+    indo parar no app de trás.
+  -->
+
+  <Window.Resources>
+    <Style x:Key="DialogButton" TargetType="Button">
+      <Setter Property="Height" Value="32" />
+      <Setter Property="MinWidth" Value="110" />
+      <Setter Property="Padding" Value="16,0" />
+      <Setter Property="FontSize" Value="14" />
+      <Setter Property="Foreground" Value="{DynamicResource DialogText}" />
+      <Setter Property="Background" Value="{DynamicResource DialogControl}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource DialogControlBorder}" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="Button">
+            <Border x:Name="Face" Background="{TemplateBinding Background}"
+                    BorderBrush="{TemplateBinding BorderBrush}"
+                    BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="4">
+              <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+            </Border>
+            <ControlTemplate.Triggers>
+              <Trigger Property="IsMouseOver" Value="True">
+                <Setter TargetName="Face" Property="Background" Value="{DynamicResource DialogControlHover}" />
+              </Trigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+
+    <Style x:Key="AccentButton" TargetType="Button" BasedOn="{StaticResource DialogButton}">
+      <Setter Property="Background" Value="{DynamicResource DialogAccent}" />
+      <Setter Property="Foreground" Value="{DynamicResource DialogOnAccent}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource DialogAccent}" />
+    </Style>
+
+    <!--
+      A bolinha de "feito", no espírito do Fluent: um círculo vazado que se enche com a cor de
+      destaque do Windows e mostra o traço do visto.
+
+      Redondo, e não quadrado como o do sistema: o quadrado é a caixa de "ligar uma opção", e aqui
+      o gesto é riscar um item de uma lista. O visto é desenhado (um `Path`) em vez de um glifo de
+      fonte porque assim ele acompanha o círculo em qualquer DPI, sem depender de a Segoe Fluent
+      Icons estar instalada.
+    -->
+    <Style x:Key="DoneCheck" TargetType="CheckBox">
+      <Setter Property="Cursor" Value="Hand" />
+      <Setter Property="Focusable" Value="False" />
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="CheckBox">
+            <!-- 16 px: a mesma altura da linha de texto de 13 px. Em 20 px a bolinha era maior
+                 que o próprio compromisso escrito ao lado, e puxava o olho para o controle em
+                 vez de para o conteúdo -->
+            <Grid Width="18" Height="18" Background="Transparent">
+              <Ellipse x:Name="Ring" Width="16" Height="16"
+                       Stroke="{DynamicResource DialogTextDim}" StrokeThickness="1.3"
+                       Fill="Transparent" />
+              <Path x:Name="Tick" Width="9" Height="9" Stretch="Uniform" Opacity="0"
+                    Data="M 2,6.2 L 5,9.2 L 10.5,3"
+                    Stroke="{DynamicResource DialogOnAccent}" StrokeThickness="2"
+                    StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round" />
+            </Grid>
+            <ControlTemplate.Triggers>
+              <Trigger Property="IsMouseOver" Value="True">
+                <Setter TargetName="Ring" Property="Stroke" Value="{DynamicResource DialogText}" />
+              </Trigger>
+              <Trigger Property="IsChecked" Value="True">
+                <Setter TargetName="Ring" Property="Fill" Value="{DynamicResource DialogAccent}" />
+                <Setter TargetName="Ring" Property="Stroke" Value="{DynamicResource DialogAccent}" />
+                <Setter TargetName="Tick" Property="Opacity" Value="1" />
+              </Trigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+  </Window.Resources>
+
+  <!-- sem faixa de botões no rodapé: tudo é gravado na hora, então não há o que confirmar, e
+       fechar já tem dois caminhos conhecidos — o Esc e o X da barra de título -->
+  <Grid>
+    <StackPanel Margin="20,18,20,18">
+      <TextBlock x:Name="Heading" FontSize="19" TextWrapping="Wrap"
+                 Foreground="{DynamicResource DialogText}" />
+
+      <!-- o feriado do dia, quando há: é a informação que explica por que aquele dia está
+           vermelho no calendário -->
+      <TextBlock x:Name="HolidayLine" FontSize="13" Margin="0,6,0,0" TextWrapping="Wrap"
+                 Foreground="#FFD13438" Visibility="Collapsed" />
+
+      <!-- o que já está anotado no dia. A lista cresce até cinco itens e depois rola: a caixa
+           não pode virar uma janela de tela cheia porque alguém teve um dia cheio -->
+      <ItemsControl x:Name="NotesList" Margin="0,12,0,0" MaxHeight="180">
+        <ItemsControl.Template>
+          <ControlTemplate TargetType="ItemsControl">
+            <ScrollViewer VerticalScrollBarVisibility="Auto">
+              <ItemsPresenter />
+            </ScrollViewer>
+          </ControlTemplate>
+        </ItemsControl.Template>
+        <ItemsControl.ItemTemplate>
+          <DataTemplate>
+            <Border Background="{DynamicResource DialogControl}"
+                    BorderBrush="{DynamicResource DialogControlBorder}" BorderThickness="1"
+                    CornerRadius="4" Padding="10,6" Margin="0,0,0,6">
+              <Grid>
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="Auto" />
+                  <ColumnDefinition Width="*" />
+                  <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <!-- marcar aqui é o "feito": o item continua na lista, riscado, porque o valor
+                     de uma lista de tarefas é ver o que já saiu do caminho -->
+                <CheckBox Style="{StaticResource DoneCheck}" IsChecked="{Binding Done, Mode=TwoWay}"
+                          VerticalAlignment="Center" ToolTip="Concluído" />
+
+                <TextBlock x:Name="ItemText" Grid.Column="1" Text="{Binding Text}" FontSize="13"
+                           TextWrapping="Wrap" VerticalAlignment="Center" Margin="8,0,0,0"
+                           Foreground="{DynamicResource DialogText}" />
+
+                <TextBlock Grid.Column="2" Text="✕" FontSize="13" Margin="10,0,0,0" Cursor="Hand"
+                           VerticalAlignment="Center" ToolTip="Remover"
+                           Foreground="{DynamicResource DialogTextDim}"
+                           MouseLeftButtonUp="OnRemoveNote" />
+              </Grid>
+            </Border>
+            <DataTemplate.Triggers>
+              <DataTrigger Binding="{Binding Done}" Value="True">
+                <!-- o risco vem na cor de destaque (a mesma da bolinha marcada) e não na cor do
+                     texto: sobre um texto já esmaecido, um traço esmaecido junto praticamente
+                     desaparecia, e era ele que conta que o item está resolvido -->
+                <Setter TargetName="ItemText" Property="TextDecorations"
+                        Value="{DynamicResource DoneStrike}" />
+                <Setter TargetName="ItemText" Property="Foreground"
+                        Value="{DynamicResource DialogTextDim}" />
+              </DataTrigger>
+            </DataTemplate.Triggers>
+          </DataTemplate>
+        </ItemsControl.ItemTemplate>
+      </ItemsControl>
+
+      <TextBlock x:Name="EmptyLine" Text="Nada anotado neste dia ainda."
+                 FontSize="13" Margin="0,12,0,0"
+                 Foreground="{DynamicResource DialogTextDim}" />
+
+      <Grid Margin="0,10,0,0">
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="*" />
+          <ColumnDefinition Width="Auto" />
+        </Grid.ColumnDefinitions>
+        <TextBox x:Name="NoteBox" MaxLength="200" FontSize="14" Padding="8,6"
+                 Background="{DynamicResource DialogControl}" Foreground="{DynamicResource DialogText}"
+                 CaretBrush="{DynamicResource DialogText}"
+                 BorderBrush="{DynamicResource DialogControlBorder}" BorderThickness="1"
+                 KeyDown="OnKeyDown" />
+        <!-- só o "+": ao lado de um campo de texto, dentro de uma caixa que já se chama
+             "anotação do dia", a palavra "Adicionar" não acrescentava informação nenhuma -->
+        <Button Grid.Column="1" Style="{StaticResource DialogButton}" Content="+"
+                MinWidth="40" Width="40" FontSize="18" Margin="8,0,0,0"
+                ToolTip="Adicionar à lista (ou tecle Enter)" Click="OnAddNote" />
+      </Grid>
+
+      <TextBlock Text="Enter ou + adiciona, a bolinha marca como feito e o ✕ remove. Tudo é gravado na hora; Esc fecha."
+                 FontSize="12" Margin="0,8,0,0" TextWrapping="Wrap"
+                 Foreground="{DynamicResource DialogTextDim}" />
+    </StackPanel>
+  </Grid>
+</Window>

@@ -31,10 +31,20 @@ public partial class PanelWindow : Window
         DataContext = _model;
 
         _outsideClick.Tick += (_, _) => CheckOutsideClick();
-        _trayCardTimeout.Tick += (_, _) => { _trayCardTimeout.Stop(); TrayPopup.IsOpen = false; };
+        _trayCardTimeout.Tick += (_, _) =>
+        {
+            _trayCardTimeout.Stop();
+
+            // com rastro: este era o único jeito de o cartão sumir sem deixar linha nenhuma, e
+            // por isso o clique seguinte na seta aparecia como "abrindo" — de fora parece que o
+            // clique fechou, quando o cartão já tinha se fechado sozinho antes dele
+            Log.Trace("cartão da bandeja: tempo parado esgotado, fechando sozinho");
+            TrayPopup.IsOpen = false;
+        };
         _volumeOsd.Tick += (_, _) => HideVolumeOsd();
         _mediaTick.Tick += (_, _) => UpdateMediaProgress();
         TrayPopup.CustomPopupPlacementCallback = PlaceTrayCard;
+        CalendarPopup.CustomPopupPlacementCallback = PlaceCalendarCard;
         ApplyPanelOrder();
 
         // reordenar nas Configurações vale na hora, sem fechar e abrir a barra
@@ -116,9 +126,29 @@ public partial class PanelWindow : Window
         // e sem isto o nosso ficava aberto por baixo dele
         CloseAllPopups();
 
-        if (_shellPanelWasOpen) PanelModel.CloseShellPanel();
-        else PanelModel.OpenSystemPanel(uri);
+        if (_shellPanelWasOpen) { PanelModel.CloseShellPanel(); return; }
+
+        PanelModel.OpenSystemPanel(uri);
+
+        // o vigia passa a valer também para o painel do Windows: clicar no vazio da barra
+        // fecha o do wi-fi e o do sino como fecha os nossos
+        _shellPanelPedido = DateTime.Now;
+        WatchOutsideClick();
     }
+
+    /// <summary>
+    /// Quando pedimos ao Windows que abrisse um painel dele.
+    ///
+    /// O painel não nasce no mesmo instante do clique — leva um tempo até existir e virar
+    /// primeiro plano. Sem esta carência o vigia olharia uma vez, não veria painel nenhum e se
+    /// desligaria antes de o painel aparecer, deixando o clique na barra sem efeito outra vez.
+    /// </summary>
+    private DateTime _shellPanelPedido = DateTime.MinValue;
+
+    /// <summary>Há um painel do Windows na tela por nossa conta — ou acabou de ser pedido.</summary>
+    private bool ShellPanelVivo =>
+        PanelModel.ShellPanelInFront() ||
+        DateTime.Now - _shellPanelPedido < TimeSpan.FromSeconds(2);
 
     /// <summary>
     /// Tira da tela tudo o que estiver aberto, antes de um botão da barra abrir o seu.
@@ -337,9 +367,11 @@ public partial class PanelWindow : Window
         // minutos antes fechava o cartão no mesmo instante em que ele abria: medido, o cartão
         // do bluetooth abria e o rastro trazia "Esc com cartão aberto" 95 ms depois, sem
         // ninguém ter encostado no teclado.
-        if (!_outsideClick.IsEnabled && AnyPopupOpen) GetAsyncKeyState(VK_ESCAPE);
+        var vigiar = AnyPopupOpen || ShellPanelVivo;
 
-        _outsideClick.IsEnabled = AnyPopupOpen;
+        if (!_outsideClick.IsEnabled && vigiar) GetAsyncKeyState(VK_ESCAPE);
+
+        _outsideClick.IsEnabled = vigiar;
         Log.Trace($"vigia de clique fora: {(_outsideClick.IsEnabled ? "ligado" : "desligado")}");
     }
 
@@ -349,7 +381,7 @@ public partial class PanelWindow : Window
 
     private void CheckOutsideClick()
     {
-        if (!AnyPopupOpen)
+        if (!AnyPopupOpen && !ShellPanelVivo)
         {
             _outsideClick.Stop();
             return;
@@ -363,8 +395,22 @@ public partial class PanelWindow : Window
         // aberto, que é justamente quando "fechar" é o significado óbvio do Esc.
         if ((GetAsyncKeyState(VK_ESCAPE) & 0x8001) != 0)
         {
+            // ...a não ser que o Esc tenha sido nosso. A leitura da bandeja fecha o painel do
+            // Windows apertando Esc, e o sistema não distingue tecla sintética de tecla física:
+            // sem esta pergunta, abrir o cartão da bandeja disparava a leitura, a leitura
+            // apertava Esc e o cartão se fechava sozinho 70 ms depois de aparecer.
+            if (SyntheticKeys.EscapeWasOurs())
+            {
+                Log.Trace("Esc detectado, mas foi nosso (leitura da bandeja): mantendo o cartão");
+                return;
+            }
+
             Log.Trace("Esc com cartão aberto: fechando");
             CloseAllPopups();
+
+            // nada de mandar Esc para o painel do Windows aqui: ele tem o foco do teclado, então
+            // o mesmo Esc que chegou até nós já fechou o dele. Um segundo cairia no app de trás.
+            _shellPanelPedido = DateTime.MinValue;
             _outsideClick.Stop();
             return;
         }
@@ -391,6 +437,19 @@ public partial class PanelWindow : Window
 
         Log.Trace($"clique fora dos painéis em ({cursor.X},{cursor.Y}): fechando");
         CloseAllPopups();
+
+        // O painel do wi-fi e o do sino são do Windows, e o Esc que os fecha vai para quem
+        // estiver em primeiro plano — por isso a pergunta é feita **agora**, coladinha no
+        // envio, e não no começo do método: se o clique foi noutro app, o painel já se fechou
+        // sozinho ao perder o foco, e um Esc atrasado cairia na janela de quem recebeu o
+        // clique. Foi assim que um Esc destes já fechou a tela de um Delphi (ver APRENDIZADOS).
+        if (PanelModel.ShellPanelInFront())
+        {
+            Log.Trace("  e o painel do Windows junto");
+            PanelModel.CloseShellPanel();
+        }
+
+        _shellPanelPedido = DateTime.MinValue;
         _outsideClick.Stop();
     }
 
@@ -571,6 +630,38 @@ public partial class PanelWindow : Window
     private void OnCalendarPrevious(object sender, RoutedEventArgs e) => _model.Calendar.PreviousMonth();
     private void OnCalendarNext(object sender, RoutedEventArgs e) => _model.Calendar.NextMonth();
     private void OnCalendarToday(object sender, RoutedEventArgs e) => _model.Calendar.GoToToday();
+
+    /// <summary>
+    /// Clique num dia: abre a caixa para escrever (ou apagar) a anotação daquela data.
+    ///
+    /// O cartão do calendário fica aberto por trás de propósito — fechá-lo aqui tiraria da
+    /// vista justamente o mês que a pessoa está anotando. Quem cuida de fechar continua sendo o
+    /// clique fora, o Esc ou o próprio botão do relógio.
+    ///
+    /// O vigia de clique fora é parado enquanto a caixa está na tela: ela rouba o foco (é uma
+    /// janela de verdade), e sem isso o primeiro clique dentro dela seria lido como "clique
+    /// fora do cartão" e derrubaria o calendário no instante em que a caixa aparecesse.
+    /// </summary>
+    private void OnCalendarDay(object sender, MouseButtonEventArgs e)
+    {
+        if (((FrameworkElement)sender).DataContext is not CalendarDay dia) return;
+
+        Log.Trace($"clique no dia {dia.Date:yyyy-MM-dd} do calendário");
+
+        var vigiava = _outsideClick.IsEnabled;
+        _outsideClick.Stop();
+
+        NoteWindow.Edit(this, dia.Date, dia.Holiday, dia.Notes,
+                        notas => _model.Calendar.SetNotes(dia.Date, notas));
+
+        // o Esc que fechou a caixa não pode fechar o cartão logo atrás dela, e o clique no
+        // "Gravar" não pode contar como clique fora: as duas coisas ficaram para trás no
+        // estado do teclado e do mouse, e são descartadas antes de o vigia voltar
+        GetAsyncKeyState(VK_ESCAPE);
+        GetAsyncKeyState(VK_LBUTTON);
+
+        if (vigiava && AnyPopupOpen) _outsideClick.Start();
+    }
 
     /// <summary>
     /// Roda do mouse sobre o calendário: folheia os meses.
@@ -800,6 +891,25 @@ public partial class PanelWindow : Window
     /// muda o local da visualização". Ancorando pela direita, a borda que fica junto da seta
     /// não se mexe — o cartão cresce para dentro da tela, como o do Windows faz.
     /// </summary>
+    /// <summary>
+    /// O calendário nasce **centrado** no relógio, e não com a borda esquerda encostada nele.
+    ///
+    /// Com o relógio no meio da barra, alinhar pela esquerda (que é o que o <c>Placement="Bottom"</c>
+    /// faz) jogava o cartão inteiro para a direita do centro da tela — o cartão tem 252 px de
+    /// largura e o relógio uns 130, então sobrava mais de 100 px de desvio bem no meio do monitor.
+    ///
+    /// O WPF cuida sozinho de trazer o cartão para dentro da tela se ele passar da borda, que é o
+    /// caso de quem põe o relógio no canto direito da barra.
+    /// </summary>
+    private CustomPopupPlacement[] PlaceCalendarCard(Size popup, Size target, Point offset) =>
+        new[]
+        {
+            // o +6 é a folga vertical que o cartão já tinha no `VerticalOffset`: só a conta
+            // horizontal muda aqui, para a distância da barra continuar a mesma de antes
+            new CustomPopupPlacement(new Point((target.Width - popup.Width) / 2, target.Height + 6),
+                                     PopupPrimaryAxis.Horizontal)
+        };
+
     private CustomPopupPlacement[] PlaceTrayCard(Size popup, Size target, Point offset) =>
         new[]
         {
@@ -807,8 +917,15 @@ public partial class PanelWindow : Window
                                      PopupPrimaryAxis.Horizontal)
         };
 
-    private void CloseAllPopups()
+    /// <summary>
+    /// O <paramref name="origem"/> é preenchido pelo compilador com o nome de quem chamou: com
+    /// meia dúzia de caminhos fechando os cartões, "sumiu" e "alguém fechou" eram indistinguíveis
+    /// no rastro. Só registra quando havia mesmo algo aberto — isto roda em todo clique da barra.
+    /// </summary>
+    private void CloseAllPopups([System.Runtime.CompilerServices.CallerMemberName] string origem = "")
     {
+        if (AnyPopupOpen) Log.Trace($"fechando os cartões (pedido por {origem})");
+
         BluetoothPopup.IsOpen = false;
         VolumePopup.IsOpen = false;
         PowerPopup.IsOpen = false;

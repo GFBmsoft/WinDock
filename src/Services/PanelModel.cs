@@ -610,7 +610,9 @@ public sealed class PanelModel : INotifyPropertyChanged, IDisposable
     // ── calendario ──────────────────────────────────────────
 
     /// <summary>O mes desenhado no painel que abre ao clicar na data.</summary>
-    public MonthCalendar Calendar { get; } = new();
+    /// <summary>O calendário lê e grava as anotações no config — por isso ele o recebe.</summary>
+    public MonthCalendar Calendar => _calendar ??= new MonthCalendar(_config);
+    private MonthCalendar? _calendar;
 
     public void UseAudioDevice(string id)
     {
@@ -810,8 +812,9 @@ public sealed class PanelModel : INotifyPropertyChanged, IDisposable
     /// <summary>Fecha o painel do shell que estiver aberto, como o Esc do teclado faria.</summary>
     public static void CloseShellPanel()
     {
-        keybd_event(VK_ESCAPE, 0, 0, 0);
-        keybd_event(VK_ESCAPE, 0, KEYEVENTF_KEYUP, 0);
+        // pelo SyntheticKeys: a barra escuta o Esc para fechar os cartões dela, e precisa saber
+        // que este veio de nós
+        SyntheticKeys.SendEscape();
     }
 
     public static void OpenSystemPanel(string uri)

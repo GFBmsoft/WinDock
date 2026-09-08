@@ -119,6 +119,7 @@ bluetooth, volume, a seta da bandeja, notificações e energia. **A ordem é sua
 | ação | como |
 |---|---|
 | Calendário do mês | clique na data |
+| Anotar um dia | clique no dia dentro do calendário |
 | Ver os ícones da bandeja | a seta `⌄` |
 | Abrir um programa da bandeja | clique no ícone dele |
 | Menu de um programa da bandeja (Sair, etc.) | botão direito no ícone dele |
@@ -127,6 +128,24 @@ bluetooth, volume, a seta da bandeja, notificações e energia. **A ordem é sua
 | Pausar, avançar, voltar a faixa | os botões ao lado do nome da música |
 | Ver a faixa inteira, com capa | clique no nome da música |
 | Desligar, reiniciar, hibernar, bloquear, sair | o botão de energia |
+
+#### Calendário
+
+Clique na data, na barra de cima, e o mês aparece. Dentro dele:
+
+- **Feriados nacionais em vermelho**, com o nome na dica de mouse. São calculados, não uma lista
+  fixa: os móveis (Carnaval, Sexta-feira Santa, Corpus Christi) saem da data da Páscoa, então
+  qualquer ano que você folhear vem certo, sem internet e sem atualizar nada todo ano. A
+  quarta-feira de cinzas fica de fora de propósito — é dia útil.
+- **Anotações em azul**, com um pontinho embaixo do número. Clique num dia para abrir a lista dele:
+  `Enter` ou o botão `+` adiciona mais uma, a caixinha marca como feito (o texto fica riscado) e o
+  `✕` remove. **Cada ação grava na hora** — não há botão de confirmar, e fechar a janela com algo
+  escrito no campo aproveita o texto em vez de descartá-lo. Quando tudo do dia está marcado como
+  feito, o pontinho fica verde. As anotações ficam em
+  `CalendarNotes`, no `config.json`.
+
+Feriados estaduais e municipais não entram: não há regra nacional para eles. Anote-os como
+anotação comum, que o dia fica marcado do mesmo jeito.
 
 #### Música
 
