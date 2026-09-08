@@ -32,6 +32,8 @@ public sealed class DockModel : IDisposable
         _proc = OnWinEvent;
         Theme = new DockTheme(config);
 
+        RepairPackagedPins();
+
         foreach (var p in _config.Pinned)
             Items.Add(new DockItem(p.Id, p.Path, p.Args, p.Label, pinned: true, overlayIcon: p.Overlay));
 
@@ -336,6 +338,38 @@ public sealed class DockModel : IDisposable
 
     /// <summary>Grava a ordem atual — o fim de um arraste.</summary>
     public void SaveOrder() => SavePinned();
+
+    /// <summary>
+    /// Acerta os fixados que apontam para uma versão de app da Store que já não está instalada.
+    ///
+    /// Sem isto, o dia em que o app se atualiza é o dia em que o botão dele perde o ícone e para
+    /// de abrir: a pasta do pacote leva a versão no nome, e a antiga some (o Spotify indo da
+    /// 1.298.301.0 para a 1.299.317.0 foi o caso que apareceu aqui). O <see cref="DockItem.Id"/>
+    /// vai junto quando ele é o próprio caminho — é a chave que junta o botão às janelas abertas
+    /// do app (<see cref="TaskWindow.AppKey"/>), e deixá-la velha faria o app abrir num segundo
+    /// botão, ao lado do fixado.
+    ///
+    /// Roda uma vez, quando a dock sobe, e só toca no que está quebrado.
+    /// </summary>
+    private void RepairPackagedPins()
+    {
+        var mudou = false;
+
+        foreach (var p in _config.Pinned)
+        {
+            if (!PackagedApps.TryRepair(p.Path, out var atual)) continue;
+
+            Log.Write($"fixado '{p.Label}': o pacote mudou de versão — {p.Path} → {atual}");
+
+            if (string.Equals(p.Id, p.Path, StringComparison.OrdinalIgnoreCase))
+                p.Id = atual.ToLowerInvariant();   // o AppKey de uma janela vem em minúsculas
+
+            p.Path = atual;
+            mudou = true;
+        }
+
+        if (mudou) _config.Save();
+    }
 
     /// <summary>Grava os fixados na ordem em que estao na dock.</summary>
     private void SavePinned()

@@ -186,8 +186,14 @@ public sealed class TilingService : IDisposable
             // da vida: sem contorno e fora do alcance do Alt+C. Agora que está em foco de
             // verdade, ela já teve tempo de se estabelecer — se ainda é desconhecida do
             // mosaico e passa nos critérios, entra.
+            //
+            // O IsExcluded aqui não é detalhe: uma janela da lista de exceções nunca entra na
+            // árvore, então esta condição continuava verdadeira nela para sempre e um Refresh
+            // completo (com o ApplyAll no fim) era agendado a **cada** vez que ela ganhava
+            // foco. Todo clique no WinRAR reposicionava o grid inteiro — o app estava fora do
+            // mosaico, como pedido, mas continuava mandando nele.
             if (hWnd != 0 && !_tree.Contains(hWnd) && !_floating.Contains(hWnd) && !_stubborn.Contains(hWnd)
-                && Concerns(hWnd) && IsResizable(hWnd)
+                && Concerns(hWnd) && IsResizable(hWnd) && !IsExcluded(hWnd)
                 && _pending is not { Status: DispatcherOperationStatus.Pending })
             {
                 _pending = _dispatcher.InvokeAsync(Refresh, DispatcherPriority.Background);
@@ -224,9 +230,16 @@ public sealed class TilingService : IDisposable
             // um solavanco visível a cada arraste. Só quem ainda está no grid precisa do
             // Refresh abaixo pra voltar pro lugar (o EV04: arrastar uma tile pra fora e soltar,
             // sem isso ela ficava largada lá).
-            if (_floating.Contains(hWnd) || _stubborn.Contains(hWnd)) return;
-            var dragged = WindowService.Enumerate().FirstOrDefault(w => w.Handle == hWnd);
-            if (dragged != null && IsExcluded(dragged)) return;
+            if (_floating.Contains(hWnd))
+            {
+                // acabou de mexer numa flutuante: o tamanho em que ela ficou passa a ser o
+                // tamanho deste app, e as próximas já nascem assim
+                RememberFloatingSize(hWnd);
+                return;
+            }
+
+            if (_stubborn.Contains(hWnd)) return;
+            if (IsExcluded(hWnd)) return;
 
             AbsorbDrag(hWnd);
         }
@@ -293,7 +306,11 @@ public sealed class TilingService : IDisposable
         {
             if (!_tree.Contains(hWnd) && !_floating.Contains(hWnd) && !_stubborn.Contains(hWnd)) return;
         }
-        else if (!Concerns(hWnd)) return;
+        // Abrir, mostrar ou renomear uma janela da lista de exceções também não muda o mosaico:
+        // ela não disputa espaço no grid nem hoje nem depois. Sem isto, cada caixa de progresso
+        // ou diálogo que o WinRAR abre durante uma operação agendava um recálculo, e o grid
+        // inteiro era reaplicado no meio do trabalho de quem estava do outro lado da tela.
+        else if (!Concerns(hWnd) || IsExcluded(hWnd)) return;
 
         if (_pending is { Status: DispatcherOperationStatus.Pending }) return;
         _pending = _dispatcher.InvokeAsync(Refresh, DispatcherPriority.Background);
@@ -336,6 +353,17 @@ public sealed class TilingService : IDisposable
         return _config.TilingExcludedApps.Any(p =>
             string.Equals(p, fileName, StringComparison.OrdinalIgnoreCase) ||
             (!string.IsNullOrEmpty(w.Aumid) && string.Equals(p, w.Aumid, StringComparison.OrdinalIgnoreCase)));
+    }
+
+    /// <summary>A mesma pergunta a partir do hwnd, para os eventos — que chegam com a janela, não
+    /// com a lista. A lista vazia (o caso comum) responde antes de consultar coisa nenhuma ao
+    /// Windows; uma janela que não se deixa consultar não é tratada como excluída, que é o
+    /// comportamento de antes.</summary>
+    private bool IsExcluded(nint hWnd)
+    {
+        if (_config.TilingExcludedApps.Count == 0) return false;
+        var w = WindowService.Describe(hWnd);
+        return w is not null && IsExcluded(w);
     }
 
     // ── atalhos ───────────────────────────────────────────────
@@ -617,7 +645,18 @@ public sealed class TilingService : IDisposable
         var hwnd = GetForegroundWindow();
         if (hwnd == 0) return;
 
-        if (_floating.Remove(hwnd)) { Refresh(); return; }
+        if (_floating.Contains(hwnd))
+        {
+            // já flutuando: se a pessoa arrastou ou redimensionou desde o último Alt+C, a tecla
+            // devolve a janela ao centro em vez de recolher pro mosaico — recentralizar não
+            // tinha tecla nenhuma antes. Só o toque seguinte, com ela já no lugar, fecha o
+            // ciclo e devolve pro grid.
+            if (!IsCentered(hwnd)) { CenterFloating(hwnd); return; }
+
+            _floating.Remove(hwnd);
+            Refresh();
+            return;
+        }
 
         if (!Concerns(hwnd)) return;
 
@@ -625,6 +664,31 @@ public sealed class TilingService : IDisposable
         _floating.Add(hwnd);
         CenterFloating(hwnd);
         Refresh();
+    }
+
+    /// <summary>
+    /// Ctrl+Alt+C: esquece o tamanho flutuante guardado do app da janela em foco, que volta a
+    /// abrir com os 60% da tela.
+    ///
+    /// Redimensionar de novo só troca um tamanho por outro — nunca desfaz —, e sem isto a única
+    /// saída seria editar o <c>config.json</c> na mão. Estando a janela flutuando, ela é
+    /// recolocada na hora: sem esse pulo a tecla não teria resposta nenhuma na tela, e ninguém
+    /// saberia se funcionou.
+    /// </summary>
+    public void ForgetFloatingSize()
+    {
+        if (!_config.TilingEnabled) return;
+
+        var hwnd = GetForegroundWindow();
+        if (hwnd == 0) return;
+
+        var chave = FloatingKey(hwnd);
+        if (chave is null || !_config.FloatingSizes.Remove(chave)) return;
+
+        _config.Save();
+        Log.Trace($"tamanho flutuante de '{chave}' esquecido");
+
+        if (_floating.Contains(hwnd)) CenterFloating(hwnd);
     }
 
     /// <summary>
@@ -1004,28 +1068,120 @@ public sealed class TilingService : IDisposable
         foreach (var (hwnd, rect) in rects) Apply(hwnd, rect);
     }
 
-    /// <summary>Alt+C: tamanho e posição de uma janela flutuando — 60% da tela, centralizada,
-    /// e livre pra pessoa redimensionar do jeito que quiser depois (não é mais tocada pelo
-    /// mosaico enquanto estiver em <see cref="_floating"/>).</summary>
-    private static void CenterFloating(nint hwnd)
+    /// <summary>Alt+C: tamanho e posição de uma janela flutuando — o tamanho que este app usa
+    /// (ou 60% da tela, na primeira vez), centralizada, e livre pra pessoa redimensionar do
+    /// jeito que quiser depois (não é mais tocada pelo mosaico enquanto estiver em
+    /// <see cref="_floating"/>).</summary>
+    private void CenterFloating(nint hwnd)
     {
+        if (!TryCenteredRect(hwnd, out var target)) return;
+
+        // sem SWP_NOZORDER: flutuar é pra ficar por cima do mosaico, não só fora dele
+        Apply(hwnd, target, HWND_TOP, extraFlags: 0);
+    }
+
+    /// <summary>O retângulo que o <see cref="CenterFloating"/> daria pra essa janela: o tamanho
+    /// guardado para o app (ver <see cref="DockConfig.FloatingSizes"/>) ou 60% da área útil,
+    /// sempre no centro do monitor mais próximo.</summary>
+    private bool TryCenteredRect(nint hwnd, out RECT rect)
+    {
+        rect = default;
+
         var monitor = MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST);
         var info = new MONITORINFO { cbSize = Marshal.SizeOf<MONITORINFO>() };
-        if (!GetMonitorInfo(monitor, ref info)) return;
+        if (!GetMonitorInfo(monitor, ref info)) return false;
 
         var work = info.rcWork;
-        var w = work.Width * 6 / 10;
-        var h = work.Height * 6 / 10;
-        var target = new RECT
+        var (w, h) = FloatingSizeOf(hwnd, work);
+        rect = new RECT
         {
             Left = work.Left + (work.Width - w) / 2,
             Top = work.Top + (work.Height - h) / 2,
             Right = work.Left + (work.Width - w) / 2 + w,
             Bottom = work.Top + (work.Height - h) / 2 + h
         };
+        return true;
+    }
 
-        // sem SWP_NOZORDER: flutuar é pra ficar por cima do mosaico, não só fora dele
-        Apply(hwnd, target, HWND_TOP, extraFlags: 0);
+    /// <summary>
+    /// O tamanho que este app usa flutuando: o guardado, se houver, senão os 60% de sempre.
+    ///
+    /// O guardado é sempre limitado à área útil do monitor de agora — o tamanho foi gravado numa
+    /// tela e pode estar sendo aplicado noutra bem menor (aqui são duas, de tamanhos diferentes),
+    /// e uma janela maior que a tela não teria como ser centralizada nem arrastada de volta.
+    /// </summary>
+    private (int Width, int Height) FloatingSizeOf(nint hwnd, RECT work)
+    {
+        var padrao = (work.Width * 6 / 10, work.Height * 6 / 10);
+
+        var chave = FloatingKey(hwnd);
+        if (chave is null || !_config.FloatingSizes.TryGetValue(chave, out var salvo)) return padrao;
+        if (salvo.Width <= 0 || salvo.Height <= 0) return padrao;
+
+        return (Math.Min(salvo.Width, work.Width), Math.Min(salvo.Height, work.Height));
+    }
+
+    /// <summary>
+    /// Sob que nome o tamanho de uma janela é guardado — o mesmo critério da lista de exceções:
+    /// o AppUserModelID quando a janela tem um (é ele que separa um perfil do Chrome do outro, e
+    /// um app "moderno" do vizinho que divide o mesmo <c>ApplicationFrameHost.exe</c>), senão o
+    /// nome do executável. Nada de caminho completo: ele muda quando o app se atualiza, e o
+    /// tamanho guardado ficaria órfão — foi o que aconteceu com o botão do Spotify.
+    /// </summary>
+    private static string? FloatingKey(nint hwnd)
+    {
+        var w = WindowService.Describe(hwnd);
+        if (w is null) return null;
+
+        return !string.IsNullOrEmpty(w.Aumid) ? w.Aumid : Path.GetFileName(w.ExePath);
+    }
+
+    /// <summary>
+    /// Guarda o tamanho em que a pessoa deixou uma janela flutuante, para todas as próximas
+    /// desse app já nascerem assim.
+    ///
+    /// Chamado ao soltar o arraste, que é quando a escolha ficou pronta — no meio dele o
+    /// tamanho muda a cada quadro. Uma janela maximizada não conta: o gesto ali foi "ocupar a
+    /// tela", não "este é o meu tamanho", e gravar isso faria todo Alt+C do app virar tela cheia.
+    /// </summary>
+    private void RememberFloatingSize(nint hwnd)
+    {
+        if (IsZoomed(hwnd) || IsIconic(hwnd)) return;
+        if (!TryGetVisualRect(hwnd, out var rect)) return;
+        if (rect.Width <= 0 || rect.Height <= 0) return;
+
+        var chave = FloatingKey(hwnd);
+        if (chave is null) return;
+
+        if (_config.FloatingSizes.TryGetValue(chave, out var atual) &&
+            atual.Width == rect.Width && atual.Height == rect.Height) return;
+
+        _config.FloatingSizes[chave] = new FloatingSize { Width = rect.Width, Height = rect.Height };
+        _config.Save();
+
+        Log.Trace($"tamanho flutuante de '{chave}' guardado: {rect.Width}x{rect.Height}");
+    }
+
+    /// <summary>Se a janela já está onde o Alt+C a colocaria.
+    ///
+    /// A folga de 8 px existe porque muita janela não aceita o tamanho pedido ao pixel — as que
+    /// arredondam pra um passo de grade (terminais, editores) ficariam "fora do centro" pra
+    /// sempre numa comparação exata, e o Alt+C nunca mais devolveria elas pro mosaico.
+    ///
+    /// Quando não dá pra medir (monitor ou janela que não respondem), responde que já está
+    /// centralizada: o pior caso vira o comportamento antigo, recolher pro grid, em vez de
+    /// prender a janela flutuando.</summary>
+    private bool IsCentered(nint hwnd)
+    {
+        const int folga = 8;
+
+        if (!TryCenteredRect(hwnd, out var target)) return true;
+        if (!TryGetVisualRect(hwnd, out var atual)) return true;
+
+        return Math.Abs(atual.Left - target.Left) <= folga
+            && Math.Abs(atual.Top - target.Top) <= folga
+            && Math.Abs(atual.Right - target.Right) <= folga
+            && Math.Abs(atual.Bottom - target.Bottom) <= folga;
     }
 
     /// <summary>

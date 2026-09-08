@@ -45,6 +45,16 @@ public partial class MainWindow : Window
     private const int TilingResizeUpId = 15;
     private const int TilingResizeDownId = 16;
 
+    /// <summary>Ctrl+Alt+C: esquece o tamanho flutuante guardado do app em foco. Fica fora da
+    /// faixa 17..25, que é dos Alt+número.</summary>
+    private const int TilingForgetSizeId = 26;
+
+    /// <summary>
+    /// Id do Alt+1; os outros oito vem somando (NumberHotkeyId + 1 e o Alt+2). Deixar por
+    /// ultimo mantem a faixa 17..25 livre de choque com os ids fixos acima.
+    /// </summary>
+    private const int NumberHotkeyId = 17;
+
     public MainWindow()
     {
         InitializeComponent();
@@ -79,6 +89,7 @@ public partial class MainWindow : Window
         // o Alt+Espaco chega como mensagem nesta janela, entao o hook fica aqui
         HwndSource.FromHwnd(hWnd)?.AddHook(OnWindowMessage);
         SetLauncherHotkey(_config.Launcher);
+        SetNumberHotkeys(_config.NumberHotkeys);
 
         // adianta a lista de apps e os icones: a primeira busca ja acha tudo pronto
         if (_config.Launcher) AppCatalog.Warm();
@@ -129,6 +140,9 @@ public partial class MainWindow : Window
                 break;
             case nameof(DockConfig.Launcher):
                 SetLauncherHotkey(_config.Launcher);
+                break;
+            case nameof(DockConfig.NumberHotkeys):
+                SetNumberHotkeys(_config.NumberHotkeys);
                 break;
             case nameof(DockConfig.Panel):
                 SetPanel(_config.Panel);
@@ -214,11 +228,63 @@ public partial class MainWindow : Window
                                "da dock.");
     }
 
+    // ── Alt+numero aciona o botao daquela posicao ────────────
+
+    /// <summary>
+    /// Liga ou desliga o Alt+1..Alt+9. Nove atalhos de uma vez, todos com o mesmo destino
+    /// (<see cref="ActivateByPosition"/>), por isso ficam num laco em vez de uma linha cada.
+    ///
+    /// Sem aviso quando um deles falha: Alt+numero e atalho interno comum, e se outro
+    /// programa global tiver pegado o Alt+4 (por exemplo), o certo e a dock so nao reagir
+    /// aquele numero — nao encher a tela de caixas no logon.
+    /// </summary>
+    private void SetNumberHotkeys(bool on)
+    {
+        var hWnd = new WindowInteropHelper(this).Handle;
+        if (hWnd == 0) return;
+
+        for (var i = 0; i < 9; i++) UnregisterHotKey(hWnd, NumberHotkeyId + i);
+        if (!on) return;
+
+        for (var i = 0; i < 9; i++)
+            if (!RegisterHotKey(hWnd, NumberHotkeyId + i, MOD_ALT | MOD_NOREPEAT, VK_1 + (uint)i))
+                Log.Write($"Alt+{i + 1} já está registrado por outro programa: a dock não reage a ele");
+    }
+
+    /// <summary>
+    /// Aciona o botao da posicao pedida (1 = o primeiro da dock), do mesmo jeito que um
+    /// clique nele: abre se estiver fechado, alterna as janelas se ja estiver aberto.
+    ///
+    /// A conta e sobre <see cref="DockModel.Items"/>, que e a mesma lista que a barra
+    /// desenha, na mesma ordem — fixados e depois abertos. Posicao sem botao nao faz nada.
+    /// </summary>
+    private void ActivateByPosition(int position)
+    {
+        var items = _model?.Items;
+        if (items is null || position < 1 || position > items.Count)
+        {
+            Log.Trace($"Alt+{position}: a dock não tem botão nessa posição");
+            return;
+        }
+
+        var item = items[position - 1];
+        Log.Trace($"Alt+{position}: acionando '{item.Label}'");
+        _model!.Activate(item);
+    }
+
     private nint OnWindowMessage(nint hWnd, int msg, nint wParam, nint lParam, ref bool handled)
     {
         if (msg != (int)WM_HOTKEY) return 0;
 
-        switch ((int)wParam)
+        var id = (int)wParam;
+        if (id >= NumberHotkeyId && id < NumberHotkeyId + 9)
+        {
+            ActivateByPosition(id - NumberHotkeyId + 1);
+            handled = true;
+            return 0;
+        }
+
+        switch (id)
         {
             case LauncherHotkeyId: OpenLauncher(); break;
             case TilingFocusLeftId:  _tiling?.MoveFocus(TilingDirection.Left); break;
@@ -226,6 +292,7 @@ public partial class MainWindow : Window
             case TilingFocusUpId:    _tiling?.MoveFocus(TilingDirection.Up); break;
             case TilingFocusDownId:  _tiling?.MoveFocus(TilingDirection.Down); break;
             case TilingFloatId:      _tiling?.ToggleFloat(); break;
+            case TilingForgetSizeId: _tiling?.ForgetFloatingSize(); break;
             case TilingHideId:       _tiling?.HideFocused(); break;
             case TilingCloseId:      _tiling?.CloseFocused(); break;
             case TilingSwapLeftId:   _tiling?.SwapFocused(TilingDirection.Left); break;
@@ -271,6 +338,7 @@ public partial class MainWindow : Window
         UnregisterHotKey(hWnd, TilingResizeRightId);
         UnregisterHotKey(hWnd, TilingResizeUpId);
         UnregisterHotKey(hWnd, TilingResizeDownId);
+        UnregisterHotKey(hWnd, TilingForgetSizeId);
         if (!on) return;
 
         RegisterHotKey(hWnd, TilingFocusLeftId,  MOD_CONTROL | MOD_ALT | MOD_NOREPEAT, VK_LEFT);
@@ -293,6 +361,10 @@ public partial class MainWindow : Window
         RegisterHotKey(hWnd, TilingResizeRightId, MOD_CONTROL | MOD_ALT | MOD_SHIFT | MOD_NOREPEAT, VK_RIGHT);
         RegisterHotKey(hWnd, TilingResizeUpId,    MOD_CONTROL | MOD_ALT | MOD_SHIFT | MOD_NOREPEAT, VK_UP);
         RegisterHotKey(hWnd, TilingResizeDownId,  MOD_CONTROL | MOD_ALT | MOD_SHIFT | MOD_NOREPEAT, VK_DOWN);
+
+        // esquecer o tamanho flutuante do app em foco. Ctrl+Alt+C, e não Alt+Shift+C, pela mesma
+        // razão do parágrafo acima: Alt+Shift é a troca de layout do teclado do Windows
+        RegisterHotKey(hWnd, TilingForgetSizeId, MOD_CONTROL | MOD_ALT | MOD_NOREPEAT, VK_C);
 
         // sem aviso se algum desses falhar: Shift+seta e Alt+C/Z sao atalhos comuns o
         // bastante para colidir com outros programas, e um MessageBox por atalho perdido
@@ -728,6 +800,7 @@ public partial class MainWindow : Window
 
         var hWnd = new WindowInteropHelper(this).Handle;
         UnregisterHotKey(hWnd, LauncherHotkeyId);
+        for (var i = 0; i < 9; i++) UnregisterHotKey(hWnd, NumberHotkeyId + i);
         UnregisterHotKey(hWnd, TilingFocusLeftId);
         UnregisterHotKey(hWnd, TilingFocusRightId);
         UnregisterHotKey(hWnd, TilingFocusUpId);
@@ -743,6 +816,7 @@ public partial class MainWindow : Window
         UnregisterHotKey(hWnd, TilingResizeRightId);
         UnregisterHotKey(hWnd, TilingResizeUpId);
         UnregisterHotKey(hWnd, TilingResizeDownId);
+        UnregisterHotKey(hWnd, TilingForgetSizeId);
 
         // as miniaturas seguram registros no compositor: soltar antes de sair
         _previewDelay.Stop();

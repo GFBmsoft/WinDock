@@ -20,6 +20,9 @@ public partial class SettingsWindow : Window
     /// não avisa a UI sozinha quando ganha ou perde item, só quando é trocada inteira.</summary>
     private readonly ObservableCollection<string> _excludedApps = new();
 
+    /// <summary>O mesmo espelho para os tamanhos guardados por app.</summary>
+    private readonly ObservableCollection<FloatingSizeRow> _floatingSizes = new();
+
     public SettingsWindow(DockConfig config)
     {
         _config = config;
@@ -31,6 +34,9 @@ public partial class SettingsWindow : Window
         LoadMediaApps();
         LoadPanelOrder();
         ExcludedAppsList.ItemsSource = _excludedApps;
+
+        FloatingSizesList.ItemsSource = _floatingSizes;
+        LoadFloatingSizes();
 
         // o "iniciar com o Windows" mora no registro, nao no config.json.
         // A flag existe porque marcar a caixa dispara o mesmo evento do clique: sem ela,
@@ -112,6 +118,46 @@ public partial class SettingsWindow : Window
         _excludedApps.Remove(name);
         _config.TilingExcludedApps.Remove(name);
         _config.NotifyTilingExcludedAppsChanged();
+    }
+
+    // ── tamanho das janelas flutuantes ───────────────────────
+
+    /// <summary>Uma linha da lista: o app e o tamanho já formatado pra tela.</summary>
+    private sealed record FloatingSizeRow(string App, string Size);
+
+    /// <summary>
+    /// Mostra o que o mosaico guardou sozinho, e é a única forma de desfazer sem editar o
+    /// <c>config.json</c> na mão: redimensionar de novo só troca o tamanho por outro, nunca
+    /// devolve o app ao padrão de 60% da tela.
+    /// </summary>
+    private void LoadFloatingSizes()
+    {
+        _floatingSizes.Clear();
+
+        foreach (var (app, size) in _config.FloatingSizes.OrderBy(p => p.Key, StringComparer.OrdinalIgnoreCase))
+            _floatingSizes.Add(new FloatingSizeRow(app, $"{size.Width}×{size.Height}"));
+
+        // a legenda do vazio some assim que existe um item: uma lista vazia sem explicação
+        // parece defeito, e a mesma explicação sobrando embaixo de dez itens é ruído
+        FloatingSizesEmpty.Visibility = _floatingSizes.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    private void OnRemoveFloatingSize(object sender, MouseButtonEventArgs e)
+    {
+        if (((FrameworkElement)sender).DataContext is not FloatingSizeRow row) return;
+
+        _config.FloatingSizes.Remove(row.App);
+        _config.Save();
+        LoadFloatingSizes();
+    }
+
+    private void OnClearFloatingSizes(object sender, RoutedEventArgs e)
+    {
+        if (_config.FloatingSizes.Count == 0) return;
+
+        _config.FloatingSizes.Clear();
+        _config.Save();
+        LoadFloatingSizes();
     }
 
     // ── ordem dos itens da barra ─────────────────────────────

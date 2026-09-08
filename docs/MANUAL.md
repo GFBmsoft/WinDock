@@ -206,12 +206,21 @@ programas. Liga em **Configurações > Mosaico**.
 | `Ctrl+Alt+setas` | move o foco para a janela vizinha, inclusive no outro monitor |
 | `Ctrl+Shift+setas` | troca a janela de lugar com a vizinha |
 | `Ctrl+Alt+Shift+setas` | redimensiona a janela (a vizinha cede o espaço) |
-| `Alt+C` | tira a janela do mosaico (ela passa a flutuar) |
+| `Alt+C` | tira a janela do mosaico, centralizada (flutuando fora do lugar, recentraliza; já centralizada, volta pro mosaico) |
 | `Alt+Z` | minimiza a janela em foco |
 | `Alt+W` | fecha a janela em foco |
+| `Ctrl+Alt+C` | esquece o tamanho flutuante guardado do programa em foco |
 
 Arrastar a divisória entre duas janelas também redimensiona. Uma janela minimizada **guarda o
 lugar dela** e volta para a mesma posição ao ser restaurada.
+
+Cada programa tem **o seu tamanho de janela flutuante**: redimensione uma janela em modo
+flutuante e é assim que as próximas desse programa vão nascer, sempre centralizadas no monitor
+em que estiverem. Na primeira vez, sem tamanho guardado, a janela ocupa 60% da tela. O tamanho
+fica em **Configurações > Tamanho das janelas flutuantes**, onde dá para esquecer um app ou todos,
+e no `FloatingSizes` do `config.json`, com o nome do executável (ou o AppUserModelID, que é
+o que separa um perfil do Chrome do outro); apagar uma linha de lá devolve o app aos 60%. Uma
+janela maximizada não conta como escolha de tamanho.
 
 Programas que não devem entrar no mosaico vão em **Configurações > Aplicativos fora do mosaico**
 — aceita o nome do executável (`Master.exe`) ou um AppUserModelID.

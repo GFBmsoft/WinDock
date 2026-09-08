@@ -21,6 +21,10 @@ internal static class Native
     [DllImport("user32.dll")]
     public static extern bool IsIconic(nint hWnd);
 
+    /// <summary>Maximizada. O par do <see cref="IsIconic"/> — que só responde por minimizada.</summary>
+    [DllImport("user32.dll")]
+    public static extern bool IsZoomed(nint hWnd);
+
     [DllImport("user32.dll")]
     public static extern nint GetWindow(nint hWnd, uint cmd);
 
@@ -513,6 +517,8 @@ internal static class Native
     public const uint MOD_NOREPEAT = 0x4000;
 
     public const uint VK_SPACE = 0x20;
+    /// <summary>Tecla "1" da fileira de cima; as outras vem somando (VK_1 + 1 e o "2").</summary>
+    public const uint VK_1     = 0x31;
     public const uint VK_LEFT  = 0x25;
     public const uint VK_UP    = 0x26;
     public const uint VK_RIGHT = 0x27;

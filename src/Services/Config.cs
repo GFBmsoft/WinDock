@@ -12,6 +12,13 @@ namespace WinDock.Services;
 /// <see cref="Path"/> o que abrir — normalmente o .lnk, que carrega os argumentos do
 /// perfil. Sao campos distintos porque dois perfis do Chrome tem o mesmo executavel.
 /// </summary>
+/// <summary>Largura e altura que um app usa flutuando, em pixels da tela.</summary>
+public sealed class FloatingSize
+{
+    public int Width { get; set; }
+    public int Height { get; set; }
+}
+
 public sealed class PinnedApp
 {
     public string Id { get; set; } = string.Empty;
@@ -110,6 +117,20 @@ public sealed class DockConfig : INotifyPropertyChanged
     private bool _launcher = true;
     /// <summary>Alt+Espaco abre a busca de aplicativos.</summary>
     public bool Launcher { get => _launcher; set => Set(ref _launcher, value); }
+
+    private bool _numberHotkeys = true;
+    /// <summary>
+    /// Alt+1 a Alt+9 acionam o 1o ao 9o botao da dock, na ordem em que aparecem.
+    ///
+    /// Nao e Win+numero porque nao da: o Explorer registra Win+1..9 (e Win+Shift, Win+Ctrl e
+    /// Win+Alt com numero) para a barra de tarefas dele, e o RegisterHotKey devolve
+    /// ERROR_HOTKEY_ALREADY_REGISTERED em todas essas combinacoes. O Win+numero que o Windows
+    /// atende segue a ordem dos fixados da barra dele, que nao tem relacao com a da dock.
+    ///
+    /// Alt+numero e um atalho global: enquanto ligado, ele deixa de chegar ao programa em
+    /// foco (alguns usam Alt+numero para menus ou abas). Por isso da para desligar.
+    /// </summary>
+    public bool NumberHotkeys { get => _numberHotkeys; set => Set(ref _numberHotkeys, value); }
 
     private int _launcherResults = 9;
     /// <summary>
@@ -270,6 +291,16 @@ public sealed class DockConfig : INotifyPropertyChanged
     public void NotifyTilingExcludedAppsChanged() =>
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(TilingExcludedApps)));
 
+    /// <summary>
+    /// O tamanho que cada app usa quando está flutuando (Alt+C), em pixels, pela mesma chave da
+    /// lista de exceções: nome do executável, ou AppUserModelID quando a janela tem um — o que
+    /// dá tamanhos separados para cada perfil do Chrome, por exemplo.
+    ///
+    /// Só o tamanho, nunca a posição: a janela flutuante nasce e volta sempre ao centro do
+    /// monitor onde está. Quem não tem tamanho guardado usa os 60% da área útil de sempre.
+    /// </summary>
+    public Dictionary<string, FloatingSize> FloatingSizes { get; set; } = new();
+
     /// <summary>Apps fixados, na ordem em que aparecem.</summary>
     public List<PinnedApp> Pinned { get; set; } = new();
 
@@ -342,6 +373,7 @@ public sealed class DockConfig : INotifyPropertyChanged
         MarginTop = d.MarginTop; MarginBottom = d.MarginBottom;
         MarginLeft = d.MarginLeft; MarginRight = d.MarginRight;
         ShowRunning = d.ShowRunning; Taskbar = d.Taskbar; Launcher = d.Launcher;
+        NumberHotkeys = d.NumberHotkeys;
         PanelBackground = d.PanelBackground; PanelOpacity = d.PanelOpacity;
         PanelCenterClock = d.PanelCenterClock;
         PanelTray = d.PanelTray; PanelAppVolume = d.PanelAppVolume; PanelMedia = d.PanelMedia;

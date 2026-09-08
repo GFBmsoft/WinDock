@@ -331,6 +331,14 @@ public partial class PanelWindow : Window
 
     private void WatchOutsideClick()
     {
+        // Ligar o vigia joga fora o Esc pendente. O bit "foi apertado desde a última consulta"
+        // acumula enquanto ninguém pergunta — e ninguém pergunta enquanto não há cartão aberto,
+        // que pode ser o dia inteiro. Sem esta leitura descartada, um Esc dado em qualquer app
+        // minutos antes fechava o cartão no mesmo instante em que ele abria: medido, o cartão
+        // do bluetooth abria e o rastro trazia "Esc com cartão aberto" 95 ms depois, sem
+        // ninguém ter encostado no teclado.
+        if (!_outsideClick.IsEnabled && AnyPopupOpen) GetAsyncKeyState(VK_ESCAPE);
+
         _outsideClick.IsEnabled = AnyPopupOpen;
         Log.Trace($"vigia de clique fora: {(_outsideClick.IsEnabled ? "ligado" : "desligado")}");
     }
@@ -347,6 +355,20 @@ public partial class PanelWindow : Window
             return;
         }
 
+        // O Esc fecha o cartão aberto — o mesmo bit "foi apertado desde a consulta anterior"
+        // que serve para o mouse. Vem por aqui, e não por um KeyDown, porque a barra é
+        // WS_EX_NOACTIVATE: ela nunca tem o foco do teclado e evento de tecla nenhum chega
+        // nela. Só *observar* a tecla também não a rouba de ninguém — quem está digitando
+        // continua recebendo o Esc normalmente, e este relógio só corre enquanto há cartão
+        // aberto, que é justamente quando "fechar" é o significado óbvio do Esc.
+        if ((GetAsyncKeyState(VK_ESCAPE) & 0x8001) != 0)
+        {
+            Log.Trace("Esc com cartão aberto: fechando");
+            CloseAllPopups();
+            _outsideClick.Stop();
+            return;
+        }
+
         // 0x8000 = apertado agora; 0x0001 = foi apertado desde a consulta anterior. O
         // segundo bit e o que importa: um clique dura menos que o intervalo deste relogio
         // e passaria despercebido entre duas leituras.
@@ -356,16 +378,40 @@ public partial class PanelWindow : Window
 
         var point = new Point(cursor.X, cursor.Y);
 
-        // dentro do painel aberto ou na propria barra: quem cuida e o botao, nao daqui —
-        // fechar aqui faria o clique no icone reabrir logo em seguida
+        // dentro do painel aberto: quem cuida é o próprio painel
         if (Contains(BluetoothPopup, point) || Contains(VolumePopup, point) ||
             Contains(PowerPopup, point) || Contains(CalendarPopup, point) ||
             Contains(TrayPopup, point) || Contains(MediaPopup, point) ||
-            Contains(BrightnessPopup, point) || ContainsBar(point)) return;
+            Contains(BrightnessPopup, point)) return;
+
+        // na barra, só o clique em cima de um botão é dele: fechar aqui faria o clique no
+        // ícone reabrir logo em seguida. O vazio entre os ícones não é de ninguém, e é o
+        // lugar natural para largar o cartão aberto sem ter de mirar em outro ícone.
+        if (ContainsBar(point) && HitsButton(point)) return;
 
         Log.Trace($"clique fora dos painéis em ({cursor.X},{cursor.Y}): fechando");
         CloseAllPopups();
         _outsideClick.Stop();
+    }
+
+    /// <summary>
+    /// Se o ponto da tela cai sobre um botão da barra.
+    ///
+    /// O teste é na árvore visual, não num retângulo calculado: os ícones mudam de lugar com a
+    /// ordem escolhida nas opções, aparecem e somem conforme o que está ligado, e a bandeja
+    /// ainda cresce e encolhe sozinha. Qualquer lista de posições mantida à mão aqui nasceria
+    /// desatualizada. Sem nada sob o cursor (o espaço vazio não é "atingível" no WPF), a
+    /// resposta é não — que é exatamente o caso que fecha o cartão.
+    /// </summary>
+    private bool HitsButton(Point screenPoint)
+    {
+        var local = PointFromScreen(screenPoint);
+        if (VisualTreeHelper.HitTest(this, local)?.VisualHit is not DependencyObject hit) return false;
+
+        for (var node = hit; node is not null; node = VisualTreeHelper.GetParent(node))
+            if (node is System.Windows.Controls.Primitives.ButtonBase) return true;
+
+        return false;
     }
 
     private static bool Contains(System.Windows.Controls.Primitives.Popup popup, Point screenPoint)

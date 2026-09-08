@@ -391,6 +391,22 @@
               <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
             <StackPanel VerticalAlignment="Center">
+              <TextBlock Text="Abrir pela posição com Alt+número" Style="{StaticResource FluentTitle}" />
+              <TextBlock Text="Alt+1 a Alt+9 acionam o botão daquela posição na dock, contando da esquerda. Não é Win+número porque essas combinações pertencem à barra de tarefas do Windows e seguem a ordem dela, não a da dock. Enquanto ligado, Alt+número deixa de chegar ao programa em foco."
+                         Style="{StaticResource FluentCaption}" TextWrapping="Wrap" />
+            </StackPanel>
+            <CheckBox Grid.Column="1" Style="{StaticResource FluentToggle}"
+                      IsChecked="{Binding NumberHotkeys, Mode=TwoWay}" />
+          </Grid>
+        </Border>
+
+        <Border Style="{StaticResource FluentCardBorderStyle}">
+          <Grid>
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="*" />
+              <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <StackPanel VerticalAlignment="Center">
               <TextBlock Text="Barra superior" Style="{StaticResource FluentTitle}" />
               <TextBlock Text="Relógio, data e atalhos para os painéis do Windows"
                          Style="{StaticResource FluentCaption}" />
@@ -685,7 +701,7 @@
                                    TextWrapping="Wrap" />
                         <TextBlock Text="Ctrl + Shift + setas — troca a janela em foco de lugar no grid (ou de monitor)"
                                    TextWrapping="Wrap" Margin="0,8,0,0" />
-                        <TextBlock Text="Alt + C — flutua a janela em foco (ou devolve, se já estava flutuando)"
+                        <TextBlock Text="Alt + C — flutua a janela em foco, centralizada; se ela já flutua fora do lugar, recentraliza; se já está centralizada, devolve ao mosaico"
                                    TextWrapping="Wrap" Margin="0,8,0,0" />
                         <TextBlock Text="Alt + Z — esconde (minimiza) a janela em foco"
                                    TextWrapping="Wrap" Margin="0,8,0,0" />
@@ -742,6 +758,48 @@
                 </DataTemplate>
               </ItemsControl.ItemTemplate>
             </ItemsControl>
+          </StackPanel>
+        </Border>
+
+        <Border Style="{StaticResource FluentCardBorderStyle}" MinHeight="0">
+          <StackPanel>
+            <Grid>
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+              </Grid.ColumnDefinitions>
+              <TextBlock Text="Tamanho das janelas flutuantes" Style="{StaticResource FluentTitle}" />
+              <Button Grid.Column="1" Content="Esquecer todos" Style="{StaticResource FluentButton}"
+                      Click="OnClearFloatingSizes" />
+            </Grid>
+            <TextBlock Text="Redimensionar uma janela flutuante (Alt+C) guarda aquele tamanho para o programa, e as próximas nascem assim, centralizadas. Esquecer um devolve ele aos 60% da tela — Ctrl+Alt+C faz o mesmo na janela em foco"
+                       Style="{StaticResource FluentCaption}" TextWrapping="Wrap" />
+            <ItemsControl x:Name="FloatingSizesList" Margin="0,10,0,0">
+              <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate>
+                  <WrapPanel />
+                </ItemsPanelTemplate>
+              </ItemsControl.ItemsPanel>
+              <ItemsControl.ItemTemplate>
+                <DataTemplate>
+                  <Border Background="{StaticResource FluentControl}" BorderBrush="{StaticResource FluentControlBorder}"
+                          BorderThickness="1" CornerRadius="12" Padding="10,4" Margin="0,0,6,6">
+                    <StackPanel Orientation="Horizontal">
+                      <TextBlock Text="{Binding App}" Foreground="{StaticResource FluentText}" FontSize="12"
+                                 VerticalAlignment="Center" />
+                      <TextBlock Text="{Binding Size}" Foreground="{StaticResource FluentTextDim}" FontSize="12"
+                                 Margin="6,0,0,0" VerticalAlignment="Center" />
+                      <TextBlock Text=" ✕" Foreground="{StaticResource FluentTextDim}" FontSize="12"
+                                 Margin="6,0,0,0" VerticalAlignment="Center" Cursor="Hand"
+                                 MouseLeftButtonUp="OnRemoveFloatingSize" />
+                    </StackPanel>
+                  </Border>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+            <TextBlock x:Name="FloatingSizesEmpty" Margin="0,8,0,0"
+                       Text="Nenhum tamanho guardado ainda — todo programa abre flutuando com 60% da tela."
+                       Style="{StaticResource FluentCaption}" TextWrapping="Wrap" />
           </StackPanel>
         </Border>
 

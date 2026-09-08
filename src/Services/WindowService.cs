@@ -42,6 +42,21 @@ public static class WindowService
         return list;
     }
 
+    /// <summary>O mesmo <see cref="TaskWindow"/> que o <see cref="Enumerate"/> montaria, mas de
+    /// uma janela só. Serve a quem já tem o hwnd na mão (o mosaico, ao receber um evento) e só
+    /// precisa saber de que app ela é — varrer a área de trabalho inteira pra achar uma janela
+    /// que já se conhece é uma chamada ao Windows por janela aberta, dentro de coisas que
+    /// acontecem a cada troca de foco. Devolve <c>null</c> quando o processo não se deixa
+    /// consultar (elevado, ou já morrendo).</summary>
+    public static TaskWindow? Describe(nint hWnd)
+    {
+        GetWindowThreadProcessId(hWnd, out var pid);
+        var exe = ProcessPath(pid);
+        if (string.IsNullOrEmpty(exe)) return null;
+
+        return new TaskWindow(hWnd, TitleOf(hWnd), exe, AppUserModelId(hWnd), IsIconic(hWnd));
+    }
+
     internal static bool IsAltTabWindow(nint hWnd)
     {
         if (!IsWindowVisible(hWnd)) return false;
