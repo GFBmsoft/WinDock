@@ -89,10 +89,46 @@ public sealed class FullScreenWatcher : IDisposable
 
         if (!GetWindowRect(window, out var rect)) return false;
 
+        // Tela cheia no outro monitor não é problema nosso. A dock e a barra ocupam faixa em
+        // **um** monitor; sumir com elas por causa do que acontece no outro é desaparecer sem
+        // motivo — e era exatamente o que acontecia: maximizar o app Configurações do Windows
+        // na tela secundária escondia as duas barras da tela principal.
+        //
+        // Lá o engano é inevitável por geometria: como nada é reservado naquele monitor (a dock
+        // está no outro e a barra do Windows fica escondida), a área de trabalho é a tela
+        // inteira, e uma janela **maximizada** fica com o mesmo retângulo de uma em tela cheia
+        // de verdade. Medido no caso relatado: a janela passou a max=True e virou
+        // `-1928,-8 a 8,1088` num monitor de `-1920,0 a 0,1080` — cobre com folga, graças à
+        // margem invisível do DWM. Nenhum teste de tamanho separa as duas ali; o que separa é
+        // perguntar de que monitor se está falando.
+        if (!NoMonitorDaDock(window)) return false;
+
         if (IsFullScreen(window, rect)) return true;
 
         // sessao remota que passou por cima da faixa da dock
         return RemoteSessionClasses.Contains(className) && Overlaps(rect, DockBounds);
+    }
+
+    /// <summary>
+    /// Se a janela está no mesmo monitor em que a dock reservou faixa.
+    ///
+    /// Antes de a dock subir por completo o <see cref="DockBounds"/> ainda está zerado — nesse
+    /// intervalo a resposta é "sim", que mantém o comportamento de sempre em vez de cegar o
+    /// vigia logo no arranque, que é quando uma sessão remota já pode estar de pé.
+    /// </summary>
+    private bool NoMonitorDaDock(nint window)
+    {
+        var dock = DockBounds;
+        if (dock.Right <= dock.Left || dock.Bottom <= dock.Top) return true;
+
+        var centro = new POINT
+        {
+            X = dock.Left + (dock.Right - dock.Left) / 2,
+            Y = dock.Top + (dock.Bottom - dock.Top) / 2
+        };
+
+        return MonitorFromWindow(window, MONITOR_DEFAULTTONEAREST) ==
+               MonitorFromPoint(centro, MONITOR_DEFAULTTONEAREST);
     }
 
     private static bool Overlaps(RECT a, RECT b) =>
