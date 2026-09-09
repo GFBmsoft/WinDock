@@ -73,6 +73,20 @@ public static class WindowService
         return true;
     }
 
+    /// <summary>
+    /// A classe da janela — o nome que o programa deu ao molde dela ao registrá-la no Windows.
+    ///
+    /// É o que separa janelas do mesmo executável: a caixa "0% concluído" do Explorer é
+    /// <c>OperationStatusWindow</c>, enquanto uma pasta aberta é <c>CabinetWClass</c>. Sem isso,
+    /// tirar a caixa de progresso do mosaico exigiria excluir o <c>explorer.exe</c> inteiro e
+    /// levar junto todas as janelas de pasta.
+    /// </summary>
+    public static string ClassOf(nint hWnd)
+    {
+        var name = new StringBuilder(128);
+        return GetClassName(hWnd, name, name.Capacity) > 0 ? name.ToString() : string.Empty;
+    }
+
     private static string TitleOf(nint hWnd)
     {
         var len = GetWindowTextLength(hWnd);

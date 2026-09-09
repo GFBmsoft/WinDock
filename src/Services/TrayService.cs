@@ -1481,25 +1481,48 @@ public static class TrayService
     {
         Task.Run(() =>
         {
+            // Quem já estava na tela quando a leitura terminou **não** é lixo nosso: essa mesma
+            // classe hospeda as notificações do Windows, e a faixa de cima é onde elas pousam
+            // quando a barra do shell está escondida. Medido em 09/09/2026: um aviso do Pageant
+            // ficou 16 s em (2257,100) — bem dentro do alcance desta varredura — sem a dock ter
+            // encostado na bandeja. Se uma leitura acontecesse ali no meio, nós o apagaríamos da
+            // tela antes de a pessoa ler, e ela nunca saberia que houve aviso.
+            //
+            // O balão que interessa apagar é o que o shell prepara **por causa** do nosso
+            // acionamento, e ele chega uns 200 ms depois de tudo já ter voltado ao lugar — ou
+            // seja, sempre depois deste retrato.
+            var veteranas = ShellPopupsOnScreen();
+
             for (var i = 0; i < 150; i++)
             {
-                EnumWindows((window, _) =>
-                {
-                    if (!IsWindowVisible(window)) return true;
-
-                    var name = new StringBuilder(64);
-                    GetClassName(window, name, name.Capacity);
-                    if (name.ToString() != ShellPopupClass) return true;
-
-                    if (!GetWindowRect(window, out var box) || box.Top > PopupStrip) return true;
-
-                    ShowWindow(window, SW_HIDE);
-                    return true;
-                }, 0);
+                foreach (var popup in ShellPopupsOnScreen())
+                    if (!veteranas.Contains(popup)) ShowWindow(popup, SW_HIDE);
 
                 Thread.Sleep(10);
             }
         });
+    }
+
+    /// <summary>Os balões do shell visíveis agora na faixa de cima da tela.</summary>
+    private static HashSet<nint> ShellPopupsOnScreen()
+    {
+        var achados = new HashSet<nint>();
+
+        EnumWindows((window, _) =>
+        {
+            if (!IsWindowVisible(window)) return true;
+
+            var name = new StringBuilder(64);
+            GetClassName(window, name, name.Capacity);
+            if (name.ToString() != ShellPopupClass) return true;
+
+            if (!GetWindowRect(window, out var box) || box.Top > PopupStrip) return true;
+
+            achados.Add(window);
+            return true;
+        }, 0);
+
+        return achados;
     }
 
     /// <summary>Até onde a varredura olha: a faixa onde o balão da bandeja pousa.</summary>

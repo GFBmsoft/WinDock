@@ -727,7 +727,7 @@
         <Border Style="{StaticResource FluentCardBorderStyle}" MinHeight="0">
           <StackPanel>
             <TextBlock Text="Exceções" Style="{StaticResource FluentTitle}" />
-            <TextBlock Text="Apps com tamanho pensado pra ser aquele — não entram no mosaico sozinhos ao abrir, mas continuam alcançáveis pelo Alt+C. Nome do .exe, ou o AppUserModelID para apps como a Calculadora e as Configurações"
+            <TextBlock Text="Apps com tamanho pensado pra ser aquele — não entram no mosaico sozinhos ao abrir, mas continuam alcançáveis pelo Alt+C. Nome do .exe, o AppUserModelID (Calculadora, Configurações) ou classe:NomeDaClasse para uma janela específica de um app, como a caixa de progresso do Explorer"
                        Style="{StaticResource FluentCaption}" />
             <Grid Margin="0,10,0,0">
               <Grid.ColumnDefinitions>

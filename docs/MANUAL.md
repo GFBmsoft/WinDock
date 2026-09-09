@@ -242,8 +242,16 @@ e no `FloatingSizes` do `config.json`, com o nome do executável (ou o AppUserMo
 o que separa um perfil do Chrome do outro); apagar uma linha de lá devolve o app aos 60%. Uma
 janela maximizada não conta como escolha de tamanho.
 
-Programas que não devem entrar no mosaico vão em **Configurações > Aplicativos fora do mosaico**
-— aceita o nome do executável (`Master.exe`) ou um AppUserModelID.
+Programas que não devem entrar no mosaico vão em **Configurações > Aplicativos fora do mosaico**.
+Aceita três formas:
+
+- `Master.exe` — o nome do executável;
+- `Microsoft.WindowsCalculator_8wekyb3d8bbwe!App` — o AppUserModelID, para apps como a Calculadora
+  e as Configurações, cuja janela pertence ao `ApplicationFrameHost.exe` e não ao próprio app;
+- `classe:OperationStatusWindow` — a classe da janela, quando só **uma** janela do programa
+  incomoda. É o caso da caixa "0% concluído" do Explorer: excluir `explorer.exe` inteiro para tirá-la
+  levaria junto todas as janelas de pasta. Para descobrir a classe, ligue o rastro (crie o arquivo
+  `rastrear` na pasta `%APPDATA%\WinDock`) e veja as linhas `Refresh: ... [Classe] fora do mosaico`.
 
 ### Ordem dos itens da barra
 

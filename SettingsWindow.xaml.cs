@@ -99,14 +99,21 @@ public partial class SettingsWindow : Window
 
     private void OnAddExcludedApp(object sender, RoutedEventArgs e) => AddExcludedApp();
 
-    /// <summary>Aceita tanto o nome do executável ("mspaint.exe") quanto um AppUserModelID
-    /// ("Microsoft.WindowsCalculator_8wekyb3d8bbwe!App") — só completa o ".exe" no primeiro
-    /// caso; um AUMID sempre tem "!" no meio e nunca deveria ganhar essa extensão colada.</summary>
+    /// <summary>Aceita três formas: o nome do executável ("mspaint.exe"), um AppUserModelID
+    /// ("Microsoft.WindowsCalculator_8wekyb3d8bbwe!App") e a classe de uma janela
+    /// ("classe:OperationStatusWindow").
+    ///
+    /// O ".exe" só é completado na primeira: um AUMID sempre tem "!" no meio e uma classe vem com
+    /// o prefixo — colar ".exe" em qualquer uma das duas produziria uma linha que nunca casa com
+    /// nada, e a pessoa ficaria olhando para uma exceção que não faz efeito.</summary>
     private void AddExcludedApp()
     {
         var name = ExcludedAppBox.Text.Trim();
         if (name.Length == 0) return;
-        if (!name.Contains('!') && !name.EndsWith(".exe", StringComparison.OrdinalIgnoreCase)) name += ".exe";
+
+        if (!name.Contains('!') &&
+            !name.StartsWith("classe:", StringComparison.OrdinalIgnoreCase) &&
+            !name.EndsWith(".exe", StringComparison.OrdinalIgnoreCase)) name += ".exe";
 
         ExcludedAppBox.Clear();
         if (_excludedApps.Any(x => string.Equals(x, name, StringComparison.OrdinalIgnoreCase))) return;

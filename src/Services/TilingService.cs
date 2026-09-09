@@ -345,15 +345,47 @@ public sealed class TilingService : IDisposable
     /// janela de verdade pertence ao <c>ApplicationFrameHost.exe</c>, que hospeda dezenas de
     /// apps diferentes. Só o AUMID (o mesmo que a dock já usa pra separar botão de app — ver
     /// <see cref="TaskWindow.AppKey"/>) distingue "a Calculadora" de "as Configurações" nesse
-    /// caso; pelo nome do executável sozinho, excluir uma excluiria as duas.</summary>
+    /// caso; pelo nome do executável sozinho, excluir uma excluiria as duas.
+    ///
+    /// E bate também pela **classe da janela**, com o prefixo <c>classe:</c>. Há casos em que nem
+    /// o executável nem o AUMID resolvem: a caixa "0% concluído" do Explorer tem borda de
+    /// redimensionar, título e nenhum dono, então é candidata legítima ao grid — e excluir
+    /// <c>explorer.exe</c> para tirá-la levaria junto toda janela de pasta. A classe
+    /// (<c>OperationStatusWindow</c> contra <c>CabinetWClass</c>) é o que separa as duas.</summary>
     private bool IsExcluded(TaskWindow w)
     {
         if (_config.TilingExcludedApps.Count == 0) return false;
+
         var fileName = Path.GetFileName(w.ExePath);
-        return _config.TilingExcludedApps.Any(p =>
-            string.Equals(p, fileName, StringComparison.OrdinalIgnoreCase) ||
-            (!string.IsNullOrEmpty(w.Aumid) && string.Equals(p, w.Aumid, StringComparison.OrdinalIgnoreCase)));
+
+        // medida só se alguém realmente pedir por classe: é uma chamada ao Windows por janela,
+        // e isto roda para cada janela aberta a cada recálculo do mosaico
+        string? classe = null;
+
+        foreach (var padrao in _config.TilingExcludedApps)
+        {
+            if (padrao.StartsWith(ClassPrefix, StringComparison.OrdinalIgnoreCase))
+            {
+                classe ??= WindowService.ClassOf(w.Handle);
+                if (string.Equals(padrao[ClassPrefix.Length..].Trim(), classe, StringComparison.OrdinalIgnoreCase))
+                    return true;
+
+                continue;
+            }
+
+            if (string.Equals(padrao, fileName, StringComparison.OrdinalIgnoreCase)) return true;
+
+            if (!string.IsNullOrEmpty(w.Aumid) &&
+                string.Equals(padrao, w.Aumid, StringComparison.OrdinalIgnoreCase)) return true;
+        }
+
+        return false;
     }
+
+    /// <summary>Como se escreve uma exceção por classe de janela na lista. O prefixo existe
+    /// porque nome de classe não tem forma reconhecível — <c>.exe</c> denuncia um executável e o
+    /// <c>!</c> denuncia um AUMID, mas <c>OperationStatusWindow</c> poderia ser qualquer coisa.</summary>
+    private const string ClassPrefix = "classe:";
 
     /// <summary>A mesma pergunta a partir do hwnd, para os eventos — que chegam com a janela, não
     /// com a lista. A lista vazia (o caso comum) responde antes de consultar coisa nenhuma ao
@@ -833,7 +865,10 @@ public sealed class TilingService : IDisposable
                       : _stubborn.Contains(w.Handle) ? "teimosa (recusou o tamanho duas vezes)"
                       : !IsResizable(w.Handle) ? "sem WS_THICKFRAME nem WS_MAXIMIZEBOX"
                       : "na lista de exceções";
-            Log.Trace($"Refresh: {w.Handle:X} '{w.Title}' fora do mosaico — {razao}");
+            // a classe entra no rastro porque é o que se precisa saber para escrever uma exceção
+            // por classe — e não há de onde tirá-la sem uma ferramenta externa
+            Log.Trace($"Refresh: {w.Handle:X} '{w.Title}' [{WindowService.ClassOf(w.Handle)}] " +
+                      $"fora do mosaico — {razao}");
         }
 
         var handles = managed.Select(w => w.Handle).ToHashSet();

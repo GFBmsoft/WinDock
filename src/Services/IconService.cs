@@ -31,6 +31,14 @@ public static class IconService
 
         if (IsAumid(id) && Shell($@"shell:AppsFolder\{id}") is { } fromShell) return fromShell;
 
+        // App da Store fixado pelo caminho, e o caminho envelheceu: a pasta do pacote leva a
+        // versão no nome e some a cada atualização. O identificador do pacote não muda, e por ele
+        // o shell entrega o ícone — sem depender de o arquivo existir nem de a dock ter subido
+        // depois da atualização para consertar o caminho gravado.
+        if (!File.Exists(launchPath) &&
+            PackagedApps.AumidOf(launchPath) is { } doPacote &&
+            Shell($@"shell:AppsFolder\{doPacote}") is { } fromPackage) return fromPackage;
+
         return For(launchPath);
     }
 
