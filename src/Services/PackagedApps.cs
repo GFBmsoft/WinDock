@@ -66,6 +66,50 @@ public static class PackagedApps
         return false;
     }
 
+    /// <summary>
+    /// O nome de família do pacote a que este caminho pertence, ou <c>null</c> se ele não for de
+    /// um app empacotado.
+    ///
+    /// A pasta se chama <c>Nome_Versão_Arquitetura__Hash</c> e a família é <c>Nome_Hash</c> — o
+    /// mesmo par que sobrevive a toda atualização. Serve para achar o AppUserModelID do app
+    /// (<c>Família!Id</c>), que é a **única** forma de abrir um app da Store: executar o .exe
+    /// direto dentro do <c>WindowsApps</c> devolve "Acesso negado", por mais que o arquivo exista
+    /// e o ícone dele possa ser lido.
+    /// </summary>
+    public static string? FamilyOf(string path)
+    {
+        if (string.IsNullOrWhiteSpace(path)) return null;
+
+        var corte = path.IndexOf(Marca, StringComparison.OrdinalIgnoreCase);
+        if (corte < 0) return null;
+
+        var resto = path[(corte + Marca.Length)..];
+        var barra = resto.IndexOf('\\');
+        var pacote = barra > 0 ? resto[..barra] : resto;
+
+        var partes = pacote.Split('_');
+        return partes.Length >= 5 ? $"{partes[0]}_{partes[^1]}" : null;
+    }
+
+    /// <summary>
+    /// O AppUserModelID com que este caminho se abre — procurado na pasta de aplicativos do
+    /// shell, que é quem sabe o identificador de cada app instalado.
+    ///
+    /// A busca é pelo prefixo <c>Família!</c>: o que vem depois do "!" é escolha do fabricante
+    /// (o Spotify usa "!Spotify") e não dá para adivinhar.
+    /// </summary>
+    public static string? AumidOf(string path)
+    {
+        var familia = FamilyOf(path);
+        if (familia is null) return null;
+
+        var prefixo = familia + "!";
+
+        return AppCatalog.All()
+            .FirstOrDefault(a => a.IsAumid && a.Target.StartsWith(prefixo, StringComparison.OrdinalIgnoreCase))
+            ?.Target;
+    }
+
     /// <summary>A versão no nome da pasta, para preferir a mais nova quando duas convivem — o
     /// Windows deixa a antiga para trás por um tempo depois de atualizar. Ordenar pelo texto
     /// poria a "1.9" na frente da "1.10".</summary>

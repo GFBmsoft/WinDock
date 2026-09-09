@@ -267,6 +267,19 @@ public sealed class DockModel : IDisposable
             return;
         }
 
+        // App da Store fixado pelo caminho do executável: o .exe existe e o ícone sai dele, mas
+        // executá-lo devolve "Acesso negado" — a pasta WindowsApps só deixa **ler**, e um app
+        // empacotado sobe por ativação do pacote, nunca pelo arquivo. O identificador é
+        // procurado a partir da própria pasta, então nenhum botão precisa ser refixado.
+        //
+        // Vem antes da tentativa pelo caminho de propósito: tentar primeiro o que se sabe que vai
+        // falhar custa uma exceção do Windows e uma linha de erro no log a cada clique.
+        if (PackagedApps.AumidOf(item.LaunchPath) is { } aumid)
+        {
+            Log.Trace($"'{item.Label}' é app empacotado: abrindo por {aumid}");
+            if (WindowService.LaunchApp(aumid)) return;
+        }
+
         if (WindowService.Launch(item.LaunchPath, item.LaunchArgs)) return;
 
         if (IconService.ShellExists(item.Id) && WindowService.LaunchApp(item.Id)) return;
