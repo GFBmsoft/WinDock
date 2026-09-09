@@ -83,11 +83,14 @@ public partial class MainWindow : Window
         _model = new DockModel(_config, Dispatcher);
         DataContext = _model;
 
-        _appBar = new AppBar(this);
-        _appBar.Register(_config.Edge, _config.Size, _config.ReserveSpace);
-        _fullScreen.DockBounds = _appBar.Bounds;
+        WhenShellIsUp(() =>
+        {
+            _appBar = new AppBar(this);
+            _appBar.Register(_config.Edge, _config.Size, _config.ReserveSpace);
+            _fullScreen.DockBounds = _appBar.Bounds;
 
-        _taskbar.Apply(_config.Taskbar);
+            _taskbar.Apply(_config.Taskbar);
+        });
 
         // o Alt+Espaco chega como mensagem nesta janela, entao o hook fica aqui
         HwndSource.FromHwnd(hWnd)?.AddHook(OnWindowMessage);
@@ -124,6 +127,48 @@ public partial class MainWindow : Window
         if (Environment.GetCommandLineArgs().Any(a => a.Equals("--settings", StringComparison.OrdinalIgnoreCase)))
             Dispatcher.InvokeAsync(OpenSettings);
     }
+
+    /// <summary>
+    /// Faz o trabalho que depende do Explorer assim que ele estiver de pé — agora, se já
+    /// estiver, ou na primeira conferência em que ele aparecer.
+    ///
+    /// Registrar a AppBar e esconder a barra do Windows são conversas **com o shell**: sem ele,
+    /// a faixa não é reservada e a barra não se deixa esconder. A defesa até aqui era a tarefa de
+    /// logon esperar quatro segundos antes de abrir a dock — e é isso que se vê no logon como "a
+    /// barra do Windows aparece e só depois a dock". O tempo fixo erra dos dois lados: é demais
+    /// quando a máquina está rápida, e pode ser de menos num logon frio, quando o Explorer
+    /// demora mais que isso e a AppBar falha em silêncio.
+    ///
+    /// Perguntar pelo <c>Shell_TrayWnd</c> acerta nos dois casos: a dock pode subir junto com o
+    /// logon e faz sua parte no instante em que há com quem falar.
+    ///
+    /// O teto de um minuto existe para não deixar uma conferência rodando para sempre numa
+    /// máquina sem shell (uma sessão de serviço, um Explorer que morreu e não voltou): passado
+    /// isso, tenta assim mesmo — pior que tentar e falhar é nunca tentar.
+    /// </summary>
+    private void WhenShellIsUp(Action work)
+    {
+        if (ShellIsUp()) { work(); return; }
+
+        Log.Write("o Explorer ainda não está de pé; a dock espera para reservar a faixa");
+
+        var espera = new DispatcherTimer(DispatcherPriority.Normal) { Interval = TimeSpan.FromMilliseconds(200) };
+        var desistirEm = DateTime.UtcNow.AddMinutes(1);
+
+        espera.Tick += (_, _) =>
+        {
+            if (!ShellIsUp() && DateTime.UtcNow < desistirEm) return;
+
+            espera.Stop();
+            Log.Write(ShellIsUp() ? "Explorer de pé: reservando a faixa" : "o Explorer não apareceu; tentando assim mesmo");
+            work();
+        };
+
+        espera.Start();
+    }
+
+    /// <summary>A barra de tarefas do Windows existe — o sinal de que o shell terminou de subir.</summary>
+    private static bool ShellIsUp() => FindWindow("Shell_TrayWnd", null) != 0;
 
     /// <summary>
     /// O tema cuida sozinho do visual (bindings); aqui so o que mexe na faixa

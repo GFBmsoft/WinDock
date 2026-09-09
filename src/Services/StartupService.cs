@@ -52,10 +52,48 @@ public static class StartupService
     {
         try
         {
-            if (!RunValueExists() || TaskExists()) return;
+            if (TaskExists()) { RefreshTaskIfStale(); return; }
+            if (!RunValueExists()) return;
             if (CreateTask()) SetRunValue(false);
         }
         catch { /* na duvida, deixa como estava: a dock ainda sobe */ }
+    }
+
+    /// <summary>
+    /// Reescreve a tarefa quando ela não bate mais com o que esta versão espera.
+    ///
+    /// Uma tarefa criada por uma versão anterior fica como está para sempre — mudar o código não
+    /// toca no que o agendador já guardou. Foi o que aconteceu com a folga de quatro segundos:
+    /// ela continuaria valendo em toda máquina que já tinha o arranque ligado, e o motivo de a
+    /// barra do Windows demorar a sumir seguiria sem explicação para quem atualizasse.
+    ///
+    /// Só o gatilho e a folga são conferidos, que é o que esta versão mudou. Uma alteração feita
+    /// à mão no Agendador de Tarefas nesses dois campos é desfeita aqui — e essa é a intenção:
+    /// o gatilho de arranque do sistema, por exemplo, dispara antes de existir sessão e Explorer,
+    /// e a dock não tem com quem falar quando sobe assim.
+    /// </summary>
+    private static void RefreshTaskIfStale()
+    {
+        try
+        {
+            var service = Service();
+            if (service is null) return;
+
+            dynamic folder = service.GetFolder("\\");
+            dynamic task = folder.GetTask(TaskName);
+            dynamic triggers = task.Definition.Triggers;
+
+            // TASK_TRIGGER_LOGON = 9; a folga é o que esta versão encurtou
+            var certo = triggers.Count == 1 &&
+                        (int)triggers[1].Type == 9 &&
+                        (string)triggers[1].Delay == "PT1S";
+
+            if (certo) return;
+
+            Log.Write("a tarefa de arranque está desatualizada (gatilho ou folga); reescrevendo");
+            CreateTask();
+        }
+        catch { /* sem acesso ao agendador: fica como está, e a dock sobe do mesmo jeito */ }
     }
 
     // ── tarefa agendada ─────────────────────────────────────
@@ -121,9 +159,18 @@ public static class StartupService
             dynamic trigger = def.Triggers.Create(9);
             trigger.UserId = $@"{Environment.UserDomainName}\{Environment.UserName}";
 
-            // uns segundos de folga: o gatilho dispara junto com o logon, e a dock precisa
-            // do Explorer de pe para se registrar como AppBar e reservar a faixa da tela
-            trigger.Delay = "PT4S";
+            // Um segundo de folga, não mais.
+            //
+            // A folga existia porque a dock precisa do Explorer de pé para se registrar como
+            // AppBar, e quatro segundos eram um palpite de quanto ele demora. O palpite tem um
+            // custo visível: são quatro segundos de barra do Windows na tela antes de a dock
+            // aparecer e escondê-la — e ainda erra para menos num logon frio, quando o Explorer
+            // passa disso e a AppBar falha calada.
+            //
+            // Quem espera pelo Explorer agora é a própria dock (ver MainWindow.WhenShellIsUp),
+            // que pergunta pelo shell em vez de cronometrar. O segundo que sobra aqui é só para
+            // não disputar disco no pico do logon, quando tudo sobe ao mesmo tempo.
+            trigger.Delay = "PT1S";
 
             dynamic settings = def.Settings;
             settings.DisallowStartIfOnBatteries = false;   // notebook no logon esta na bateria
