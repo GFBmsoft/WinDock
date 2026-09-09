@@ -137,12 +137,18 @@ Clique na data, na barra de cima, e o mês aparece. Dentro dele:
   fixa: os móveis (Carnaval, Sexta-feira Santa, Corpus Christi) saem da data da Páscoa, então
   qualquer ano que você folhear vem certo, sem internet e sem atualizar nada todo ano. A
   quarta-feira de cinzas fica de fora de propósito — é dia útil.
-- **Anotações em azul**, com um pontinho embaixo do número. Clique num dia para abrir a lista dele:
-  `Enter` ou o botão `+` adiciona mais uma, a caixinha marca como feito (o texto fica riscado) e o
-  `✕` remove. **Cada ação grava na hora** — não há botão de confirmar, e fechar a janela com algo
-  escrito no campo aproveita o texto em vez de descartá-lo. Quando tudo do dia está marcado como
-  feito, o pontinho fica verde. As anotações ficam em
-  `CalendarNotes`, no `config.json`.
+- **Anotações em azul**, com um pontinho embaixo do número — que fica **verde** quando tudo do dia
+  já está marcado como feito. Clique num dia para abrir a lista dele. Cada linha traz uma bolinha
+  para marcar como concluído (o texto fica riscado), um `→` para mover de dia e um `✕` para
+  remover; `Enter` ou o botão `+` acrescenta mais uma.
+- **Cada ação grava na hora** — não há botão de confirmar, e fechar a janela com algo escrito no
+  campo aproveita o texto em vez de descartá-lo. O `Esc` fecha a caixa **e** o calendário atrás
+  dela; fechar pelo `X` deixa o calendário aberto, para anotar outro dia em seguida.
+- **Mover uma anotação**: o `→` abre um campo já preenchido com o dia seguinte, e `Enter` move.
+  Dia e mês bastam (`15/09`); sem o ano vale o do dia aberto, e uma data que cairia muito para trás
+  (digitar `05/01` numa caixa de dezembro) é entendida como o ano que vem.
+
+As anotações ficam em `CalendarNotes`, no `config.json`.
 
 Feriados estaduais e municipais não entram: não há regra nacional para eles. Anote-os como
 anotação comum, que o dia fica marcado do mesmo jeito.

@@ -651,14 +651,24 @@ public partial class PanelWindow : Window
         var vigiava = _outsideClick.IsEnabled;
         _outsideClick.Stop();
 
-        NoteWindow.Edit(this, dia.Date, dia.Holiday, dia.Notes,
-                        notas => _model.Calendar.SetNotes(dia.Date, notas));
+        var saiuComEsc = NoteWindow.Edit(this, dia.Date, dia.Holiday, dia.Notes,
+                                         notas => _model.Calendar.SetNotes(dia.Date, notas),
+                                         (destino, nota) => _model.Calendar.AddNote(destino, nota));
 
-        // o Esc que fechou a caixa não pode fechar o cartão logo atrás dela, e o clique no
-        // "Gravar" não pode contar como clique fora: as duas coisas ficaram para trás no
-        // estado do teclado e do mouse, e são descartadas antes de o vigia voltar
+        // o que ficou para trás no estado do teclado e do mouse é descartado antes de o vigia
+        // voltar: sem isso o clique dentro da caixa contaria como "clique fora" do cartão
         GetAsyncKeyState(VK_ESCAPE);
         GetAsyncKeyState(VK_LBUTTON);
+
+        // Esc fecha tudo, e não uma janela por vez: quem apertou queria sair do calendário, não
+        // trocar a caixa de anotação por um cartão que ainda pede outro gesto. Fechar pelo X ou
+        // clicando fora não leva o cartão junto — aí o gesto foi só "terminei com este dia".
+        if (saiuComEsc)
+        {
+            Log.Trace("Esc na caixa de anotação: fechando o calendário junto");
+            CloseAllPopups();
+            return;
+        }
 
         if (vigiava && AnyPopupOpen) _outsideClick.Start();
     }

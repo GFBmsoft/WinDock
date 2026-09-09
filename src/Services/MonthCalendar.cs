@@ -150,6 +150,20 @@ public sealed class MonthCalendar : INotifyPropertyChanged
     /// Guarda as anotações de um dia e redesenha a grade. Lista vazia apaga o dia do arquivo —
     /// uma chave sem nada dentro só encheria o config de linhas mortas.
     /// </summary>
+    /// <summary>
+    /// Acrescenta uma anotação a um dia, preservando as que ele já tinha.
+    ///
+    /// É a metade "chegada" de mover uma anotação de dia: quem move grava primeiro no destino e
+    /// só então tira da origem, porque se algo falhar no meio é melhor a anotação existir duas
+    /// vezes do que não existir em lugar nenhum.
+    /// </summary>
+    public void AddNote(DateTime date, CalendarNote nota)
+    {
+        var atuais = NotesOf(date).ToList();
+        atuais.Add(nota);
+        SetNotes(date, atuais);
+    }
+
     public void SetNotes(DateTime date, IEnumerable<CalendarNote> itens)
     {
         var chave = Key(date);

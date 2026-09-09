@@ -139,10 +139,16 @@
                            TextWrapping="Wrap" VerticalAlignment="Center" Margin="8,0,0,0"
                            Foreground="{DynamicResource DialogText}" />
 
-                <TextBlock Grid.Column="2" Text="✕" FontSize="13" Margin="10,0,0,0" Cursor="Hand"
-                           VerticalAlignment="Center" ToolTip="Remover"
-                           Foreground="{DynamicResource DialogTextDim}"
-                           MouseLeftButtonUp="OnRemoveNote" />
+                <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                  <TextBlock Text="→" FontSize="14" Margin="10,0,0,0" Cursor="Hand"
+                             ToolTip="Mover para outro dia"
+                             Foreground="{DynamicResource DialogTextDim}"
+                             MouseLeftButtonUp="OnMoveNote" />
+                  <TextBlock Text="✕" FontSize="13" Margin="10,0,0,0" Cursor="Hand"
+                             ToolTip="Remover"
+                             Foreground="{DynamicResource DialogTextDim}"
+                             MouseLeftButtonUp="OnRemoveNote" />
+                </StackPanel>
               </Grid>
             </Border>
             <DataTemplate.Triggers>
@@ -163,6 +169,37 @@
       <TextBlock x:Name="EmptyLine" Text="Nada anotado neste dia ainda."
                  FontSize="13" Margin="0,12,0,0"
                  Foreground="{DynamicResource DialogTextDim}" />
+
+      <!-- só aparece depois de clicar no "→" de um item: um campo de data parado ali o tempo
+           todo pediria atenção para algo que quase nunca se usa -->
+      <Border x:Name="MovePanel" Visibility="Collapsed" Margin="0,12,0,0"
+              Background="{DynamicResource DialogControl}"
+              BorderBrush="{DynamicResource DialogAccent}" BorderThickness="1"
+              CornerRadius="4" Padding="10,8">
+        <StackPanel>
+          <TextBlock x:Name="MoveHeading" FontSize="12" TextWrapping="Wrap"
+                     Foreground="{DynamicResource DialogTextDim}" />
+          <Grid Margin="0,6,0,0">
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="*" />
+              <ColumnDefinition Width="Auto" />
+              <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <TextBox x:Name="MoveBox" FontSize="14" Padding="8,5" MaxLength="10"
+                     Background="{DynamicResource DialogSurface}" Foreground="{DynamicResource DialogText}"
+                     CaretBrush="{DynamicResource DialogText}"
+                     BorderBrush="{DynamicResource DialogControlBorder}" BorderThickness="1"
+                     KeyDown="OnMoveKeyDown" />
+            <Button Grid.Column="1" Style="{StaticResource AccentButton}" Content="Mover"
+                    MinWidth="80" Height="30" Margin="8,0,0,0" Click="OnMoveConfirm" />
+            <Button Grid.Column="2" Style="{StaticResource DialogButton}" Content="Cancelar"
+                    MinWidth="80" Height="30" Margin="8,0,0,0" Click="OnMoveCancel" />
+          </Grid>
+          <TextBlock x:Name="MoveHint" FontSize="11" Margin="0,6,0,0" TextWrapping="Wrap"
+                     Text="Dia e mês bastam (15/09). Enter move, Esc desiste."
+                     Foreground="{DynamicResource DialogTextDim}" />
+        </StackPanel>
+      </Border>
 
       <Grid Margin="0,10,0,0">
         <Grid.ColumnDefinitions>
