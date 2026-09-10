@@ -125,7 +125,21 @@ public partial class MainWindow : Window
 
         // "WinDock.exe --settings" ja abre o painel: serve para um atalho no menu iniciar
         if (Environment.GetCommandLineArgs().Any(a => a.Equals("--settings", StringComparison.OrdinalIgnoreCase)))
-            Dispatcher.InvokeAsync(OpenSettings);
+        {
+            Log.Trace("--settings na linha de comando: abrindo as configurações");
+
+            // O InvokeAsync guarda a exceção do delegate na operação que devolve, em vez de mandá-la
+            // para o DispatcherUnhandledException que o App registra. Sem observar a Task, uma
+            // falha aqui não deixava rastro nenhum — nem janela, nem linha no log —, e foi assim
+            // que o --settings passou a não abrir nada sem que houvesse como saber por quê.
+            Dispatcher.InvokeAsync(OpenSettings).Task.ContinueWith(t =>
+            {
+                if (t.IsFaulted)
+                    Log.Write("falha ao abrir as configurações pelo --settings", t.Exception!.GetBaseException());
+                else
+                    Log.Trace("--settings: OpenSettings terminou sem exceção");
+            });
+        }
     }
 
     /// <summary>
