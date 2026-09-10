@@ -1,14 +1,14 @@
 <Application x:Class="WinDock.App"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             StartupUri="MainWindow.xaml"
+             StartupUri="/src/Views/MainWindow.xaml"
              ShutdownMode="OnMainWindowClose">
   <Application.Resources>
     <ResourceDictionary>
 
       <ResourceDictionary.MergedDictionaries>
         <!-- controles no desenho do Windows 11, usados pelo painel e pela busca -->
-        <ResourceDictionary Source="src/Ui/Fluent.xaml" />
+        <ResourceDictionary Source="/src/Ui/Fluent.xaml" />
       </ResourceDictionary.MergedDictionaries>
 
     <!-- o que sobrou de fixo: o resto das cores vem do DockTheme, que segue a config -->

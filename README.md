@@ -522,10 +522,10 @@ que salvar.
 | `assets/windock.ico` | ícone do app: a pílula com os apps dentro; abaixo de 32 px, um desenho mais cheio |
 | `assets/windock.png` | a mesma arte em 256 px, para o cabeçalho do painel |
 | `src/Ui/HexBrushConverter.cs` | `"#202124"` → brush, para a amostra de cor |
-| `MainWindow.xaml` | a pílula, os botões e os traços de janela |
-| `LauncherWindow.xaml` | a caixa de busca do Alt+Espaço, com a barra de rolagem própria |
-| `PanelWindow.xaml` | a barra de cima |
-| `SettingsWindow.xaml` | o painel de configurações |
+| `src/Views/MainWindow.xaml` | a pílula, os botões e os traços de janela |
+| `src/Views/LauncherWindow.xaml` | a caixa de busca do Alt+Espaço, com a barra de rolagem própria |
+| `src/Views/PanelWindow.xaml` | a barra de cima |
+| `src/Views/SettingsWindow.xaml` | o painel de configurações |
 
 
 ## Ainda não faz

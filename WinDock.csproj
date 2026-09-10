@@ -31,4 +31,15 @@
     <Resource Include="assets\windock.png" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!--
+      O App.xaml mora em src/ junto com o resto do codigo, e o SDK do WPF so o reconhece
+      sozinho quando esta na raiz. Sem estas linhas ele seria compilado como uma Page comum
+      e o build nao acharia o ponto de entrada da aplicacao.
+    -->
+    <ApplicationDefinition Remove="App.xaml" />
+    <ApplicationDefinition Include="src\App.xaml" />
+    <Page Remove="src\App.xaml" />
+  </ItemGroup>
+
 </Project>

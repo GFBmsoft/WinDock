@@ -4,7 +4,7 @@
         xmlns:interop="clr-namespace:WinDock.Interop"
         xmlns:ui="clr-namespace:WinDock.Ui"
         xmlns:services="clr-namespace:WinDock.Services"
-        Title="Configurações do WinDock" Icon="assets/windock.ico"
+        Title="Configurações do WinDock" Icon="/assets/windock.ico"
         Width="560" Height="700" ResizeMode="CanResize" MinWidth="480" MinHeight="420"
         WindowStartupLocation="CenterScreen" ShowInTaskbar="True"
         Background="{StaticResource FluentWindow}"
@@ -35,7 +35,7 @@
 
     <!-- ── cabecalho ─────────────────────────────────────── -->
     <StackPanel Orientation="Horizontal" Margin="24,20,24,4">
-      <Image Source="assets/windock.png" Width="44" Height="44" VerticalAlignment="Center"
+      <Image Source="/assets/windock.png" Width="44" Height="44" VerticalAlignment="Center"
              RenderOptions.BitmapScalingMode="HighQuality" />
 
       <TextBlock Text="WinDock" Foreground="{StaticResource FluentText}" Margin="14,0,10,0"
