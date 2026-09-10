@@ -470,11 +470,25 @@ public static class TrayService
             // o menu que o ícone acabou de abrir, então aqui se espera um instante e só se
             // insiste se o painel tiver ficado aberto: soltar o `using` com ele ainda de pé
             // devolveria a camada e ele apareceria na tela.
+            // o que de fato aconteceu no fechamento, para o resumo abaixo não mentir: o Esc pode
+            // ser dispensado aqui mesmo sem o `quietClose`, quando teria destino errado
+            var semEsc = quietClose;
+
             if (handsOff) WaitForOverflowToClose();
             if (!handsOff || Overflow() != 0)
             {
                 if (quietClose)
                 {
+                    HideOverflow();
+                }
+                else if (!EscIsSafe(out var destino))
+                {
+                    // O `KeepsFocus` acabou de devolver o foco a quem estava trabalhando, e o Esc
+                    // de fechar cairia nessa janela — ver o `EscIsSafe`. Escondido sem tecla, o
+                    // painel sai de cena do mesmo jeito; o preço é o shell achar que ele segue
+                    // aberto, que o `OpenOverflow` já sabe desfazer na próxima abertura.
+                    Log.Trace($"Esc de fechar o painel suprimido: iria para {destino}");
+                    semEsc = true;
                     HideOverflow();
                 }
                 else
@@ -504,7 +518,7 @@ public static class TrayService
             }
 
             Log.Trace($"  fechar o painel: {relogio.ElapsedMilliseconds - tTrabalho} ms " +
-                      $"({(quietClose ? "sem Esc" : "Esc + esconder")})");
+                      $"({(semEsc ? "sem Esc" : "Esc + esconder")})");
 
             SweepShellPopups();
             return result;
@@ -1564,12 +1578,44 @@ public static class TrayService
 
         ShowWindow(flyout, SW_HIDE);
 
-        // Vale a pena o rastro dizer QUEM está em primeiro plano aqui: é exatamente a janela
-        // que teria recebido o Esc no caminho antigo. Quando alguém relatar "cliquei no ícone,
-        // a tela abriu e sumiu", esta linha é a que responde se era esse o caso.
+        // Vale a pena o rastro dizer QUEM está em primeiro plano quando o painel some: é a linha
+        // que responde "cliquei no ícone, a tela abriu e sumiu". Ela não afirma se houve Esc —
+        // até 10/09 afirmava "sem Esc" mesmo quando o Esc tinha acabado de ser enviado, o que
+        // escondeu por semanas que ele caía na janela da frente. Quem decide e registra o Esc é
+        // o chamador.
         var fg = GetForegroundWindow();
         var titulo = new StringBuilder(120);
         GetWindowText(fg, titulo, titulo.Capacity);
-        Log.Trace($"painel do Windows escondido sem Esc (o Esc iria para '{titulo}' {fg:X})");
+        Log.Trace($"painel do Windows escondido (primeiro plano: '{titulo}' {fg:X})");
+    }
+
+    /// <summary>
+    /// O Esc que fecha o painel pode ir para quem está em primeiro plano **agora**?
+    ///
+    /// O Esc não tem endereço: cai na janela da frente. Numa leitura comum o <see cref="KeepsFocus"/>
+    /// já devolveu o foco a quem estava trabalhando antes de o painel abrir, então o Esc de
+    /// fechar ia parar exatamente nessa janela. Medido: em 10/09 o <c>--settings</c> abria as
+    /// Configurações, a leitura de aquecimento devolvia o foco a elas e o Esc as fechava; em
+    /// 08/09, abrir o cartão da bandeja mandou o mesmo Esc para o Windows Terminal. Numa tela do
+    /// Delphi, numa anotação ou nas Configurações, isso fecha a janela.
+    ///
+    /// Seguro só quando a frente não reage a Esc: ninguém, o próprio painel, a área de trabalho ou
+    /// as barras do Windows. A pergunta é feita colada no envio porque o primeiro plano muda
+    /// enquanto a leitura corre.
+    /// </summary>
+    private static bool EscIsSafe(out string destino)
+    {
+        destino = string.Empty;
+
+        var fg = GetForegroundWindow();
+        if (fg == 0 || fg == Overflow()) return true;
+
+        var classe = WindowService.ClassOf(fg);
+        if (classe is "Progman" or "WorkerW" or "Shell_TrayWnd" or "Shell_SecondaryTrayWnd") return true;
+
+        var titulo = new StringBuilder(120);
+        GetWindowText(fg, titulo, titulo.Capacity);
+        destino = $"'{titulo}' [{classe}] {fg:X}";
+        return false;
     }
 }
