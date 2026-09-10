@@ -46,7 +46,10 @@ cd D:\Projetos\WinDock
 dotnet publish -c Release -r win-x64 --self-contained false -p:PublishSingleFile=true -o dist
 ```
 
-Sai um `dist\WinDock.exe` de ~240 KB, arquivo único, sem instalador e sem DLL solta ao lado.
+Sai um `dist\WinDock.exe` de ~25 MB, arquivo único, sem instalador e sem DLL solta ao lado. Quase
+todo esse peso é a projeção das APIs WinRT (`Microsoft.Windows.SDK.NET.dll`, 23,7 MB), que o alvo
+`10.0.19041.0` traz junto para os controles de mídia e o bluetooth — o código da dock em si não passa
+de meio mega.
 
 ### 2. Escolher onde ele vai morar
 
@@ -78,10 +81,13 @@ Se a política da máquina não deixar criar tarefas, a chave `Run` volta a ser 
 Trocando um parâmetro, o executável passa a carregar o runtime dentro dele:
 
 ```powershell
-dotnet publish -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -o dist-standalone
+dotnet publish -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o dist-standalone
 ```
 
-Fica com ~150 MB em vez de 240 KB, e roda em máquina sem .NET nenhum.
+Fica com ~180 MB em vez de ~25 MB, e roda em máquina sem .NET nenhum. O
+`IncludeNativeLibrariesForSelfExtract` não é enfeite: sem ele saem, ao lado do executável, cinco DLLs
+nativas do WPF (`D3DCompiler_47_cor3.dll`, `wpfgfx_cor3.dll` e companhia), e o "arquivo único" deixa
+de ser verdade.
 
 ## Rodar
 

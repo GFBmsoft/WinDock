@@ -8,18 +8,24 @@ C# + WPF (.NET 8), sem dependências externas.
 <img src="assets/windock.png" width="96" alt="Ícone do WinDock" />
 
 Para instalar, atualizar, remover ou destravar alguma coisa, veja o
-**[manual](docs/MANUAL.md)**. Este arquivo explica como a dock funciona por dentro, e os
-**[aprendizados](docs/APRENDIZADOS.md)** guardam o que **não** funciona no Windows 11 e o que
-funciona no lugar — tudo verificado na máquina, para ninguém tentar de novo o mesmo caminho.
+**[manual](docs/MANUAL.md)**. Este arquivo explica como a dock funciona por dentro. O porquê das
+decisões finas — o que foi medido, o que não funcionou no Windows 11 e o que se usou no lugar —
+mora nos comentários do código, ao lado do trecho que cada uma decide.
 
 ## Rodar
 
 ```powershell
 dotnet build
-.\bin\Debug\net8.0-windows\WinDock.exe
+.\bin\Debug\net8.0-windows10.0.19041.0\WinDock.exe
 ```
 
 `WinDock.exe --settings` abre já com o painel de configurações — serve para um atalho.
+
+O app **pede administrador** ao abrir. Não é por capricho: uma janela sem elevação não consegue
+ficar de verdade por cima de uma janela elevada — um Terminal aberto como administrador, por
+exemplo —, e o contorno do mosaico sumia atrás dela sem que técnica de desenho nenhuma resolvesse.
+O custo conhecido é o inverso: arrastar um arquivo do Explorer para dentro de uma janela da dock
+não funciona.
 
 Para sair: botão direito em qualquer ícone > **Sair do WinDock**. Ao sair a dock devolve
 os pixels reservados e a área de trabalho volta ao tamanho normal.
@@ -40,11 +46,16 @@ os pixels reservados e a área de trabalho volta ao tamanho normal.
 - **Não rouba o foco** (`WS_EX_NOACTIVATE`): clicar na dock não tira o app da frente
 - **Busca de aplicativos** em `Alt+Espaço`, com comandos de energia e "executar"
 - **Esconder ou recolher a barra do Windows** enquanto a dock roda
-- **Barra de cima** opcional: relógio, data, bateria, volume e os painéis do Windows
+- **Barra de cima** opcional: relógio, data, bateria, volume, brilho, bluetooth, mídia e os
+  painéis do Windows
 - **Ícones da bandeja** dos programas rodando em segundo plano, alcançáveis com a barra do
-  Windows escondida
+  Windows escondida — o clique abre o programa, o botão direito abre o menu dele
 - **Volume por aplicativo**, um controle para cada programa com som
-- **Menu de energia** e **calendário do mês**, na própria barra
+- **Menu de energia** e **calendário do mês**, na própria barra, com **feriados nacionais** e
+  **anotações por dia**
+- **Mosaico** (tiling): as janelas de cada monitor lado a lado, sem sobreposição, com atalhos para
+  foco, troca de lugar, redimensionar, flutuar e prender acima das outras
+- **Apps da Store** que continuam abrindo e com o ícone certo depois de o app se atualizar
 - Atualização por `SetWinEventHook` (evento do shell), não por varredura em loop
 
 ## Configuração
@@ -134,7 +145,15 @@ tentar imitar o que o Windows já faz bem:
   sai sozinha;
 - **calendário**, ao clicar na data: o mês desenhado à mão, com hoje no círculo azul e setas para
   folhear. O `Calendar` do WPF viria com o tema claro, e reestilizá-lo custaria um
-  `ControlTemplate` inteiro — mais XAML do que a grade que ele desenharia;
+  `ControlTemplate` inteiro — mais XAML do que a grade que ele desenharia. Os **feriados
+  nacionais** saem em vermelho e são calculados, não listados: os móveis (Carnaval, Sexta-feira
+  Santa, Corpus Christi) vêm da data da Páscoa, então qualquer ano folheado sai certo. Clicar num
+  dia abre as **anotações** dele numa janela à parte — a barra é `WS_EX_NOACTIVATE`, e um campo de
+  texto dentro do cartão nunca receberia o teclado;
+- **brilho** do monitor por DDC/CI (`dxva2.dll`), com a roda do mouse sobre o ícone;
+- **mídia**: o que está tocando e os controles de faixa, pelos controles de mídia do Windows
+  (`Windows.Media.Control`). A barra de progresso é extrapolada pelo relógio, porque o navegador
+  publica a posição uma vez só e não atualiza mais;
 - **energia**: bloquear, encerrar sessão, suspender, hibernar, reiniciar e desligar. A lista mora
   no `PowerService`, e não no menu, porque a busca do `Alt+Espaço` usa a mesma — duas cópias
   divergiriam, e o pior caso é o comando errado atrás do rótulo certo. A ordem coloca o que
@@ -152,7 +171,7 @@ tentar imitar o que o Windows já faz bem:
 Esconder a barra do Windows leva junto a bandeja — e com ela o antivírus, o AnyDesk e todo
 programa que só existe ali. A opção **Ícones da bandeja** traz esses ícones para a barra de cima.
 
-A bandeja legada morreu no Windows 11 (veja os [aprendizados](docs/APRENDIZADOS.md)): não existe
+A bandeja legada morreu no Windows 11: não existe
 mais `ToolbarWindow32` dentro de `TrayNotifyWnd`, e ler os botões por `TB_GETBUTTON` +
 `ReadProcessMemory` deixou de ser possível. A fonte é o **painel de ícones ocultos do próprio
 Windows** — a automação de interface enumera os botões dele, o `PrintWindow` tira o desenho de
@@ -498,40 +517,93 @@ cruzado, e salvar a cada troca seria escrever o arquivo dezenas de vezes num ges
 apps abertos que não estão fixados também se movem, mas só enquanto a janela existir — não há o
 que salvar.
 
+## Mosaico
+
+Com o mosaico ligado, as janelas de cada monitor dividem a tela lado a lado, sem sobreposição, e
+se reorganizam sozinhas quando uma abre, fecha ou é minimizada — a minimizada guarda o lugar e
+volta para ele. A divisão é **igual entre todas**: repartir só o espaço da janela em foco, como o
+i3 faz, foi testado e descartado em uso — numa ultrawide, três colunas iguais valem mais que uma
+grande e duas estreitas.
+
+Por dentro, cada monitor é uma árvore (`src/Services/Tiling/LayoutTree.cs`) com o percentual de
+cada nó e nenhuma chamada ao Windows, o que deixa o arranjo verificável fora da dock
+(`dotnet run --project tests/TreeCheck`). Posicionar exige compensar a **margem invisível** que o
+Windows 11 deixa em volta das janelas (`DWMWA_EXTENDED_FRAME_BOUNDS`): sem isso, um vão de 8 px
+vira 15 de um lado e 1 do outro.
+
+Ficam fora do grid por conta própria:
+
+- janelas **sem borda de redimensionar**, como caixas de mensagem e diálogos de tamanho fixo;
+- janelas **teimosas**, que recusam o tamanho pedido duas vezes seguidas;
+- as da **lista de exceções**, pelo nome do executável, pelo AppUserModelID ou por
+  `classe:NomeDaClasse` — a classe é o que separa uma janela específica de um programa das outras
+  dele, onde o nome do executável não distingue nada.
+
+`Alt+C` tira a janela do grid e a deixa flutuando, centralizada, no **tamanho que aquele app usou
+da última vez**; `Alt+T` prende qualquer janela acima das outras. Um contorno configurável marca a
+janela em foco. Os atalhos estão todos no [manual](docs/MANUAL.md).
+
 ## Estrutura
+
+Na raiz ficam só os arquivos de projeto. O código mora em `src/`, a documentação de uso em `docs/`
+e os testes em `tests/`.
 
 | arquivo | responsabilidade |
 |---|---|
+| `src/App.xaml` | ponto de entrada; registra no log o que explodir antes de a janela aparecer |
+| `src/Views/MainWindow.xaml` | a pílula, os botões e os traços de janela; registra os atalhos globais |
+| `src/Views/PanelWindow.xaml` | a barra de cima e os cartões dela |
+| `src/Views/LauncherWindow.xaml` | a caixa de busca do Alt+Espaço, com a barra de rolagem própria |
+| `src/Views/SettingsWindow.xaml` | o painel de configurações |
+| `src/Views/ThumbnailWindow.xaml` | o preview ao vivo das janelas de um app |
+| `src/Views/ConfirmWindow.xaml` | a caixa de pergunta, no desenho e no tema do Windows 11 |
+| `src/Views/NoteWindow.xaml` | as anotações de um dia do calendário |
+| `src/Views/TilingBorderWindow.cs` | o contorno da janela em foco no mosaico |
 | `src/Interop/Native.cs` | assinaturas Win32, sem estado |
 | `src/Interop/AppBar.cs` | `SHAppBarMessage`: reserva a faixa e reposiciona quando o shell muda |
-| `src/Models/DockItem.cs` | um botão: o app, suas janelas, ícone, estado e as bolinhas |
+| `src/Models/DockItem.cs` | um botão: o app, suas janelas, ícone, estado e os traços |
 | `src/Services/WindowService.cs` | quais janelas viram botão (critério do Alt+Tab) e as ações sobre elas |
 | `src/Services/DockModel.cs` | mantém os botões em sincronia com as janelas |
 | `src/Services/DockTheme.cs` | traduz a config em tamanhos e brushes que o XAML consome |
-| `src/Services/IconService.cs` | ícone do executável, com cache |
-| `src/Services/ShortcutService.cs` | lê os `.lnk` do Windows: alvo, argumentos, ícone e AppUserModelID |
-| `src/Services/ChromeProfiles.cs` | nome, argumento e foto de cada perfil, via `Local State` |
 | `src/Services/Config.cs` | preferências; notifica mudanças para aplicar ao vivo |
+| `src/Services/IconService.cs` | o ícone de cada botão — atalho, app da Store ou executável —, com cache |
+| `src/Services/ShortcutService.cs` | lê os `.lnk` do Windows: alvo, argumentos, ícone e AppUserModelID |
+| `src/Services/PackagedApps.cs` | apps da Store: a pasta da versão instalada e o AppUserModelID a partir do caminho |
+| `src/Services/ChromeProfiles.cs` | nome, argumento e foto de cada perfil, via `Local State` |
 | `src/Services/AppCatalog.cs` | os apps instalados (`shell:AppsFolder`) e o "executar comando" |
 | `src/Services/Launcher.cs` | a busca do launcher: pontuação, ordem e comandos de energia |
-| `src/Services/PanelModel.cs` | o que a barra de cima mostra: relógio, bateria, volume |
-| `src/Services/VolumeService.cs` | volume do sistema pelo Core Audio (ler, mudar, mudo) |
+| `src/Services/Text.cs` | normalização de texto para a busca |
+| `src/Services/PanelModel.cs` | o que a barra de cima mostra e os comandos dela |
+| `src/Services/VolumeService.cs` | volume do sistema e por aplicativo, pelo Core Audio |
+| `src/Services/BrightnessService.cs` | brilho do monitor por DDC/CI |
+| `src/Services/BluetoothService.cs` | o rádio e os aparelhos pareados |
+| `src/Services/MediaService.cs` | o que está tocando, pelos controles de mídia do Windows |
+| `src/Services/PowerService.cs` | as opções do menu de energia, as mesmas que a busca usa |
+| `src/Services/MonthCalendar.cs` | o mês do calendário, com feriados e anotações |
+| `src/Services/Holidays.cs` | os feriados nacionais brasileiros, calculados a partir da Páscoa |
+| `src/Services/UserService.cs` | nome e foto da conta de quem está usando a máquina |
+| `src/Services/TrayService.cs` | lê e aciona os ícones da bandeja pelo painel de ícones ocultos do Windows |
+| `src/Services/TrayReader.cs` | a thread STA, com bomba de mensagens, onde a bandeja é lida |
+| `src/Services/SyntheticKeys.cs` | as teclas que a dock aperta, com carimbo para reconhecê-las depois |
+| `src/Services/TilingService.cs` | o mosaico: arranjo, atalhos, flutuantes, exceções e contorno |
+| `src/Services/Tiling/LayoutTree.cs` | a árvore de layout do mosaico, uma raiz por monitor, sem chamadas ao Windows |
 | `src/Services/TaskbarService.cs` | esconde ou recolhe a barra do Windows, e a devolve ao sair |
+| `src/Services/FullScreenWatcher.cs` | tira a dock e a barra da frente quando algo ocupa a tela inteira no monitor delas |
+| `src/Services/StartupService.cs` | liga e desliga o "iniciar com o Windows", pela tarefa agendada |
+| `src/Services/WindowsTheme.cs` | o tema claro ou escuro e a cor de destaque do Windows |
+| `src/Services/Log.cs` | o log em `%APPDATA%\WinDock`, com rotação e o rastro opcional |
 | `src/Ui/Fluent.xaml` | o desenho do Windows 11: interruptor, slider, lista, botões, menu de contexto |
 | `src/Ui/Reorder.cs` | faz os ícones deslizarem até a posição nova durante o arraste |
+| `src/Ui/GlyphIcon.cs` | um glifo da fonte de ícones com contorno, para engrossar o traço |
+| `src/Ui/HexBrushConverter.cs` | `"#202124"` → brush, para a amostra de cor |
+| `src/Ui/BoolToCollapsed.cs`, `InverseBoolToVisibility.cs`, `IntToBoolConverter.cs` | conversores de binding |
 | `assets/windock.ico` | ícone do app: a pílula com os apps dentro; abaixo de 32 px, um desenho mais cheio |
 | `assets/windock.png` | a mesma arte em 256 px, para o cabeçalho do painel |
-| `src/Ui/HexBrushConverter.cs` | `"#202124"` → brush, para a amostra de cor |
-| `src/Views/MainWindow.xaml` | a pílula, os botões e os traços de janela |
-| `src/Views/LauncherWindow.xaml` | a caixa de busca do Alt+Espaço, com a barra de rolagem própria |
-| `src/Views/PanelWindow.xaml` | a barra de cima |
-| `src/Views/SettingsWindow.xaml` | o painel de configurações |
-
+| `tests/TreeCheck` | compila a `LayoutTree` real e confere o arranjo |
+| `tests/BrightnessCheck` | exercita o `BrightnessService` real, fora da dock |
 
 ## Ainda não faz
 
 - Jump lists do app (as do menu direito são só as janelas abertas)
-- Multi-monitor: usa o monitor onde a dock nasce, sem uma dock por tela
-- Auto-hide
-- Menu de botão direito nos ícones da bandeja (o do próprio programa, que a bandeja nova não
-  expõe fora do painel do Windows)
+- Uma dock por monitor: a dock fica no monitor principal — o mosaico, esse sim, organiza todos
+- Auto-hide da própria dock (o recolher automático que existe é o da barra do Windows)
