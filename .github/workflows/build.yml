@@ -1,0 +1,165 @@
+name: build
+
+# Todo push na main compila, roda o TreeCheck e deixa os dois executáveis como
+# artefato da execução (somem depois de 30 dias). Um push de tag no formato
+# 1.0.0.N faz o mesmo e ainda cria a Release com os dois .exe, que não expira.
+on:
+  push:
+    branches: [main]
+    tags: ['[0-9]+.[0-9]+.[0-9]+.[0-9]+']
+    # Commit só de texto não muda o executável. O filtro de caminho não vale
+    # para push de tag, então uma tag sempre gera a Release.
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+# Dois pushes seguidos na main: o build do primeiro já nasceu velho e é
+# cancelado. Build de tag nunca é cancelado, porque dele sai a Release.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref_type != 'tag' }}
+
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        shell: pwsh
+
+    steps:
+      # fetch-depth 0 traz o histórico e as tags; sem elas o git describe
+      # não acha a última versão.
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Testes do mosaico (TreeCheck)
+        run: dotnet run --project tests/TreeCheck/TreeCheck.csproj -c Release
+
+      # A versão vem das tags. No build da tag ela é a própria tag. Fora dela é
+      # a última tag mais "dev.N", N sendo os commits desde então: o arquivo
+      # continua 1.0.0.3 e o nome do produto fica 1.0.0.3-dev.5, para não
+      # parecer uma versão lançada. Sem tag nenhuma no repositório, 0.0.0.0.
+      - name: Calcular a versão
+        run: |
+          $padrao = '[0-9]*.[0-9]*.[0-9]*.[0-9]*'
+
+          if ($env:GITHUB_REF_TYPE -eq 'tag') {
+              $prefixo = $env:GITHUB_REF_NAME
+              $sufixo = ''
+          } else {
+              $ultima = git describe --tags --abbrev=0 --match $padrao 2>$null
+              if ($LASTEXITCODE -eq 0 -and $ultima) {
+                  $prefixo = $ultima
+                  $commits = git rev-list --count "$ultima..HEAD"
+              } else {
+                  $prefixo = '0.0.0.0'
+                  $commits = git rev-list --count HEAD
+              }
+              $sufixo = if ([int]$commits -gt 0) { "dev.$commits" } else { '' }
+          }
+
+          # A versão do arquivo são quatro números de 0 a 65535; fora disso o
+          # compilador recusa, e o erro aqui é mais claro que o dele.
+          if ($prefixo -notmatch '^\d{1,5}\.\d{1,5}\.\d{1,5}\.\d{1,5}$' -or
+              ($prefixo.Split('.') | Where-Object { [int]$_ -gt 65535 })) {
+              throw "versão inválida: '$prefixo' (esperado 1.0.0.N)"
+          }
+
+          $versao = if ($sufixo) { "$prefixo-$sufixo" } else { $prefixo }
+          Add-Content -Path $env:GITHUB_ENV -Value "VERSION_PREFIX=$prefixo"
+          Add-Content -Path $env:GITHUB_ENV -Value "VERSION_SUFFIX=$sufixo"
+          Add-Content -Path $env:GITHUB_ENV -Value "VERSION=$versao"
+          Write-Output "versão: $versao"
+          exit 0
+
+      # Cada publish em um passo próprio: num passo de várias linhas o pwsh só
+      # olha o código de saída do último comando, e uma falha no meio passaria.
+      - name: Publicar (precisa do .NET 8 Desktop Runtime)
+        run: >
+          dotnet publish WinDock.csproj -c Release -r win-x64
+          --self-contained false -p:PublishSingleFile=true
+          "-p:VersionPrefix=$env:VERSION_PREFIX" "-p:VersionSuffix=$env:VERSION_SUFFIX"
+          -o "$env:RUNNER_TEMP/publish/runtime"
+
+      # IncludeNativeLibrariesForSelfExtract põe dentro do .exe as DLLs nativas
+      # do WPF que, sem ele, ficariam soltas ao lado.
+      - name: Publicar (standalone, não precisa de nada instalado)
+        run: >
+          dotnet publish WinDock.csproj -c Release -r win-x64
+          --self-contained true -p:PublishSingleFile=true
+          -p:IncludeNativeLibrariesForSelfExtract=true
+          "-p:VersionPrefix=$env:VERSION_PREFIX" "-p:VersionSuffix=$env:VERSION_SUFFIX"
+          -o "$env:RUNNER_TEMP/publish/standalone"
+
+      - name: Nomear os executáveis
+        run: |
+          $saida = New-Item -ItemType Directory -Force "$env:RUNNER_TEMP/dist"
+          Copy-Item "$env:RUNNER_TEMP/publish/runtime/WinDock.exe" "$saida/WinDock-$env:VERSION.exe"
+          Copy-Item "$env:RUNNER_TEMP/publish/standalone/WinDock.exe" "$saida/WinDock-$env:VERSION-standalone.exe"
+          Get-ChildItem $saida | ForEach-Object {
+              '{0}  {1:N1} MB  versão do arquivo {2}' -f $_.Name, ($_.Length / 1MB), $_.VersionInfo.FileVersion
+          }
+
+      # Build de tag não sobe artefato: os mesmos arquivos vão para a Release,
+      # que é permanente, e o artefato só ocuparia espaço por 30 dias.
+      - name: Artefato (runtime)
+        if: github.ref_type != 'tag'
+        uses: actions/upload-artifact@v7
+        with:
+          name: WinDock-${{ env.VERSION }}
+          path: ${{ runner.temp }}/dist/WinDock-${{ env.VERSION }}.exe
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Artefato (standalone)
+        if: github.ref_type != 'tag'
+        uses: actions/upload-artifact@v7
+        with:
+          name: WinDock-${{ env.VERSION }}-standalone
+          path: ${{ runner.temp }}/dist/WinDock-${{ env.VERSION }}-standalone.exe
+          if-no-files-found: error
+          retention-days: 30
+
+      # As notas são os assuntos dos commits desde a tag anterior. As tags do
+      # projeto não têm mensagem, então não há outro texto para aproveitar.
+      - name: Release
+        if: github.ref_type == 'tag'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $tag = $env:GITHUB_REF_NAME
+          $anterior = git describe --tags --abbrev=0 --match '[0-9]*.[0-9]*.[0-9]*.[0-9]*' "$tag^" 2>$null
+          if ($LASTEXITCODE -eq 0 -and $anterior) {
+              $faixa = "$anterior..$tag"
+              $titulo = "Mudanças desde $anterior"
+          } else {
+              $faixa = $tag
+              $titulo = 'Mudanças'
+          }
+          $commits = git log --no-merges --pretty='format:- %s' $faixa
+
+          $notas = "$env:RUNNER_TEMP/notas.md"
+          @(
+              '## Downloads'
+              ''
+              "- ``WinDock-$tag.exe``: precisa do [.NET 8 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/8.0) instalado."
+              "- ``WinDock-$tag-standalone.exe``: não precisa de nada instalado, por isso é bem maior."
+              ''
+              "## $titulo"
+              ''
+          ) + $commits | Set-Content -Path $notas -Encoding utf8
+
+          gh release create $tag `
+              "$env:RUNNER_TEMP/dist/WinDock-$tag.exe" `
+              "$env:RUNNER_TEMP/dist/WinDock-$tag-standalone.exe" `
+              --title "WinDock $tag" --notes-file $notas --verify-tag
