@@ -32,8 +32,8 @@ public sealed class DockModel : IDisposable
         _proc = OnWinEvent;
         Theme = new DockTheme(config);
 
-        RepairPackagedPins();
-
+        // Um fixado com o caminho envelhecido entra como está: o primeiro Refresh, logo abaixo,
+        // é quem o conserta (veja RepairStalePins).
         foreach (var p in _config.Pinned)
             Items.Add(new DockItem(p.Id, p.Path, p.Args, p.Label, pinned: true, overlayIcon: p.Overlay));
 
@@ -130,6 +130,11 @@ public sealed class DockModel : IDisposable
     public void Refresh()
     {
         var relogio = System.Diagnostics.Stopwatch.StartNew();
+
+        // antes de juntar janelas a botões: um fixado consertado aqui já recebe as janelas do app
+        // nesta mesma passada, em vez de elas abrirem um segundo botão ao lado
+        RepairStalePins();
+
         var windows = WindowService.Enumerate();
 
         // o filtro de eventos precisa saber quais janelas a dock mostra agora; veja o
@@ -280,7 +285,11 @@ public sealed class DockModel : IDisposable
             if (WindowService.LaunchApp(aumid)) return;
         }
 
-        if (WindowService.Launch(item.LaunchPath, item.LaunchArgs)) return;
+        // App do Squirrel (Discord, Postman) que se atualizou há menos tempo do que a conferência
+        // dos fixados leva para passar de novo: o botão ainda guarda a pasta apagada, mas o
+        // clique já sabe achar a nova.
+        var caminho = SquirrelApps.TryRepair(item.LaunchPath, out var atual) ? atual : item.LaunchPath;
+        if (WindowService.Launch(caminho, item.LaunchArgs)) return;
 
         if (IconService.ShellExists(item.Id) && WindowService.LaunchApp(item.Id)) return;
 
@@ -353,36 +362,64 @@ public sealed class DockModel : IDisposable
     public void SaveOrder() => SavePinned();
 
     /// <summary>
-    /// Acerta os fixados que apontam para uma versão de app da Store que já não está instalada.
+    /// Acerta os fixados que apontam para uma versão de app que já não está instalada.
     ///
     /// Sem isto, o dia em que o app se atualiza é o dia em que o botão dele perde o ícone e para
-    /// de abrir: a pasta do pacote leva a versão no nome, e a antiga some (o Spotify indo da
-    /// 1.298.301.0 para a 1.299.317.0 foi o caso que apareceu aqui). O <see cref="DockItem.Id"/>
-    /// vai junto quando ele é o próprio caminho — é a chave que junta o botão às janelas abertas
-    /// do app (<see cref="TaskWindow.AppKey"/>), e deixá-la velha faria o app abrir num segundo
-    /// botão, ao lado do fixado.
+    /// de abrir: a pasta leva a versão no nome, e a antiga some. Acontece com dois instaladores —
+    /// o da Store (<see cref="PackagedApps"/>; o Spotify indo da 1.298.301.0 para a 1.299.317.0) e
+    /// o Squirrel (<see cref="SquirrelApps"/>; o Discord indo da 1.0.9256 para a 1.0.9257). O
+    /// <see cref="DockItem.Id"/> vai junto quando ele é o próprio caminho — é a chave que junta o
+    /// botão às janelas abertas do app (<see cref="TaskWindow.AppKey"/>), e deixá-la velha faria o
+    /// app abrir num segundo botão, ao lado do fixado. Esse segundo botão, se já apareceu, é
+    /// absorvido.
     ///
-    /// Roda uma vez, quando a dock sobe, e só toca no que está quebrado.
+    /// Roda com a dock aberta, e não só na subida: o Discord se atualiza sozinho ao abrir, e a
+    /// dock já estava de pé havia horas. A conferência custa um <c>File.Exists</c> por fixado, mas
+    /// o <see cref="Refresh"/> chega a rodar várias vezes por segundo, então ela passa no máximo a
+    /// cada <see cref="PinCheckInterval"/>. Só toca no que está quebrado.
     /// </summary>
-    private void RepairPackagedPins()
+    private void RepairStalePins()
     {
+        var agora = DateTime.UtcNow;
+        if (agora - _pinsChecked < PinCheckInterval) return;
+        _pinsChecked = agora;
+
         var mudou = false;
 
-        foreach (var p in _config.Pinned)
+        for (var i = 0; i < Items.Count; i++)
         {
-            if (!PackagedApps.TryRepair(p.Path, out var atual)) continue;
+            var item = Items[i];
+            if (!item.IsPinned) continue;
+            if (!PackagedApps.TryRepair(item.LaunchPath, out var atual) &&
+                !SquirrelApps.TryRepair(item.LaunchPath, out atual)) continue;
 
-            Log.Write($"fixado '{p.Label}': o pacote mudou de versão — {p.Path} → {atual}");
+            Log.Write($"fixado '{item.Label}': o app mudou de versão — {item.LaunchPath} → {atual}");
 
-            if (string.Equals(p.Id, p.Path, StringComparison.OrdinalIgnoreCase))
-                p.Id = atual.ToLowerInvariant();   // o AppKey de uma janela vem em minúsculas
+            var id = string.Equals(item.Id, item.LaunchPath, StringComparison.OrdinalIgnoreCase)
+                     ? atual.ToLowerInvariant()   // o AppKey de uma janela vem em minúsculas
+                     : item.Id;
 
-            p.Path = atual;
+            Items[i] = new DockItem(id, atual, item.LaunchArgs, item.Label, pinned: true, overlayIcon: item.OverlayPath)
+            {
+                Windows = item.Windows,
+                IsActive = item.IsActive
+            };
+
+            for (var j = Items.Count - 1; j >= 0; j--)
+            {
+                if (j == i || Items[j].IsPinned || !string.Equals(Items[j].Id, id, StringComparison.OrdinalIgnoreCase)) continue;
+                Items.RemoveAt(j);
+                if (j < i) i--;
+            }
+
             mudou = true;
         }
 
-        if (mudou) _config.Save();
+        if (mudou) SavePinned();
     }
+
+    private static readonly TimeSpan PinCheckInterval = TimeSpan.FromSeconds(30);
+    private DateTime _pinsChecked = DateTime.MinValue;
 
     /// <summary>Grava os fixados na ordem em que estao na dock.</summary>
     private void SavePinned()

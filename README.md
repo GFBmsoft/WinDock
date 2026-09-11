@@ -569,6 +569,7 @@ e os testes em `tests/`.
 | `src/Services/IconService.cs` | o ícone de cada botão — atalho, app da Store ou executável —, com cache |
 | `src/Services/ShortcutService.cs` | lê os `.lnk` do Windows: alvo, argumentos, ícone e AppUserModelID |
 | `src/Services/PackagedApps.cs` | apps da Store: a pasta da versão instalada e o AppUserModelID a partir do caminho |
+| `src/Services/SquirrelApps.cs` | apps instalados pelo Squirrel (Discord, Postman): a pasta `app-*` da versão instalada |
 | `src/Services/ChromeProfiles.cs` | nome, argumento e foto de cada perfil, via `Local State` |
 | `src/Services/AppCatalog.cs` | os apps instalados (`shell:AppsFolder`) e o "executar comando" |
 | `src/Services/Launcher.cs` | a busca do launcher: pontuação, ordem e comandos de energia |
