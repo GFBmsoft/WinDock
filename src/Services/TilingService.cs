@@ -455,14 +455,14 @@ public sealed class TilingService : IDisposable
 
         var candidates = new List<(nint Hwnd, RECT Rect)>();
         foreach (var (hwnd, rect) in _rects)
-            if (MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST) == target) candidates.Add((hwnd, rect));
+            if (Reachable(hwnd) && MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST) == target) candidates.Add((hwnd, rect));
 
         // uma janela flutuando ou "teimosa" não tem retângulo em _rects (não faz parte do
         // grid), mas ainda é um destino válido pro foco atravessar — sem isso, um monitor que
         // só tivesse uma janela flutuando ficava inalcançável pelo Ctrl+Alt+seta vindo de fora
         foreach (var hwnd in _floating.Concat(_stubborn))
         {
-            if (candidates.Any(c => c.Hwnd == hwnd) || MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST) != target)
+            if (!Reachable(hwnd) || candidates.Any(c => c.Hwnd == hwnd) || MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST) != target)
                 continue;
             if (TryGetVisualRect(hwnd, out var r)) candidates.Add((hwnd, r));
         }
@@ -586,7 +586,7 @@ public sealed class TilingService : IDisposable
     {
         var monitor = MonitorFromWindow(current, MONITOR_DEFAULTTONEAREST);
         var candidates = _rects
-            .Where(kv => kv.Key != current && MonitorFromWindow(kv.Key, MONITOR_DEFAULTTONEAREST) == monitor)
+            .Where(kv => kv.Key != current && Reachable(kv.Key) && MonitorFromWindow(kv.Key, MONITOR_DEFAULTTONEAREST) == monitor)
             .Select(kv => (kv.Key, kv.Value));
 
         return BestDirectionalMatch(from, direction, candidates);
@@ -630,6 +630,19 @@ public sealed class TilingService : IDisposable
         return best;
     }
 
+    /// <summary>
+    /// Esta janela pode receber o foco do Ctrl+Alt+seta? Minimizada não.
+    ///
+    /// Uma flutuante (ou "teimosa") que a pessoa minimizou continua em <c>_floating</c> — é o que
+    /// a faz voltar flutuando quando for restaurada —, e o Windows a estaciona fora da tela, em
+    /// −32000, onde o <c>MonitorFromWindow</c> a dá como estando no monitor mais próximo desse
+    /// canto. Como o <see cref="WindowService.Activate"/> restaura quem está minimizado, cada
+    /// Ctrl+Alt+seta ia desenterrando uma minimizada no caminho até chegar à janela que a pessoa
+    /// queria. O <c>_rects</c> já nasce sem as minimizadas, mas só no próximo Refresh: um Alt+Z
+    /// seguido de Ctrl+Alt+seta ainda a encontraria lá, então a pergunta vale para ele também.
+    /// </summary>
+    private static bool Reachable(nint hwnd) => IsWindow(hwnd) && !IsIconic(hwnd);
+
     /// <summary>Ctrl+Alt+seta saindo de uma janela flutuante (ou "teimosa"): ela cobre o
     /// mosaico por cima, então antes de pular pro monitor vizinho, tenta achar outra janela —
     /// do grid ou flutuando/teimosa também — no mesmo monitor. Sem isso, uma flutuante por cima
@@ -644,12 +657,12 @@ public sealed class TilingService : IDisposable
         var candidates = new List<(nint Hwnd, RECT Rect)>();
 
         foreach (var (hwnd, rect) in _rects)
-            if (hwnd != current && MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST) == monitor)
+            if (hwnd != current && Reachable(hwnd) && MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST) == monitor)
                 candidates.Add((hwnd, rect));
 
         foreach (var hwnd in _floating.Concat(_stubborn))
         {
-            if (hwnd == current || candidates.Any(c => c.Hwnd == hwnd) ||
+            if (hwnd == current || !Reachable(hwnd) || candidates.Any(c => c.Hwnd == hwnd) ||
                 MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST) != monitor)
                 continue;
             if (TryGetVisualRect(hwnd, out var r)) candidates.Add((hwnd, r));
