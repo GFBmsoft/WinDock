@@ -232,14 +232,22 @@ public sealed class TilingService : IDisposable
             // sem isso ela ficava largada lá).
             if (_floating.Contains(hWnd))
             {
-                // acabou de mexer numa flutuante: o tamanho em que ela ficou passa a ser o
-                // tamanho deste app, e as próximas já nascem assim
-                RememberFloatingSize(hWnd);
+                // acabou de mexer numa flutuante: se foi largada em cima da dock, volta para a área
+                // útil primeiro, e só então o tamanho em que ficou passa a ser o tamanho deste app,
+                // com as próximas já nascendo assim. Na fila, e não aqui: o Windows ainda está
+                // fechando o arraste quando este evento chega
+                _dispatcher.InvokeAsync(() => { KeepInsideWorkArea(hWnd); RememberFloatingSize(hWnd); },
+                                        DispatcherPriority.Background);
                 return;
             }
 
-            if (_stubborn.Contains(hWnd)) return;
-            if (IsExcluded(hWnd)) return;
+            // fora do grid — "teimosa", da lista de exceções ou que o mosaico nem gerencia (uma
+            // caixa de tamanho fixo): a mesma volta para a área útil, e nada no grid se mexe
+            if (!_tree.Contains(hWnd))
+            {
+                _dispatcher.InvokeAsync(() => KeepInsideWorkArea(hWnd), DispatcherPriority.Background);
+                if (_stubborn.Contains(hWnd) || IsExcluded(hWnd)) return;
+            }
 
             AbsorbDrag(hWnd);
         }
@@ -797,6 +805,44 @@ public sealed class TilingService : IDisposable
             var movedDown = Math.Abs(after.Bottom - before.Bottom) >= Math.Abs(after.Top - before.Top);
             _tree.Resize(hwnd, SplitLayout.Vertical, movedDown, heightChange);
         }
+    }
+
+    /// <summary>
+    /// Janela solta largada em cima da dock (ou embaixo da barra superior) volta para dentro da
+    /// área útil.
+    ///
+    /// O grid e a janela maximizada já respeitam as faixas reservadas: os dois partem do
+    /// <c>rcWork</c>, que o registro de AppBar encolhe. A janela solta não — o Windows deixa
+    /// arrastá-la para qualquer lugar, e a dock, que fica sempre por cima, cobria a parte de baixo
+    /// dela. Ao soltar o arraste ela sobe (ou desce) o que for preciso, com o mesmo tamanho; só
+    /// encolhe se for mais alta que a área útil inteira.
+    ///
+    /// Só as faixas de cima e de baixo contam: pelos lados não há barra, e deixar meia janela para
+    /// fora da tela pela lateral é gesto comum. Maximizada e tela cheia ficam como estão — ocupar o
+    /// monitor é a intenção. Com "Reservar a faixa" desligado a área útil é a tela inteira, e nada se
+    /// move; no notebook, sem dock, idem.
+    /// </summary>
+    private void KeepInsideWorkArea(nint hwnd)
+    {
+        if (!IsWindow(hwnd) || IsZoomed(hwnd) || IsIconic(hwnd) || !Concerns(hwnd)) return;
+        if (!TryGetVisualRect(hwnd, out var r) || r.Width <= 0 || r.Height <= 0) return;
+
+        var info = new MONITORINFO { cbSize = Marshal.SizeOf<MONITORINFO>() };
+        if (!GetMonitorInfo(MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST), ref info)) return;
+        var work = info.rcWork;
+        var tela = info.rcMonitor;
+
+        if (r.Left <= tela.Left && r.Top <= tela.Top && r.Right >= tela.Right && r.Bottom >= tela.Bottom) return;
+
+        var altura = Math.Min(r.Height, work.Height);
+        var topo = Math.Clamp(r.Top, work.Top, work.Bottom - altura);
+        if (topo == r.Top && altura == r.Height) return;
+
+        Log.Trace($"KeepInsideWorkArea: {hwnd:X} largada em y {r.Top}..{r.Bottom}, fora da área útil " +
+                  $"{work.Top}..{work.Bottom} — vai para y {topo}..{topo + altura}");
+
+        Apply(hwnd, new RECT { Left = r.Left, Top = topo, Right = r.Right, Bottom = topo + altura });
+        UpdateBorder();
     }
 
     /// <summary>Alt+Z: minimiza a janela em foco. Some do mosaico até ser restaurada.</summary>

@@ -300,6 +300,10 @@ combinação. Escolher a combinação de outra ação troca as duas de lugar.
 Arrastar a divisória entre duas janelas também redimensiona. Uma janela minimizada **guarda o
 lugar dela** e volta para a mesma posição ao ser restaurada.
 
+Uma janela solta (flutuante, fora do mosaico, ou uma caixa de tamanho fixo) **largada em cima da
+dock** — ou embaixo da barra superior — volta sozinha para a área livre ao soltar o mouse, com o
+mesmo tamanho. Maximizada e tela cheia ficam como estão, e pelas laterais nada muda.
+
 Cada programa tem **o seu tamanho de janela flutuante**: redimensione uma janela em modo
 flutuante e é assim que as próximas desse programa vão nascer, sempre centralizadas no monitor
 em que estiverem. Na primeira vez, sem tamanho guardado, a janela ocupa 60% da tela. O tamanho
