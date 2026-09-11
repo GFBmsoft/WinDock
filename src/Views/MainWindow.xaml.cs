@@ -97,13 +97,6 @@ public partial class MainWindow : Window
         SetLauncherHotkey(_config.Launcher);
         SetNumberHotkeys(_config.NumberHotkeys);
 
-        // Alt+T fica fora do grupo do mosaico de propósito: prender uma janela acima das outras
-        // não tem a ver com o grid, e quem desliga o mosaico continua com o recurso. Sem aviso
-        // na tela se a tecla já estiver tomada — é a mesma escolha dos atalhos do mosaico, e um
-        // MessageBox no logon por causa de uma tecla seria barulho demais; fica no log.
-        if (!RegisterHotKey(hWnd, TopmostId, MOD_ALT | MOD_NOREPEAT, VK_T))
-            Log.Write("Alt+T ja esta em uso por outro programa: fixar a janela acima ficou sem atalho");
-
         // adianta a lista de apps e os icones: a primeira busca ja acha tudo pronto
         if (_config.Launcher) AppCatalog.Warm();
 
@@ -114,7 +107,7 @@ public partial class MainWindow : Window
         SetPanel(_config.Panel);
 
         _tiling = new TilingService(_config, Dispatcher);
-        SetTilingHotkeys(_config.TilingEnabled);
+        ApplyHotkeys();
 
         // app em tela cheia (uma sessao remota, por exemplo): a dock sai da frente e volta
         // sozinha quando a janela deixa de ocupar a tela inteira
@@ -222,7 +215,8 @@ public partial class MainWindow : Window
                 _taskbar.Refresh();
                 break;
             case nameof(DockConfig.TilingEnabled):
-                SetTilingHotkeys(_config.TilingEnabled);
+            case nameof(DockConfig.Hotkeys):
+                ApplyHotkeys();
                 break;
         }
     }
@@ -380,66 +374,86 @@ public partial class MainWindow : Window
         return 0;
     }
 
+    // ── atalhos configuráveis (mosaico e prender acima) ──────
+
     /// <summary>
-    /// Ctrl+Alt+setas move o foco entre as janelas do mosaico; Ctrl+Shift+setas troca a janela
-    /// em foco de lugar com a vizinha; Alt+C flutua a janela em foco; Alt+Z esconde; Alt+W
-    /// fecha. Um hotkey global captura a tecla para o sistema inteiro — por isso o foco não usa
-    /// só Shift+seta: essa combinação já é a de estender seleção de texto em qualquer programa,
-    /// e um hotkey global nela quebraria copiar/selecionar texto o tempo todo. Os atalhos do
-    /// mosaico só existem enquanto <see cref="DockConfig.TilingEnabled"/> está ligado.
+    /// Os ids de cada ação no <c>RegisterHotKey</c>. As de setas ocupam quatro, na ordem de
+    /// <see cref="ArrowKeys"/>. O <see cref="OnWindowMessage"/> continua decidindo pelo id, então
+    /// trocar a tecla de uma ação não mexe em quem responde a ela.
     /// </summary>
-    private void SetTilingHotkeys(bool on)
+    private static readonly Dictionary<HotkeyAction, int[]> HotkeyIds = new()
+    {
+        [HotkeyAction.Focus]      = [TilingFocusLeftId, TilingFocusRightId, TilingFocusUpId, TilingFocusDownId],
+        [HotkeyAction.Swap]       = [TilingSwapLeftId, TilingSwapRightId, TilingSwapUpId, TilingSwapDownId],
+        [HotkeyAction.Resize]     = [TilingResizeLeftId, TilingResizeRightId, TilingResizeUpId, TilingResizeDownId],
+        [HotkeyAction.Float]      = [TilingFloatId],
+        [HotkeyAction.ForgetSize] = [TilingForgetSizeId],
+        [HotkeyAction.Hide]       = [TilingHideId],
+        [HotkeyAction.Close]      = [TilingCloseId],
+        [HotkeyAction.Topmost]    = [TopmostId],
+    };
+
+    private static readonly uint[] ArrowKeys = [VK_LEFT, VK_RIGHT, VK_UP, VK_DOWN];
+
+    /// <summary>
+    /// Registra os atalhos do jeito que estão no config agora — na subida, ao ligar ou desligar o
+    /// mosaico e a cada troca no painel.
+    ///
+    /// Um hotkey global captura a tecla para o sistema inteiro, e é por isso que a escolha é entre
+    /// uma lista fechada (<see cref="HotkeyCatalog"/>): Shift+seta sozinho quebraria a seleção de
+    /// texto em todo programa, e as combinações com Win são do Explorer — registrar falharia sem
+    /// ninguém ver. Os do mosaico só existem enquanto <see cref="DockConfig.TilingEnabled"/> está
+    /// ligado; o de prender acima vale sempre.
+    ///
+    /// Tudo é desregistrado antes de registrar de novo: trocar duas ações de combinação entre si
+    /// esbarraria na própria dock ainda segurando a tecla da outra. Um grupo de setas que não
+    /// consegue as quatro fica sem nenhuma — metade das direções respondendo parece defeito.
+    ///
+    /// Tecla tomada por outro programa não abre caixa na tela (no logon seria uma por tecla): fica
+    /// no log e aparece na linha da ação, no painel.
+    /// </summary>
+    private void ApplyHotkeys()
     {
         var hWnd = new WindowInteropHelper(this).Handle;
         if (hWnd == 0) return;
 
-        UnregisterHotKey(hWnd, TilingFocusLeftId);
-        UnregisterHotKey(hWnd, TilingFocusRightId);
-        UnregisterHotKey(hWnd, TilingFocusUpId);
-        UnregisterHotKey(hWnd, TilingFocusDownId);
-        UnregisterHotKey(hWnd, TilingFloatId);
-        UnregisterHotKey(hWnd, TilingHideId);
-        UnregisterHotKey(hWnd, TilingCloseId);
-        UnregisterHotKey(hWnd, TilingSwapLeftId);
-        UnregisterHotKey(hWnd, TilingSwapRightId);
-        UnregisterHotKey(hWnd, TilingSwapUpId);
-        UnregisterHotKey(hWnd, TilingSwapDownId);
-        UnregisterHotKey(hWnd, TilingResizeLeftId);
-        UnregisterHotKey(hWnd, TilingResizeRightId);
-        UnregisterHotKey(hWnd, TilingResizeUpId);
-        UnregisterHotKey(hWnd, TilingResizeDownId);
-        UnregisterHotKey(hWnd, TilingForgetSizeId);
-        if (!on) return;
+        foreach (var id in HotkeyIds.Values.SelectMany(ids => ids)) UnregisterHotKey(hWnd, id);
 
-        RegisterHotKey(hWnd, TilingFocusLeftId,  MOD_CONTROL | MOD_ALT | MOD_NOREPEAT, VK_LEFT);
-        RegisterHotKey(hWnd, TilingFocusRightId, MOD_CONTROL | MOD_ALT | MOD_NOREPEAT, VK_RIGHT);
-        RegisterHotKey(hWnd, TilingFocusUpId,    MOD_CONTROL | MOD_ALT | MOD_NOREPEAT, VK_UP);
-        RegisterHotKey(hWnd, TilingFocusDownId,  MOD_CONTROL | MOD_ALT | MOD_NOREPEAT, VK_DOWN);
-        RegisterHotKey(hWnd, TilingFloatId,      MOD_ALT   | MOD_NOREPEAT, VK_C);
-        RegisterHotKey(hWnd, TilingHideId,       MOD_ALT   | MOD_NOREPEAT, VK_Z);
-        RegisterHotKey(hWnd, TilingCloseId,      MOD_ALT   | MOD_NOREPEAT, VK_W);
-        RegisterHotKey(hWnd, TilingSwapLeftId,  MOD_CONTROL | MOD_SHIFT | MOD_NOREPEAT, VK_LEFT);
-        RegisterHotKey(hWnd, TilingSwapRightId, MOD_CONTROL | MOD_SHIFT | MOD_NOREPEAT, VK_RIGHT);
-        RegisterHotKey(hWnd, TilingSwapUpId,    MOD_CONTROL | MOD_SHIFT | MOD_NOREPEAT, VK_UP);
-        RegisterHotKey(hWnd, TilingSwapDownId,  MOD_CONTROL | MOD_SHIFT | MOD_NOREPEAT, VK_DOWN);
+        var repetidas = HotkeyCatalog.Duplicates(_config.Hotkeys);
+        var estados = new Dictionary<HotkeyAction, HotkeyState>();
 
-        // Ctrl+Alt+Shift+seta redimensiona. Alt+Shift+seta seria mais curto, mas Alt+Shift e o
-        // atalho de trocar o layout do teclado no Windows — territorio arriscado demais para um
-        // hotkey global, e o projeto ja levou essa licao com o Shift+seta quebrando a selecao de
-        // texto no sistema inteiro (docs/APRENDIZADOS.md, secao do mosaico).
-        RegisterHotKey(hWnd, TilingResizeLeftId,  MOD_CONTROL | MOD_ALT | MOD_SHIFT | MOD_NOREPEAT, VK_LEFT);
-        RegisterHotKey(hWnd, TilingResizeRightId, MOD_CONTROL | MOD_ALT | MOD_SHIFT | MOD_NOREPEAT, VK_RIGHT);
-        RegisterHotKey(hWnd, TilingResizeUpId,    MOD_CONTROL | MOD_ALT | MOD_SHIFT | MOD_NOREPEAT, VK_UP);
-        RegisterHotKey(hWnd, TilingResizeDownId,  MOD_CONTROL | MOD_ALT | MOD_SHIFT | MOD_NOREPEAT, VK_DOWN);
+        foreach (var info in HotkeyCatalog.All)
+        {
+            var combo = HotkeyCatalog.Of(_config.Hotkeys, info.Action);
+            var nome = HotkeyCatalog.Display(combo, info.Arrows);
 
-        // esquecer o tamanho flutuante do app em foco. Ctrl+Alt+C, e não Alt+Shift+C, pela mesma
-        // razão do parágrafo acima: Alt+Shift é a troca de layout do teclado do Windows
-        RegisterHotKey(hWnd, TilingForgetSizeId, MOD_CONTROL | MOD_ALT | MOD_NOREPEAT, VK_C);
+            if (info.Tiling && !_config.TilingEnabled) { estados[info.Action] = HotkeyState.TilingOff; continue; }
+            if (!HotkeyCatalog.TryParse(combo, info.Arrows, out var mods, out var tecla)) { estados[info.Action] = HotkeyState.Off; continue; }
 
-        // sem aviso se algum desses falhar: Shift+seta e Alt+C/Z sao atalhos comuns o
-        // bastante para colidir com outros programas, e um MessageBox por atalho perdido
-        // seria barulho demais no primeiro logon — o mosaico so nao reage aquela tecla
-        // especifica, o resto continua funcionando.
+            if (repetidas.Contains(info.Action))
+            {
+                Log.Write($"'{info.Title}' repete {nome} de outra ação: ficou sem atalho");
+                estados[info.Action] = HotkeyState.Duplicate;
+                continue;
+            }
+
+            var ids = HotkeyIds[info.Action];
+            var ok = true;
+            for (var i = 0; i < ids.Length && ok; i++)
+                ok = RegisterHotKey(hWnd, ids[i], mods | MOD_NOREPEAT, info.Arrows ? ArrowKeys[i] : tecla);
+
+            if (!ok)
+            {
+                foreach (var id in ids) UnregisterHotKey(hWnd, id);
+                Log.Write($"{nome} já está em uso por outro programa: '{info.Title}' ficou sem atalho");
+            }
+
+            estados[info.Action] = ok ? HotkeyState.Active : HotkeyState.InUse;
+        }
+
+        HotkeyCatalog.Publish(estados);
+        Log.Trace("atalhos: " + string.Join(" | ", HotkeyCatalog.All.Select(i =>
+            $"{i.Title} = {HotkeyCatalog.Display(HotkeyCatalog.Of(_config.Hotkeys, i.Action), i.Arrows)} ({estados[i.Action]})")));
     }
 
     /// <summary>Abre a busca; a janela e criada uma vez e depois so escondida e mostrada.</summary>
@@ -870,24 +884,8 @@ public partial class MainWindow : Window
 
         var hWnd = new WindowInteropHelper(this).Handle;
         UnregisterHotKey(hWnd, LauncherHotkeyId);
-        UnregisterHotKey(hWnd, TopmostId);
         for (var i = 0; i < 9; i++) UnregisterHotKey(hWnd, NumberHotkeyId + i);
-        UnregisterHotKey(hWnd, TilingFocusLeftId);
-        UnregisterHotKey(hWnd, TilingFocusRightId);
-        UnregisterHotKey(hWnd, TilingFocusUpId);
-        UnregisterHotKey(hWnd, TilingFocusDownId);
-        UnregisterHotKey(hWnd, TilingFloatId);
-        UnregisterHotKey(hWnd, TilingHideId);
-        UnregisterHotKey(hWnd, TilingCloseId);
-        UnregisterHotKey(hWnd, TilingSwapLeftId);
-        UnregisterHotKey(hWnd, TilingSwapRightId);
-        UnregisterHotKey(hWnd, TilingSwapUpId);
-        UnregisterHotKey(hWnd, TilingSwapDownId);
-        UnregisterHotKey(hWnd, TilingResizeLeftId);
-        UnregisterHotKey(hWnd, TilingResizeRightId);
-        UnregisterHotKey(hWnd, TilingResizeUpId);
-        UnregisterHotKey(hWnd, TilingResizeDownId);
-        UnregisterHotKey(hWnd, TilingForgetSizeId);
+        foreach (var id in HotkeyIds.Values.SelectMany(ids => ids)) UnregisterHotKey(hWnd, id);
 
         // as miniaturas seguram registros no compositor: soltar antes de sair
         _previewDelay.Stop();

@@ -265,7 +265,11 @@
                 <Border.Effect>
                   <DropShadowEffect BlurRadius="14" ShadowDepth="3" Opacity="0.5" Color="Black" />
                 </Border.Effect>
-                <ItemsPresenter />
+                <!-- rola quando a lista passa da altura máxima: as 26 letras dos atalhos iam além da tela -->
+                <ScrollViewer MaxHeight="{Binding MaxDropDownHeight, RelativeSource={RelativeSource TemplatedParent}}"
+                              VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                  <ItemsPresenter />
+                </ScrollViewer>
               </Border>
             </Popup>
           </Grid>

@@ -434,6 +434,19 @@ public sealed class DockConfig : INotifyPropertyChanged
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(TilingExcludedApps)));
 
     /// <summary>
+    /// A combinação escolhida para cada atalho, pelo nome da ação (<see cref="HotkeyAction"/>):
+    /// "Alt+Shift" nas de setas, "Alt+C" nas de uma tecla, vazio para desligado. Só guarda o que
+    /// a pessoa mudou — ação ausente usa o padrão do <see cref="HotkeyCatalog"/>, que são os
+    /// atalhos de antes desta opção existir, e quem nunca abriu o painel não vê diferença.
+    /// </summary>
+    public Dictionary<string, string> Hotkeys { get; set; } = new();
+
+    /// <summary>O mesmo aviso da lista de exceções: o dicionário é editado, não substituído, e
+    /// quem registra os atalhos precisa saber na hora.</summary>
+    public void NotifyHotkeysChanged() =>
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Hotkeys)));
+
+    /// <summary>
     /// O tamanho que cada app usa quando está flutuando (Alt+C), em pixels, pela mesma chave da
     /// lista de exceções: nome do executável, ou AppUserModelID quando a janela tem um — o que
     /// dá tamanhos separados para cada perfil do Chrome, por exemplo.
@@ -538,6 +551,7 @@ public sealed class DockConfig : INotifyPropertyChanged
         TilingEnabled = d.TilingEnabled; TilingGap = d.TilingGap;
         TilingBorderColor = d.TilingBorderColor; TilingBorderThickness = d.TilingBorderThickness;
         TilingBorderRadius = d.TilingBorderRadius; TilingResizeStep = d.TilingResizeStep;
+        Hotkeys.Clear(); NotifyHotkeysChanged();
     }
 
     private static int Clamp(int v, int min, int max) => v < min ? min : v > max ? max : v;

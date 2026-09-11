@@ -541,7 +541,9 @@ Ficam fora do grid por conta própria:
 
 `Alt+C` tira a janela do grid e a deixa flutuando, centralizada, no **tamanho que aquele app usou
 da última vez**; `Alt+T` prende qualquer janela acima das outras. Um contorno configurável marca a
-janela em foco. Os atalhos estão todos no [manual](docs/MANUAL.md).
+janela em foco. Os atalhos estão todos no [manual](docs/MANUAL.md) e podem ser trocados no painel,
+entre combinações escolhidas para não cair nas do Windows: as com `Win` já são do Explorer, e
+`Alt+setas` é o voltar/avançar do navegador.
 
 ## Estrutura
 
@@ -566,6 +568,7 @@ e os testes em `tests/`.
 | `src/Services/DockModel.cs` | mantém os botões em sincronia com as janelas |
 | `src/Services/DockTheme.cs` | traduz a config em tamanhos e brushes que o XAML consome |
 | `src/Services/Config.cs` | preferências; notifica mudanças para aplicar ao vivo |
+| `src/Services/HotkeyCatalog.cs` | os atalhos configuráveis: ações, padrões e as combinações oferecidas no painel |
 | `src/Services/IconService.cs` | o ícone de cada botão — atalho, app da Store ou executável —, com cache |
 | `src/Services/ShortcutService.cs` | lê os `.lnk` do Windows: alvo, argumentos, ícone e AppUserModelID |
 | `src/Services/PackagedApps.cs` | apps da Store: a pasta da versão instalada e o AppUserModelID a partir do caminho |

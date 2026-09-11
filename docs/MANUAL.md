@@ -232,7 +232,12 @@ Quantos resultados a lista mostra fica em **Configurações > Resultados na busc
 Organiza as janelas lado a lado, sem sobreposição, e mantém o arranjo conforme você abre e fecha
 programas. Liga em **Configurações > Mosaico**.
 
-| atalho | o que faz |
+Os atalhos abaixo são os **padrões**. Todos podem ser trocados ou desligados em
+**Configurações > Mosaico > Atalhos**, escolhendo entre combinações que não brigam com as do
+Windows. Cada linha mostra se o atalho está ativo ou se outro programa já tomou aquela
+combinação. Escolher a combinação de outra ação troca as duas de lugar.
+
+| padrão | o que faz |
 |---|---|
 | `Ctrl+Alt+setas` | move o foco para a janela vizinha, inclusive no outro monitor |
 | `Ctrl+Shift+setas` | troca a janela de lugar com a vizinha |

@@ -38,6 +38,10 @@ public partial class SettingsWindow : Window
         FloatingSizesList.ItemsSource = _floatingSizes;
         LoadFloatingSizes();
 
+        HotkeysList.ItemsSource = _hotkeys;
+        LoadHotkeys();
+        HotkeyCatalog.StatesChanged += OnHotkeyStatesChanged;
+
         // o "iniciar com o Windows" mora no registro, nao no config.json.
         // A flag existe porque marcar a caixa dispara o mesmo evento do clique: sem ela,
         // so de abrir o painel a chave Run seria reescrita com o caminho do executavel
@@ -130,6 +134,197 @@ public partial class SettingsWindow : Window
         _excludedApps.Remove(name);
         _config.TilingExcludedApps.Remove(name);
         _config.NotifyTilingExcludedAppsChanged();
+    }
+
+    // ── atalhos ──────────────────────────────────────────────
+
+    private readonly ObservableCollection<HotkeyRow> _hotkeys = new();
+
+    /// <summary>A troca feita por código na outra linha não pode disparar uma troca de volta.</summary>
+    private bool _swappingHotkeys;
+
+    private void LoadHotkeys()
+    {
+        _hotkeys.Clear();
+        foreach (var info in HotkeyCatalog.All)
+        {
+            var row = new HotkeyRow(info, HotkeyCatalog.Of(_config.Hotkeys, info.Action));
+            row.Changed += OnHotkeyRowChanged;
+            _hotkeys.Add(row);
+        }
+
+        OnHotkeyStatesChanged();
+    }
+
+    /// <summary>
+    /// Uma linha mudou de combinação. Se outra ação já usava a nova, as duas trocam de lugar — a
+    /// outra fica com a que esta tinha — em vez de o painel aceitar duas ações na mesma tecla, em
+    /// que só uma responderia. Salvar avisa a dock, que registra de novo na mesma hora e devolve o
+    /// resultado de cada linha pelo <see cref="HotkeyCatalog.StatesChanged"/>.
+    /// </summary>
+    private void OnHotkeyRowChanged(HotkeyRow row, string anterior)
+    {
+        if (_swappingHotkeys) return;
+
+        var combo = row.Combo;
+        if (combo.Length > 0 && _hotkeys.FirstOrDefault(r => r != row && r.Combo == combo) is { } outra)
+        {
+            _swappingHotkeys = true;
+            try { outra.SetCombo(anterior); }
+            finally { _swappingHotkeys = false; }
+
+            _config.Hotkeys[outra.Info.Action.ToString()] = outra.Combo;
+        }
+
+        _config.Hotkeys[row.Info.Action.ToString()] = combo;
+        _config.NotifyHotkeysChanged();
+        _config.Save();
+    }
+
+    private void OnResetHotkeys(object sender, RoutedEventArgs e)
+    {
+        _config.Hotkeys.Clear();
+        _config.NotifyHotkeysChanged();
+        _config.Save();
+        LoadHotkeys();
+    }
+
+    private void OnHotkeyStatesChanged()
+    {
+        foreach (var row in _hotkeys) row.State = HotkeyCatalog.StateOf(row.Info.Action);
+    }
+
+    /// <summary>
+    /// Uma linha do card de atalhos: a ação, a combinação escolhida em duas listas (modificador e
+    /// letra, ou só o modificador nas de setas) e o que o Windows respondeu ao registrar.
+    /// </summary>
+    private sealed class HotkeyRow : System.ComponentModel.INotifyPropertyChanged
+    {
+        private const string Desligado = "Desligado";
+
+        public HotkeyInfo Info { get; }
+        public string Title => Info.Title;
+        public string Caption => Info.Caption;
+        public bool Arrows => Info.Arrows;
+        public bool HasKey => !Info.Arrows;
+        public IReadOnlyList<string> Modifiers { get; }
+        public IReadOnlyList<string> Letters => HotkeyCatalog.Letters;
+
+        private string _modifier;
+        public string Modifier
+        {
+            get => _modifier;
+            set
+            {
+                // o WPF manda null quando a lista é refeita: não é uma escolha
+                if (value is null || value == _modifier) return;
+                var antes = Combo;
+                _modifier = value;
+                OnChanged();
+                OnChanged(nameof(KeyEnabled));
+                Changed?.Invoke(this, antes);
+            }
+        }
+
+        private string _letter;
+        public string Letter
+        {
+            get => _letter;
+            set
+            {
+                if (value is null || value == _letter) return;
+                var antes = Combo;
+                _letter = value;
+                OnChanged();
+                Changed?.Invoke(this, antes);
+            }
+        }
+
+        public bool KeyEnabled => _modifier != Desligado;
+
+        /// <summary>A combinação no formato do config: "Alt+Shift", "Alt+C" ou vazio.</summary>
+        public string Combo =>
+            _modifier == Desligado ? string.Empty
+            : Arrows ? FromDisplay(_modifier)
+            : $"{FromDisplay(_modifier)}+{_letter}";
+
+        /// <summary>Mudou pela mão da pessoa (ou pela troca com outra linha); leva a combinação de
+        /// antes, que é a que a outra linha recebe numa troca.</summary>
+        public event Action<HotkeyRow, string>? Changed;
+
+        public HotkeyRow(HotkeyInfo info, string combo)
+        {
+            Info = info;
+            var oferecidos = info.Arrows ? HotkeyCatalog.ArrowModifiers : HotkeyCatalog.KeyModifiers;
+            Modifiers = new[] { Desligado }.Concat(oferecidos.Select(ToDisplay)).ToList();
+            (_modifier, _letter) = Split(combo, info);
+        }
+
+        public void SetCombo(string combo)
+        {
+            var antes = Combo;
+            (_modifier, _letter) = Split(combo, Info);
+            OnChanged(nameof(Modifier));
+            OnChanged(nameof(Letter));
+            OnChanged(nameof(KeyEnabled));
+            Changed?.Invoke(this, antes);
+        }
+
+        /// <summary>Desligada, a ação guarda a letra do padrão na lista: religar volta nela, em vez
+        /// de numa letra vazia que não registraria nada.</summary>
+        private static (string Modifier, string Letter) Split(string combo, HotkeyInfo info)
+        {
+            var letraPadrao = info.Arrows ? string.Empty : info.Default[(info.Default.LastIndexOf('+') + 1)..];
+            if (combo.Length == 0) return (Desligado, letraPadrao);
+            if (info.Arrows) return (ToDisplay(combo), string.Empty);
+
+            var corte = combo.LastIndexOf('+');
+            return (ToDisplay(combo[..corte]), combo[(corte + 1)..]);
+        }
+
+        private HotkeyState _state;
+        public HotkeyState State
+        {
+            set
+            {
+                _state = value;
+                OnChanged(nameof(StatusText));
+                OnChanged(nameof(StatusBrush));
+            }
+        }
+
+        public string StatusText => _state switch
+        {
+            HotkeyState.Active => "● ativo",
+            HotkeyState.InUse => "▲ em uso por outro programa — escolha outra combinação",
+            HotkeyState.Duplicate => "▲ repete a combinação de outra ação",
+            HotkeyState.TilingOff => "com o mosaico desligado, fica sem efeito",
+            _ => "desligado"
+        };
+
+        public System.Windows.Media.Brush StatusBrush => _state switch
+        {
+            HotkeyState.Active => (System.Windows.Media.Brush)Application.Current.Resources["FluentAccent"],
+            HotkeyState.InUse or HotkeyState.Duplicate => Warning,
+            _ => (System.Windows.Media.Brush)Application.Current.Resources["FluentTextDim"]
+        };
+
+        /// <summary>O amarelo de aviso do próprio Windows 11.</summary>
+        private static readonly System.Windows.Media.Brush Warning = Frozen();
+
+        private static System.Windows.Media.Brush Frozen()
+        {
+            var brush = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0xFC, 0xE1, 0x00));
+            brush.Freeze();
+            return brush;
+        }
+
+        private static string ToDisplay(string combo) => combo.Replace("+", " + ");
+        private static string FromDisplay(string text) => text.Replace(" + ", "+");
+
+        public event System.ComponentModel.PropertyChangedEventHandler? PropertyChanged;
+        private void OnChanged([System.Runtime.CompilerServices.CallerMemberName] string? name = null) =>
+            PropertyChanged?.Invoke(this, new System.ComponentModel.PropertyChangedEventArgs(name));
     }
 
     // ── tamanho das janelas flutuantes ───────────────────────
@@ -395,6 +590,8 @@ public partial class SettingsWindow : Window
 
     protected override void OnClosed(EventArgs e)
     {
+        // o evento é estático: sem soltar, cada painel fechado continuaria preso a ele
+        HotkeyCatalog.StatesChanged -= OnHotkeyStatesChanged;
         _config.Save();
         base.OnClosed(e);
     }
