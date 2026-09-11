@@ -39,7 +39,23 @@ ou você instala o runtime, ou gera um executável que não depende de nada (vej
 
 ## Instalar
 
+### Baixar pronto
+
+Cada versão sai pronta na página **Releases** do repositório, gerada pelo GitHub Actions a partir
+da tag (`1.0.0.7`, por exemplo). São dois arquivos:
+
+| arquivo | quando usar |
+|---|---|
+| `WinDock-<versão>.exe` | ~25 MB; precisa do .NET 8 Desktop Runtime instalado |
+| `WinDock-<versão>-standalone.exe` | ~180 MB; roda em máquina sem .NET nenhum |
+
+O executável não é assinado, então na primeira vez o Windows mostra o aviso do SmartScreen
+(**Mais informações > Executar assim mesmo**). Baixado, siga do
+[passo 2](#2-escolher-onde-ele-vai-morar) em diante.
+
 ### 1. Gerar o executável
+
+Para compilar em vez de baixar:
 
 ```powershell
 cd D:\Projetos\WinDock
@@ -96,7 +112,15 @@ WinDock.exe              # a dock
 WinDock.exe --settings   # a dock, já abrindo o painel de configurações
 ```
 
+A dock pede **permissão de administrador** ao abrir (o aviso do UAC). É o que deixa o mosaico e o
+contorno funcionarem também sobre programas abertos como administrador: sem ela, o Windows não
+deixa um programa comum mexer na janela de um elevado. O custo é não dar para arrastar arquivos do
+Explorer para cima da dock. No início automático o aviso não aparece — a tarefa agendada já sobe
+com os privilégios mais altos.
+
 ### A dock
+
+![A dock](img/dock.png)
 
 | ação | como |
 |---|---|
@@ -104,11 +128,14 @@ WinDock.exe --settings   # a dock, já abrindo o painel de configurações
 | Alternar entre janelas do mesmo app | clique de novo |
 | Ver as janelas de um app | pare o mouse no ícone (a partir de duas janelas) |
 | Ir para uma janela específica | clique na miniatura dela |
-| Menu (janelas, nova instância, fixar, fechar) | botão direito no ícone |
+| Menu (nova janela, fechar, finalizar tarefa, fixar ou desafixar) | botão direito no ícone |
 | Fixar um atalho específico (`.lnk`) | botão direito > **Adicionar atalho...** |
 | Reordenar | arraste um ícone sobre o outro |
+| Abrir o 1º, 2º... ícone pelo teclado | `Alt+1` a `Alt+9` (desligável em **Configurações > Abrir pela posição com Alt+número**) |
 | Configurações | botão direito > **Configurações...** |
 | Sair | botão direito > **Sair do WinDock** |
+
+![O menu de um ícone](img/menu-dock.png)
 
 **Sempre saia pelo menu.** Ao sair, a dock devolve a faixa de tela que reservou e traz de volta
 a barra do Windows, se você a tinha escondido. Matar o processo à força pula essa parte — veja
@@ -119,7 +146,8 @@ a barra do Windows, se você a tinha escondido. Matar o processo à força pula 
 ![A barra de cima](img/barra.png)
 
 Da esquerda para a direita: o que está tocando, os controles de faixa, bateria, wi-fi,
-bluetooth, volume, a seta da bandeja, notificações e energia. **A ordem é sua** — veja
+bluetooth, volume, a seta da bandeja, notificações e energia — mais o **brilho**, quando o
+monitor aceita ser controlado (veja [Brilho](#brilho)). **A ordem é sua** — veja
 [Ordem dos itens](#ordem-dos-itens-da-barra).
 
 | ação | como |
@@ -134,8 +162,13 @@ bluetooth, volume, a seta da bandeja, notificações e energia. **A ordem é sua
 | Pausar, avançar, voltar a faixa | os botões ao lado do nome da música |
 | Ver a faixa inteira, com capa | clique no nome da música |
 | Desligar, reiniciar, hibernar, bloquear, sair | o botão de energia |
+| Brilho do monitor | clique no ícone de brilho, ou role a roda do mouse sobre ele |
+| Trocar de mês no calendário | as setas do cabeçalho, ou a roda do mouse sobre o mês |
+| Fechar o cartão aberto | `Esc`, ou clique fora dele |
 
 #### Calendário
+
+![O calendário](img/card-calendario.png)
 
 Clique na data, na barra de cima, e o mês aparece. Dentro dele:
 
@@ -153,6 +186,8 @@ Clique na data, na barra de cima, e o mês aparece. Dentro dele:
 - **Mover uma anotação**: o `→` abre um campo já preenchido com o dia seguinte, e `Enter` move.
   Dia e mês bastam (`15/09`); sem o ano vale o do dia aberto, e uma data que cairia muito para trás
   (digitar `05/01` numa caixa de dezembro) é entendida como o ano que vem.
+
+![As anotações de um dia](img/notas.png)
 
 As anotações ficam em `CalendarNotes`, no `config.json`.
 
@@ -201,6 +236,13 @@ ele informa (em geral os Bluetooth LE), e "conectado" em verde quando está em u
 não apenas pareado. O `✕` que aparece ao passar o mouse esconde o aparelho da lista sem
 despareá-lo no Windows.
 
+#### Brilho
+
+Aparece só em monitor que aceita controle por **DDC/CI** — em geral os externos; o painel de
+notebook costuma não aceitar, e ali o item some sozinho. O ajuste vai direto para o monitor, como
+os botões físicos dele. Para não ter o item nem onde ele funciona, desligue
+**Configurações > Indicador de brilho**.
+
 #### Energia
 
 ![O menu de energia](img/card-energia.png)
@@ -237,6 +279,8 @@ Os atalhos abaixo são os **padrões**. Todos podem ser trocados ou desligados e
 Windows. Cada linha mostra se o atalho está ativo ou se outro programa já tomou aquela
 combinação. Escolher a combinação de outra ação troca as duas de lugar.
 
+![O card de atalhos](img/config-atalhos.png)
+
 | padrão | o que faz |
 |---|---|
 | `Ctrl+Alt+setas` | move o foco para a janela vizinha, inclusive no outro monitor |
@@ -259,7 +303,7 @@ e no `FloatingSizes` do `config.json`, com o nome do executável (ou o AppUserMo
 o que separa um perfil do Chrome do outro); apagar uma linha de lá devolve o app aos 60%. Uma
 janela maximizada não conta como escolha de tamanho.
 
-Programas que não devem entrar no mosaico vão em **Configurações > Aplicativos fora do mosaico**.
+Programas que não devem entrar no mosaico vão em **Configurações > Mosaico > Exceções**.
 Aceita três formas:
 
 - `Master.exe` — o nome do executável;
@@ -280,8 +324,9 @@ controles), então dá para afastá-los ou juntá-los.
 
 1. Saia pela dock (botão direito > **Sair do WinDock**) — com o app rodando, o arquivo fica
    travado e a publicação falha com `MSB3021`;
-2. `dotnet publish ...` de novo (o comando da instalação);
-3. copie o `dist\WinDock.exe` por cima do que está em uso;
+2. baixe a versão nova nas **Releases**, ou rode o `dotnet publish ...` de novo (o comando da
+   instalação);
+3. copie o executável novo por cima do que está em uso;
 4. abra outra vez.
 
 Suas preferências e os apps fixados ficam em `%APPDATA%\WinDock\config.json` e sobrevivem à
@@ -374,10 +419,16 @@ A dock registra o que falhou em `%APPDATA%\WinDock\windock.log`:
 Get-Content "$env:APPDATA\WinDock\windock.log" -Tail 20
 ```
 
-Duas causas comuns aparecem ali. **"falha ao abrir"** é alvo que mudou de lugar — app
-reinstalado noutra pasta, ou versão que mudou de número no nome: apague o botão e fixe de novo.
-**"a janela não veio para a frente"** é app rodando como administrador: uma dock comum não tem
-permissão para mexer numa janela de integridade mais alta, e o clique não tem efeito.
+**"falha ao abrir"** é alvo que mudou de lugar. App que se atualiza trocando a pasta da versão —
+os da Microsoft Store (o Spotify) e os instalados pelo Squirrel (o Discord, o Postman) — é
+consertado sozinho: em até meio minuto a dock acha a pasta nova e registra
+`fixado '...': o app mudou de versão`. Para um programa reinstalado em outro lugar, apague o botão
+e fixe de novo.
+
+**"a janela não veio para a frente"** é o Windows recusando a troca de foco para aquela janela. A
+própria linha ainda sugere "app rodando como administrador", mas essa deixou de ser a causa desde
+que a dock passou a rodar elevada — o identificador e o título da janela que vêm junto são o ponto
+de partida para investigar.
 
 Num ícone da **bandeja**, **"a bandeja mudou desde a última leitura"** quer dizer que um ícone
 apareceu ou sumiu depois de a lista ter sido lida — a dock prefere não acionar nada a acionar o
