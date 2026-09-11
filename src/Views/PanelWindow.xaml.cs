@@ -76,6 +76,13 @@ public partial class PanelWindow : Window
     }
 
     /// <summary>Reaplica altura e posicao quando a configuracao muda.</summary>
+    /// <summary>Os comandos de música para o atalho de teclado — os mesmos dos botões da barra,
+    /// com o mesmo filtro de programas. Sem nada tocando (ou só programas fora do filtro), não
+    /// fazem nada.</summary>
+    public Task PreviousMedia() => _model.PreviousMedia();
+    public Task NextMedia() => _model.NextMedia();
+    public Task ToggleMedia() => _model.ToggleMedia();
+
     public void Resize()
     {
         if (_appBar is null) return;

@@ -4,15 +4,18 @@ namespace WinDock.Services;
 /// As ações que têm atalho configurável. O nome vira a chave no <c>config.json</c> — renomear um
 /// valor daqui faz quem já tinha escolhido voltar ao padrão.
 /// </summary>
-public enum HotkeyAction { Focus, Swap, Resize, Float, ForgetSize, Hide, Close, Topmost }
+public enum HotkeyAction { Focus, Swap, Resize, Float, ForgetSize, Hide, Close, Topmost, Media }
 
 /// <summary>O que aconteceu ao registrar o atalho de uma ação.</summary>
-public enum HotkeyState { Active, Off, TilingOff, InUse, Duplicate }
+public enum HotkeyState { Active, Off, TilingOff, TopBarOff, InUse, Duplicate }
 
-/// <param name="Arrows">A ação vale para as quatro setas, e o que se escolhe é só o modificador.</param>
+/// <param name="Arrows">A ação é das setas, e o que se escolhe é só o modificador. Quais setas ela
+/// usa é de quem registra — a de música deixa a ↓ livre para os programas.</param>
 /// <param name="Tiling">Só existe com o mosaico ligado.</param>
 /// <param name="Default">A combinação de antes de o atalho ser configurável.</param>
-public sealed record HotkeyInfo(HotkeyAction Action, string Title, string Caption, bool Arrows, bool Tiling, string Default);
+/// <param name="TopBar">Só existe com a barra superior ligada — é nela que mora o que a ação comanda.</param>
+public sealed record HotkeyInfo(HotkeyAction Action, string Title, string Caption, bool Arrows, bool Tiling, string Default,
+                                bool TopBar = false);
 
 /// <summary>
 /// O catálogo dos atalhos configuráveis: o que cada ação faz, o padrão e as combinações que o
@@ -71,6 +74,12 @@ public static class HotkeyCatalog
         new(HotkeyAction.Topmost, "Prender acima",
             "Deixa a janela em foco acima das outras; de novo, solta. Vale com o mosaico desligado",
             Arrows: false, Tiling: false, "Alt+T"),
+        // Alt+Shift porque era o único modificador de setas ainda livre com os padrões do mosaico.
+        // Os comandos são os mesmos dos botões da barra, e por isso seguem o filtro de programas
+        // da barra de mídia: com só o Spotify marcado, um vídeo tocando no navegador não é afetado
+        new(HotkeyAction.Media, "Música",
+            "← anterior, → próxima, ↑ tocar ou pausar, no programa que a barra de mídia mostra",
+            Arrows: true, Tiling: false, "Alt+Shift", TopBar: true),
     };
 
     /// <summary>Modificadores oferecidos para as ações de setas.</summary>

@@ -206,6 +206,10 @@ Se você quiser a barra só para um programa (o Spotify, por exemplo, sem que um
 navegador tome o lugar dele), marque-o em **Configurações > Programas na barra de mídia**. Sem
 nenhum marcado, vale para todos.
 
+Pelo teclado, de qualquer programa: `Alt+Shift+←` volta a faixa, `Alt+Shift+→` passa e
+`Alt+Shift+↑` pausa ou retoma. Os atalhos seguem o mesmo filtro de programas, trocam-se em
+**Configurações > Mosaico > Atalhos** (linha **Música**) e só existem com a barra superior ligada.
+
 #### Volume
 
 ![O card de volume](img/card-volume.png)
@@ -291,6 +295,7 @@ combinação. Escolher a combinação de outra ação troca as duas de lugar.
 | `Alt+W` | fecha a janela em foco |
 | `Ctrl+Alt+C` | esquece o tamanho flutuante guardado do programa em foco |
 | `Alt+T` | prende a janela em foco acima das outras (de novo, solta) |
+| `Alt+Shift+← → ↑` | música: anterior, próxima, tocar ou pausar (vale com o mosaico desligado; precisa da barra superior) |
 
 Arrastar a divisória entre duas janelas também redimensiona. Uma janela minimizada **guarda o
 lugar dela** e volta para a mesma posição ao ser restaurada.

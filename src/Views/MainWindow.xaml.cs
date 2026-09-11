@@ -52,6 +52,11 @@ public partial class MainWindow : Window
     /// <summary>Alt+T: prende a janela em foco acima das outras.</summary>
     private const int TopmostId = 27;
 
+    // ── ids dos atalhos de música (Alt+Shift+← → ↑) ─────────
+    private const int MediaPreviousId = 28;
+    private const int MediaNextId = 29;
+    private const int MediaPlayId = 30;
+
     /// <summary>
     /// Id do Alt+1; os outros oito vem somando (NumberHotkeyId + 1 e o Alt+2). Deixar por
     /// ultimo mantem a faixa 17..25 livre de choque com os ids fixos acima.
@@ -262,6 +267,7 @@ public partial class MainWindow : Window
             _panel = null;
             _taskbar.TopReserve = 0;
             _taskbar.Refresh();
+            ApplyHotkeys();   // os de música dependem da barra: sem ela, soltam as teclas
             return;
         }
 
@@ -270,6 +276,7 @@ public partial class MainWindow : Window
 
         _taskbar.TopReserve = _config.PanelSize;
         _taskbar.Refresh();   // o shell recalculou a area de trabalho ao registrar a AppBar
+        ApplyHotkeys();
     }
 
     // ── launcher (Alt+Espaco) ───────────────────────────────
@@ -367,6 +374,9 @@ public partial class MainWindow : Window
             case TilingResizeRightId: _tiling?.Resize(TilingDirection.Right); break;
             case TilingResizeUpId:    _tiling?.Resize(TilingDirection.Up); break;
             case TilingResizeDownId:  _tiling?.Resize(TilingDirection.Down); break;
+            case MediaPreviousId:     _ = _panel?.PreviousMedia(); break;
+            case MediaNextId:         _ = _panel?.NextMedia(); break;
+            case MediaPlayId:         _ = _panel?.ToggleMedia(); break;
             default: return 0;
         }
 
@@ -391,6 +401,8 @@ public partial class MainWindow : Window
         [HotkeyAction.Hide]       = [TilingHideId],
         [HotkeyAction.Close]      = [TilingCloseId],
         [HotkeyAction.Topmost]    = [TopmostId],
+        // três, não quatro: ←, → e ↑ na ordem de ArrowKeys; a ↓ fica para os programas
+        [HotkeyAction.Media]      = [MediaPreviousId, MediaNextId, MediaPlayId],
     };
 
     private static readonly uint[] ArrowKeys = [VK_LEFT, VK_RIGHT, VK_UP, VK_DOWN];
@@ -428,6 +440,7 @@ public partial class MainWindow : Window
             var nome = HotkeyCatalog.Display(combo, info.Arrows);
 
             if (info.Tiling && !_config.TilingEnabled) { estados[info.Action] = HotkeyState.TilingOff; continue; }
+            if (info.TopBar && _panel is null) { estados[info.Action] = HotkeyState.TopBarOff; continue; }
             if (!HotkeyCatalog.TryParse(combo, info.Arrows, out var mods, out var tecla)) { estados[info.Action] = HotkeyState.Off; continue; }
 
             if (repetidas.Contains(info.Action))

@@ -299,6 +299,7 @@ public partial class SettingsWindow : Window
             HotkeyState.InUse => "▲ em uso por outro programa — escolha outra combinação",
             HotkeyState.Duplicate => "▲ repete a combinação de outra ação",
             HotkeyState.TilingOff => "com o mosaico desligado, fica sem efeito",
+            HotkeyState.TopBarOff => "com a barra superior desligada, fica sem efeito",
             _ => "desligado"
         };
 
