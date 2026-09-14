@@ -112,6 +112,9 @@ WinDock.exe              # a dock
 WinDock.exe --settings   # a dock, já abrindo o painel de configurações
 ```
 
+Só existe **uma dock por vez**. Abrir o `WinDock.exe` de novo com ela já rodando não cria uma
+segunda: a nova sai na hora e a que está aberta mostra o painel de configurações.
+
 A dock pede **permissão de administrador** ao abrir (o aviso do UAC). É o que deixa o mosaico e o
 contorno funcionarem também sobre programas abertos como administrador: sem ela, o Windows não
 deixa um programa comum mexer na janela de um elevado. O custo é não dar para arrastar arquivos do

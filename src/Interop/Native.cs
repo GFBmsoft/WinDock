@@ -289,6 +289,18 @@ internal static class Native
     [DllImport("user32.dll", CharSet = CharSet.Unicode)]
     public static extern uint RegisterWindowMessage(string message);
 
+    // ── instância única: a segunda avisa a primeira ──────────
+    public const int ASFW_ANY = -1;
+
+    /// <summary>O título guardado da janela, lido sem mandar mensagem a ela — ao contrário do
+    /// <see cref="GetWindowText"/>, que numa janela de outro processo espera a resposta e trava junto
+    /// se aquele programa estiver travado.</summary>
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+    public static extern int InternalGetWindowText(nint hWnd, StringBuilder text, int count);
+
+    [DllImport("user32.dll")]
+    public static extern bool AllowSetForegroundWindow(int processId);
+
     // ── AppUserModelID: o que separa dois perfis do mesmo .exe ──
     [DllImport("shell32.dll")]
     public static extern int SHGetPropertyStoreForWindow(nint hWnd, ref Guid iid, out IPropertyStore store);

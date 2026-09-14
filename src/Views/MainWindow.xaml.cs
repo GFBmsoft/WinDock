@@ -344,6 +344,15 @@ public partial class MainWindow : Window
 
     private nint OnWindowMessage(nint hWnd, int msg, nint wParam, nint lParam, ref bool handled)
     {
+        // o recado de uma segunda instância que foi aberta e já saiu (veja App.OnStartup)
+        if (App.OpenSettingsMessage != 0 && msg == (int)App.OpenSettingsMessage)
+        {
+            Log.Trace("outra instância foi aberta: mostrando as configurações desta");
+            OpenSettings();
+            handled = true;
+            return 0;
+        }
+
         if (msg != (int)WM_HOTKEY) return 0;
 
         var id = (int)wParam;
