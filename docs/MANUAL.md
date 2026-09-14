@@ -157,7 +157,7 @@ monitor aceita ser controlado (veja [Brilho](#brilho)). **A ordem é sua** — v
 | ação | como |
 |---|---|
 | Calendário do mês | clique na data |
-| Anotar um dia | clique no dia dentro do calendário |
+| Ver, anotar e mover as tarefas de um dia | clique no dia dentro do calendário |
 | Ver os ícones da bandeja | a seta `⌄` |
 | Abrir um programa da bandeja | clique no ícone dele |
 | Menu de um programa da bandeja (Sair, etc.) | botão direito no ícone dele |
@@ -181,17 +181,19 @@ Clique na data, na barra de cima, e o mês aparece. Dentro dele:
   qualquer ano que você folhear vem certo, sem internet e sem atualizar nada todo ano. A
   quarta-feira de cinzas fica de fora de propósito — é dia útil.
 - **Anotações em azul**, com um pontinho embaixo do número — que fica **verde** quando tudo do dia
-  já está marcado como feito. Clique num dia para abrir a lista dele. Cada linha traz uma bolinha
-  para marcar como concluído (o texto fica riscado), um `→` para mover de dia e um `✕` para
-  remover; `Enter` ou o botão `+` acrescenta mais uma.
-- **Cada ação grava na hora** — não há botão de confirmar, e fechar a janela com algo escrito no
-  campo aproveita o texto em vez de descartá-lo. O `Esc` fecha a caixa **e** o calendário atrás
-  dela; fechar pelo `X` deixa o calendário aberto, para anotar outro dia em seguida.
-- **Mover uma anotação**: o `→` abre um campo já preenchido com o dia seguinte, e `Enter` move.
-  Dia e mês bastam (`15/09`); sem o ano vale o do dia aberto, e uma data que cairia muito para trás
-  (digitar `05/01` numa caixa de dezembro) é entendida como o ano que vem.
-
-![As anotações de um dia](img/notas.png)
+  já está marcado como feito. **Clique num dia** e as tarefas dele aparecem embaixo do mês, no
+  próprio cartão, com um anel em volta do dia; clicar de novo no mesmo dia recolhe a lista. Tudo
+  acontece ali: a bolinha marca como concluído (o texto fica riscado), o `✕` remove, e o campo
+  **Nova tarefa** acrescenta com `Enter` ou com o `+`.
+- **O teclado só vai para o cartão quando você clica num campo.** A barra de cima normalmente não
+  recebe teclado — é o que a deixa ser clicada sem tirar o foco do programa em que você está. Ao
+  clicar no campo ela pega o teclado, e ao fechar o cartão devolve o foco ao programa de antes.
+- **Cada ação grava na hora** — não há botão de confirmar, e fechar o cartão com algo escrito no
+  campo aproveita o texto como tarefa em vez de descartá-lo. O `Esc` fecha o cartão.
+- **Mover uma tarefa**: o `→` abre um campo já preenchido com o dia seguinte, e `Enter` (ou
+  **Mover**) leva a tarefa; **Cancelar** desiste. Dia e mês bastam (`15/09`); sem o ano vale o do
+  dia aberto, e uma data que cairia muito para trás (digitar `05/01` com um dia de dezembro aberto)
+  é entendida como o ano que vem.
 
 As anotações ficam em `CalendarNotes`, no `config.json`.
 

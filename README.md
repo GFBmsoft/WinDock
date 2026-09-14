@@ -559,7 +559,6 @@ e os testes em `tests/`.
 | `src/Views/SettingsWindow.xaml` | o painel de configurações |
 | `src/Views/ThumbnailWindow.xaml` | o preview ao vivo das janelas de um app |
 | `src/Views/ConfirmWindow.xaml` | a caixa de pergunta, no desenho e no tema do Windows 11 |
-| `src/Views/NoteWindow.xaml` | as anotações de um dia do calendário |
 | `src/Views/TilingBorderWindow.cs` | o contorno da janela em foco no mosaico |
 | `src/Interop/Native.cs` | assinaturas Win32, sem estado |
 | `src/Interop/AppBar.cs` | `SHAppBarMessage`: reserva a faixa e reposiciona quando o shell muda |

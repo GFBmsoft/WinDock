@@ -18,6 +18,20 @@
   <Window.Resources>
 
     <BooleanToVisibilityConverter x:Key="BoolToVisible" />
+
+    <!-- os campos de texto do cartão do calendário, escuros como o cartão (o TextBox do WPF viria
+         branco) -->
+    <Style x:Key="CalendarField" TargetType="TextBox">
+      <Setter Property="Background" Value="#FF2D2D2D" />
+      <Setter Property="Foreground" Value="#FFF2F2F2" />
+      <Setter Property="CaretBrush" Value="#FFF2F2F2" />
+      <Setter Property="SelectionBrush" Value="#FF4CC2FF" />
+      <Setter Property="BorderBrush" Value="#33FFFFFF" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="Padding" Value="6,4" />
+      <Setter Property="FontSize" Value="12" />
+      <Setter Property="VerticalContentAlignment" Value="Center" />
+    </Style>
     <ui:BoolToCollapsed x:Key="BoolToCollapsed" />
 
     <Style x:Key="PanelButton" TargetType="Button">
@@ -940,13 +954,138 @@
                       <Setter TargetName="Number" Property="FontWeight" Value="SemiBold" />
                       <Setter TargetName="NoteDot" Property="Fill" Value="White" />
                     </DataTrigger>
+                    <!-- o dia escolhido ganha um anel: é dele a lista que aparece embaixo do mês -->
+                    <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                      <Setter TargetName="Cell" Property="BorderBrush" Value="#FF4CC2FF" />
+                      <Setter TargetName="Cell" Property="BorderThickness" Value="1.5" />
+                    </DataTrigger>
                   </DataTemplate.Triggers>
                 </DataTemplate>
               </ItemsControl.ItemTemplate>
             </ItemsControl>
 
-            <TextBlock Text="Clique num dia para anotar" Foreground="#FF8A8A8A" FontSize="10"
-                       HorizontalAlignment="Center" Margin="0,6,0,0" />
+            <TextBlock Text="Clique num dia para ver as tarefas" Foreground="#FF8A8A8A" FontSize="10"
+                       HorizontalAlignment="Center" Margin="0,6,0,0">
+              <TextBlock.Visibility>
+                <Binding Path="HasSelection">
+                  <Binding.Converter>
+                    <ui:InverseBoolToVisibility />
+                  </Binding.Converter>
+                </Binding>
+              </TextBlock.Visibility>
+            </TextBlock>
+
+            <!-- as tarefas do dia escolhido, tudo no próprio cartão: marcar feito, remover, mover e
+                 escrever. A barra é WS_EX_NOACTIVATE e não recebe teclado; os dois campos de texto
+                 pedem o teclado para ela só quando são clicados (OnCalendarFieldMouseDown) -->
+            <StackPanel Margin="0,8,0,0" Visibility="{Binding HasSelection, Converter={StaticResource BoolToVisible}}">
+              <Border Height="1" Background="#22FFFFFF" Margin="0,0,0,8" />
+              <TextBlock Text="{Binding SelectedTitle}" Foreground="#FFF2F2F2" FontSize="12"
+                         FontWeight="SemiBold" Margin="4,0,0,2" />
+              <TextBlock Text="{Binding SelectedHoliday}" Foreground="#FFFF6B6B" FontSize="11" Margin="4,0,0,2"
+                         Visibility="{Binding HasSelectedHoliday, Converter={StaticResource BoolToVisible}}" />
+              <TextBlock Text="Nada anotado neste dia." Foreground="#FF8A8A8A" FontSize="11" Margin="4,2,0,2"
+                         Visibility="{Binding SelectedEmpty, Converter={StaticResource BoolToVisible}}" />
+
+              <ItemsControl ItemsSource="{Binding SelectedNotes}" Margin="0,2,0,0">
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate>
+                    <Grid Margin="0,1">
+                      <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                      </Grid.ColumnDefinitions>
+                      <Button Style="{StaticResource PanelButton}" Click="OnCalendarNoteDone" Padding="4,3"
+                              VerticalAlignment="Center" ToolTip="Marcar como feito (de novo, desmarca)">
+                        <Border x:Name="Bolinha" Width="14" Height="14" CornerRadius="7" BorderThickness="1.5"
+                                BorderBrush="#FF8A8A8A" Background="Transparent">
+                          <TextBlock x:Name="Visto" Text="✓" FontSize="9" Foreground="White" Visibility="Collapsed"
+                                     HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                      </Button>
+                      <TextBlock x:Name="Texto" Grid.Column="1" Text="{Binding Text}" Foreground="#FFE8E8EA"
+                                 FontSize="12" TextWrapping="Wrap" VerticalAlignment="Center" Margin="4,0" />
+                      <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                        <Button Style="{StaticResource PanelButton}" Click="OnCalendarNoteMove"
+                                Padding="6,3" ToolTip="Mover para outro dia">
+                          <TextBlock Text="→" Foreground="#FF8A8A8A" FontSize="12" />
+                        </Button>
+                        <Button Style="{StaticResource PanelButton}" Click="OnCalendarNoteRemove"
+                                Padding="6,3" ToolTip="Remover">
+                          <TextBlock Text="✕" Foreground="#FF8A8A8A" FontSize="11" />
+                        </Button>
+                      </StackPanel>
+                    </Grid>
+                    <DataTemplate.Triggers>
+                      <DataTrigger Binding="{Binding Done}" Value="True">
+                        <Setter TargetName="Bolinha" Property="Background" Value="#FF6CCB5F" />
+                        <Setter TargetName="Bolinha" Property="BorderBrush" Value="#FF6CCB5F" />
+                        <Setter TargetName="Visto" Property="Visibility" Value="Visible" />
+                        <Setter TargetName="Texto" Property="TextDecorations" Value="Strikethrough" />
+                        <Setter TargetName="Texto" Property="Foreground" Value="#FF8A8A8A" />
+                      </DataTrigger>
+                    </DataTemplate.Triggers>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+
+              <!-- mover: só aparece depois do "→" de uma tarefa; um campo de data parado ali o tempo
+                   todo pediria atenção para algo que quase nunca se usa -->
+              <Border x:Name="MovePanel" Visibility="Collapsed" Margin="0,6,0,0" Background="#FF2D2D2D"
+                      BorderBrush="#FF4CC2FF" BorderThickness="1" CornerRadius="6" Padding="8,6">
+                <StackPanel>
+                  <TextBlock x:Name="MoveHeading" Foreground="#FFC5C5C5" FontSize="11" TextWrapping="Wrap" />
+                  <Grid Margin="0,5,0,0">
+                    <Grid.ColumnDefinitions>
+                      <ColumnDefinition Width="*" />
+                      <ColumnDefinition Width="Auto" />
+                      <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <TextBox x:Name="MoveBox" Style="{StaticResource CalendarField}" MaxLength="10"
+                             KeyDown="OnMoveKeyDown" PreviewMouseLeftButtonDown="OnCalendarFieldMouseDown" />
+                    <Button Grid.Column="1" Style="{StaticResource PanelButton}" Click="OnMoveConfirm"
+                            Padding="8,3" Margin="4,0,0,0">
+                      <TextBlock Text="Mover" Foreground="#FF4CC2FF" FontSize="12" />
+                    </Button>
+                    <Button Grid.Column="2" Style="{StaticResource PanelButton}" Click="OnMoveCancel" Padding="8,3">
+                      <TextBlock Text="Cancelar" Foreground="#FFC5C5C5" FontSize="12" />
+                    </Button>
+                  </Grid>
+                  <TextBlock x:Name="MoveHint" Foreground="#FF8A8A8A" FontSize="10" Margin="0,4,0,0"
+                             TextWrapping="Wrap" />
+                </StackPanel>
+              </Border>
+
+              <!-- nova tarefa: o clique no campo é o que dá o teclado à barra -->
+              <Grid Margin="0,6,0,0">
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="*" />
+                  <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <TextBox x:Name="NewNoteBox" Style="{StaticResource CalendarField}" MaxLength="200"
+                         KeyDown="OnNewNoteKeyDown" PreviewMouseLeftButtonDown="OnCalendarFieldMouseDown" />
+                <TextBlock Text="Nova tarefa..." Foreground="#FF6A6A6A" FontSize="12" Margin="9,0,0,0"
+                           VerticalAlignment="Center" IsHitTestVisible="False">
+                  <TextBlock.Style>
+                    <Style TargetType="TextBlock">
+                      <Setter Property="Visibility" Value="Collapsed" />
+                      <Style.Triggers>
+                        <DataTrigger Binding="{Binding Text, ElementName=NewNoteBox}" Value="">
+                          <Setter Property="Visibility" Value="Visible" />
+                        </DataTrigger>
+                      </Style.Triggers>
+                    </Style>
+                  </TextBlock.Style>
+                </TextBlock>
+                <Button Grid.Column="1" Style="{StaticResource PanelButton}" Click="OnNewNoteAdd"
+                        Padding="10,3" Margin="4,0,0,0" ToolTip="Adicionar (ou tecle Enter)">
+                  <TextBlock Text="+" Foreground="#FF4CC2FF" FontSize="15" />
+                </Button>
+              </Grid>
+              <TextBlock Text="Enter adiciona · bolinha marca feito · → move · ✕ remove · Esc fecha"
+                         Foreground="#FF6A6A6A" FontSize="10" Margin="4,4,0,0" TextWrapping="Wrap" />
+            </StackPanel>
 
             <!-- só aparece depois de folhear para outro mês -->
             <Button Style="{StaticResource PanelButton}" Click="OnCalendarToday" Margin="0,6,0,0"

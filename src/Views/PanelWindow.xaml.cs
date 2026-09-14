@@ -624,8 +624,10 @@ public partial class PanelWindow : Window
         CloseOpenPanels();
         if (_calendarWasOpen) { WatchOutsideClick(); return; }
 
-        // abre sempre no mês de hoje, mesmo que da última vez tenham folheado para longe
+        // abre sempre no mês de hoje, mesmo que da última vez tenham folheado para longe, e só com
+        // o mês: a lista de tarefas aparece quando a pessoa escolhe um dia
         _model.Calendar.GoToToday();
+        _model.Calendar.ClearSelection();
 
         // o painel nasce embaixo da data que foi clicada — ela troca de lugar conforme a
         // opção de relógio centralizado
@@ -639,45 +641,185 @@ public partial class PanelWindow : Window
     private void OnCalendarToday(object sender, RoutedEventArgs e) => _model.Calendar.GoToToday();
 
     /// <summary>
-    /// Clique num dia: abre a caixa para escrever (ou apagar) a anotação daquela data.
+    /// Clique num dia: mostra as tarefas dele embaixo do mês, no próprio cartão.
     ///
-    /// O cartão do calendário fica aberto por trás de propósito — fechá-lo aqui tiraria da
-    /// vista justamente o mês que a pessoa está anotando. Quem cuida de fechar continua sendo o
-    /// clique fora, o Esc ou o próprio botão do relógio.
-    ///
-    /// O vigia de clique fora é parado enquanto a caixa está na tela: ela rouba o foco (é uma
-    /// janela de verdade), e sem isso o primeiro clique dentro dela seria lido como "clique
-    /// fora do cartão" e derrubaria o calendário no instante em que a caixa aparecesse.
+    /// Marcar como feito, remover, mover e escrever acontecem ali mesmo. Os campos de texto pedem o
+    /// teclado para a barra só quando são clicados (<see cref="OnCalendarFieldMouseDown"/>).
     /// </summary>
     private void OnCalendarDay(object sender, MouseButtonEventArgs e)
     {
         if (((FrameworkElement)sender).DataContext is not CalendarDay dia) return;
 
         Log.Trace($"clique no dia {dia.Date:yyyy-MM-dd} do calendário");
+        CancelMove();   // mover é de uma tarefa do dia que estava aberto
 
-        var vigiava = _outsideClick.IsEnabled;
-        _outsideClick.Stop();
+        // clicar de novo no dia que já está aberto recolhe a lista — o mesmo gesto abre e fecha
+        if (_model.Calendar.SelectedDate == dia.Date) _model.Calendar.ClearSelection();
+        else _model.Calendar.Select(dia.Date);
+    }
 
-        var saiuComEsc = NoteWindow.Edit(this, dia.Date, dia.Holiday, dia.Notes,
-                                         notas => _model.Calendar.SetNotes(dia.Date, notas),
-                                         (destino, nota) => _model.Calendar.AddNote(destino, nota));
+    private void OnCalendarNoteDone(object sender, RoutedEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.DataContext is CalendarNote nota) _model.Calendar.ToggleDone(nota);
+    }
 
-        // o que ficou para trás no estado do teclado e do mouse é descartado antes de o vigia
-        // voltar: sem isso o clique dentro da caixa contaria como "clique fora" do cartão
-        GetAsyncKeyState(VK_ESCAPE);
-        GetAsyncKeyState(VK_LBUTTON);
+    private void OnCalendarNoteRemove(object sender, RoutedEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.DataContext is CalendarNote nota) _model.Calendar.RemoveNote(nota);
+    }
 
-        // Esc fecha tudo, e não uma janela por vez: quem apertou queria sair do calendário, não
-        // trocar a caixa de anotação por um cartão que ainda pede outro gesto. Fechar pelo X ou
-        // clicando fora não leva o cartão junto — aí o gesto foi só "terminei com este dia".
-        if (saiuComEsc)
+    // ── calendário: escrever no próprio cartão ──────────────
+
+    /// <summary>
+    /// Quem estava em primeiro plano antes de a pessoa clicar num campo de texto do cartão — é para
+    /// ele que o teclado volta quando o cartão fecha. Zero quando a barra não pegou o teclado.
+    /// </summary>
+    private nint _typingFrom;
+
+    /// <summary>
+    /// Clique num campo de texto do calendário: a barra pega o teclado, só agora.
+    ///
+    /// A barra é <c>WS_EX_NOACTIVATE</c> — clicar nela não tira o foco de quem está trabalhando, e
+    /// o preço disso é nenhuma tecla chegar aqui. O próprio Windows prevê a saída: uma janela assim
+    /// não é ativada por clique, mas pode ser por código. Então só o gesto de clicar num campo, que
+    /// é a pessoa dizendo "vou escrever", traz a barra para o primeiro plano; o resto do cartão
+    /// continua sem roubar nada. O foco volta a quem o tinha quando o cartão fecha
+    /// (<see cref="ReturnKeyboard"/>).
+    /// </summary>
+    private void OnCalendarFieldMouseDown(object sender, MouseButtonEventArgs e)
+    {
+        if (sender is TextBox campo) TakeKeyboard(campo, selecionar: false);
+    }
+
+    private void TakeKeyboard(TextBox campo, bool selecionar)
+    {
+        var barra = new WindowInteropHelper(this).Handle;
+        var antes = GetForegroundWindow();
+        if (antes != barra)
         {
-            Log.Trace("Esc na caixa de anotação: fechando o calendário junto");
-            CloseAllPopups();
+            _typingFrom = antes;
+            WindowService.Focus(barra);
+            Log.Trace($"campo do calendário: teclado pedido para a barra (antes={antes:X}, agora={GetForegroundWindow():X})");
+        }
+
+        // O WPF devolve o foco ao último elemento da janela quando ela é ativada; o campo é focado
+        // depois disso, pela fila, para ser ele quem fica com o cursor
+        Dispatcher.InvokeAsync(() =>
+        {
+            campo.Focus();
+            Keyboard.Focus(campo);
+            if (selecionar) campo.SelectAll();
+        }, System.Windows.Threading.DispatcherPriority.Input);
+    }
+
+    /// <summary>
+    /// Devolve o teclado ao programa que o tinha antes do clique num campo do calendário.
+    ///
+    /// Só se a barra ainda estiver com ele: se a pessoa fechou o cartão clicando noutro programa, o
+    /// Windows já deu o foco a esse programa, e tirar dele seria roubar o clique.
+    /// </summary>
+    private void ReturnKeyboard()
+    {
+        if (_typingFrom == 0) return;
+
+        var anterior = _typingFrom;
+        _typingFrom = 0;
+
+        if (GetForegroundWindow() != new WindowInteropHelper(this).Handle) return;
+        if (IsWindow(anterior)) WindowService.Focus(anterior);
+    }
+
+    private void OnNewNoteKeyDown(object sender, KeyEventArgs e)
+    {
+        // Enter grava e deixa o campo pronto para a próxima: um dia costuma ter mais de um
+        // compromisso
+        if (e.Key != Key.Enter) return;
+        CommitNewNote();
+        e.Handled = true;
+    }
+
+    private void OnNewNoteAdd(object sender, RoutedEventArgs e) => CommitNewNote();
+
+    /// <summary>
+    /// Passa o que estiver no campo para o dia escolhido. Também chamado quando o cartão fecha:
+    /// digitar e fechar sem Enter é um gesto comum demais para custar o texto.
+    /// </summary>
+    private void CommitNewNote()
+    {
+        var texto = NewNoteBox.Text.Trim();
+        if (texto.Length == 0) return;
+
+        _model.Calendar.AddToSelected(texto);
+        NewNoteBox.Clear();
+    }
+
+    // ── calendário: mover uma tarefa de dia ─────────────────
+
+    /// <summary>A tarefa escolhida para mudar de dia, enquanto o campo de data está aberto.</summary>
+    private CalendarNote? _moving;
+
+    private static readonly Brush MoveHintBrush = CreateMoveHintBrush();
+
+    private static Brush CreateMoveHintBrush()
+    {
+        var brush = new SolidColorBrush(Color.FromRgb(0x8A, 0x8A, 0x8A));
+        brush.Freeze();
+        return brush;
+    }
+
+    /// <summary>
+    /// "→" numa tarefa: abre o campo de data já preenchido com o dia seguinte e selecionado — "não
+    /// deu hoje" é de longe o motivo mais comum de mover, e assim o caso comum sai com um Enter. O
+    /// clique no "→" já pega o teclado, como o clique num campo.
+    /// </summary>
+    private void OnCalendarNoteMove(object sender, RoutedEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.DataContext is not CalendarNote nota) return;
+        if (_model.Calendar.SelectedDate is not { } dia) return;
+
+        _moving = nota;
+        var resumo = nota.Text.Length <= 34 ? nota.Text : nota.Text[..31] + "...";
+        MoveHeading.Text = $"Mover “{resumo}” para:";
+        MoveHint.Text = "Dia e mês bastam (15/09). Enter move.";
+        MoveHint.Foreground = MoveHintBrush;
+        MoveBox.Text = dia.AddDays(1).ToString("dd/MM/yyyy", System.Globalization.CultureInfo.CurrentCulture);
+        MovePanel.Visibility = Visibility.Visible;
+
+        TakeKeyboard(MoveBox, selecionar: true);
+    }
+
+    private void OnMoveKeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key != Key.Enter) return;
+        ConfirmMove();
+        e.Handled = true;
+    }
+
+    private void OnMoveConfirm(object sender, RoutedEventArgs e) => ConfirmMove();
+    private void OnMoveCancel(object sender, RoutedEventArgs e) => CancelMove();
+
+    private void CancelMove()
+    {
+        _moving = null;
+        MovePanel.Visibility = Visibility.Collapsed;
+    }
+
+    private void ConfirmMove()
+    {
+        if (_moving is not { } nota || _model.Calendar.SelectedDate is not { } dia) { CancelMove(); return; }
+
+        if (!MonthCalendar.TryParseDay(dia, MoveBox.Text, out var destino))
+        {
+            MoveHint.Text = "Não entendi essa data. Tente 15/09 ou 15/09/2026.";
+            MoveHint.Foreground = Brushes.IndianRed;
+            MoveBox.SelectAll();
             return;
         }
 
-        if (vigiava && AnyPopupOpen) _outsideClick.Start();
+        if (_model.Calendar.MoveNote(nota, destino))
+            Log.Trace($"anotação movida de {dia:yyyy-MM-dd} para {destino:yyyy-MM-dd}");
+
+        CancelMove();
     }
 
     /// <summary>
@@ -943,6 +1085,14 @@ public partial class PanelWindow : Window
     {
         if (AnyPopupOpen) Log.Trace($"fechando os cartões (pedido por {origem})");
 
+        // o calendário fechando leva junto o que ficou escrito no campo (vira tarefa, como no Enter)
+        // e desiste de mover
+        if (CalendarPopup.IsOpen)
+        {
+            CommitNewNote();
+            CancelMove();
+        }
+
         BluetoothPopup.IsOpen = false;
         VolumePopup.IsOpen = false;
         PowerPopup.IsOpen = false;
@@ -960,5 +1110,8 @@ public partial class PanelWindow : Window
 
         // a dica do botão da bandeja volta a valer quando o cartão sai de cena
         // a dica nao volta aqui: quem a devolve e a saida do mouse da seta
+
+        // se um campo do calendário tinha pegado o teclado, ele volta a quem o tinha
+        ReturnKeyboard();
     }
 }
