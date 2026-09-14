@@ -26,6 +26,7 @@ public partial class PanelWindow : Window
     {
         _config = config;
         _model = new PanelModel(config);
+        _model.Calendar.PurgeDone(DateTime.Now);
 
         InitializeComponent();
         DataContext = _model;
@@ -623,6 +624,9 @@ public partial class PanelWindow : Window
     {
         CloseOpenPanels();
         if (_calendarWasOpen) { WatchOutsideClick(); return; }
+
+        // antes de desenhar: as concluídas que já passaram do prazo não chegam a aparecer
+        _model.Calendar.PurgeDone(DateTime.Now);
 
         // abre sempre no mês de hoje, mesmo que da última vez tenham folheado para longe, e só com
         // o mês: a lista de tarefas aparece quando a pessoa escolhe um dia

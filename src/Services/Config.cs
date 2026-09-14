@@ -34,6 +34,12 @@ public sealed class CalendarNote : INotifyPropertyChanged
         }
     }
 
+    /// <summary>
+    /// Quando a tarefa foi marcada como feita — é daqui que conta o prazo para ela se apagar
+    /// sozinha (<see cref="DockConfig.CalendarDoneRetentionDays"/>). Vazio enquanto não está feita.
+    /// </summary>
+    public DateTime? DoneAt { get; set; }
+
     public event PropertyChangedEventHandler? PropertyChanged;
 }
 
@@ -81,6 +87,7 @@ public sealed class CalendarNotesConverter : JsonConverter<Dictionary<string, Li
                         {
                             string? texto = null;
                             var feito = false;
+                            DateTime? feitoEm = null;
 
                             while (reader.Read() && reader.TokenType != JsonTokenType.EndObject)
                             {
@@ -93,11 +100,16 @@ public sealed class CalendarNotesConverter : JsonConverter<Dictionary<string, Li
                                     texto = reader.TokenType == JsonTokenType.String ? reader.GetString() : null;
                                 else if (string.Equals(campo, "Done", StringComparison.OrdinalIgnoreCase))
                                     feito = reader.TokenType == JsonTokenType.True;
+                                else if (string.Equals(campo, "DoneAt", StringComparison.OrdinalIgnoreCase) &&
+                                         reader.TokenType == JsonTokenType.String &&
+                                         DateTime.TryParse(reader.GetString(), System.Globalization.CultureInfo.InvariantCulture,
+                                                           System.Globalization.DateTimeStyles.RoundtripKind, out var em))
+                                    feitoEm = em;
                                 else
                                     reader.Skip();
                             }
 
-                            Add(itens, texto, feito);
+                            Add(itens, texto, feito, feitoEm);
                         }
                         else reader.Skip();
                     }
@@ -114,10 +126,15 @@ public sealed class CalendarNotesConverter : JsonConverter<Dictionary<string, Li
         return notas;
     }
 
-    private static void Add(List<CalendarNote> itens, string? texto, bool feito)
+    /// <summary>
+    /// Uma tarefa feita que chega sem <see cref="CalendarNote.DoneAt"/> — gravada antes de o campo
+    /// existir — ganha a hora desta leitura. Assim o prazo de apagar conta a partir de agora, em vez
+    /// de todas as tarefas já concluídas sumirem de uma vez na primeira limpeza.
+    /// </summary>
+    private static void Add(List<CalendarNote> itens, string? texto, bool feito, DateTime? feitoEm = null)
     {
         if (string.IsNullOrWhiteSpace(texto)) return;
-        itens.Add(new CalendarNote { Text = texto.Trim(), Done = feito });
+        itens.Add(new CalendarNote { Text = texto.Trim(), Done = feito, DoneAt = feito ? feitoEm ?? DateTime.Now : null });
     }
 
     public override void Write(Utf8JsonWriter writer, Dictionary<string, List<CalendarNote>> value,
@@ -133,6 +150,8 @@ public sealed class CalendarNotesConverter : JsonConverter<Dictionary<string, Li
                 writer.WriteStartObject();
                 writer.WriteString("Text", item.Text);
                 writer.WriteBoolean("Done", item.Done);
+                if (item.Done && item.DoneAt is { } feitoEm)
+                    writer.WriteString("DoneAt", feitoEm.ToString("o", System.Globalization.CultureInfo.InvariantCulture));
                 writer.WriteEndObject();
             }
             writer.WriteEndArray();
@@ -470,6 +489,17 @@ public sealed class DockConfig : INotifyPropertyChanged
     [JsonConverter(typeof(CalendarNotesConverter))]
     public Dictionary<string, List<CalendarNote>> CalendarNotes { get; set; } = new();
 
+    private int _calendarDoneRetentionDays = 2;
+    /// <summary>
+    /// Depois de quantos dias uma tarefa concluída do calendário se apaga sozinha, contando de
+    /// quando foi marcada como feita (<see cref="CalendarNote.DoneAt"/>). Zero: nunca.
+    /// </summary>
+    public int CalendarDoneRetentionDays
+    {
+        get => _calendarDoneRetentionDays;
+        set => Set(ref _calendarDoneRetentionDays, Clamp(value, 0, 365));
+    }
+
     /// <summary>Apps fixados, na ordem em que aparecem.</summary>
     public List<PinnedApp> Pinned { get; set; } = new();
 
@@ -545,6 +575,7 @@ public sealed class DockConfig : INotifyPropertyChanged
         NumberHotkeys = d.NumberHotkeys;
         PanelBackground = d.PanelBackground; PanelOpacity = d.PanelOpacity;
         PanelCenterClock = d.PanelCenterClock;
+        CalendarDoneRetentionDays = d.CalendarDoneRetentionDays;
         PanelTray = d.PanelTray; PanelAppVolume = d.PanelAppVolume; PanelMedia = d.PanelMedia;
         PanelBrightness = d.PanelBrightness;
         Panel = d.Panel; PanelSize = d.PanelSize;

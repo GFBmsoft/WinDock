@@ -170,7 +170,12 @@ public sealed class MonthCalendar : INotifyPropertyChanged
     {
         var chave = Key(date);
         var limpos = itens.Where(n => !string.IsNullOrWhiteSpace(n.Text))
-                          .Select(n => new CalendarNote { Text = n.Text.Trim(), Done = n.Done })
+                          .Select(n => new CalendarNote
+                          {
+                              Text = n.Text.Trim(),
+                              Done = n.Done,
+                              DoneAt = n.Done ? n.DoneAt ?? DateTime.Now : null
+                          })
                           .ToList();
 
         if (limpos.Count == 0)
@@ -241,7 +246,7 @@ public sealed class MonthCalendar : INotifyPropertyChanged
     {
         if (_selected is not { } dia) return;
         SetNotes(dia, NotesOf(dia).Select(n => ReferenceEquals(n, nota)
-            ? new CalendarNote { Text = n.Text, Done = !n.Done }
+            ? new CalendarNote { Text = n.Text, Done = !n.Done, DoneAt = n.Done ? null : DateTime.Now }
             : n).ToList());
     }
 
@@ -269,9 +274,43 @@ public sealed class MonthCalendar : INotifyPropertyChanged
     {
         if (_selected is not { } dia || destino.Date == dia) return false;
 
-        AddNote(destino.Date, new CalendarNote { Text = nota.Text, Done = nota.Done });
+        AddNote(destino.Date, new CalendarNote { Text = nota.Text, Done = nota.Done, DoneAt = nota.DoneAt });
         RemoveNote(nota);
         return true;
+    }
+
+    /// <summary>
+    /// Apaga as tarefas concluídas há mais de <see cref="DockConfig.CalendarDoneRetentionDays"/>
+    /// dias, contando de quando foram marcadas como feitas. Com o prazo em zero, não apaga nada.
+    ///
+    /// Roda quando a barra sobe, quando o calendário abre e quando o prazo muda — nunca com o cartão
+    /// aberto sozinho, para nada sumir debaixo do mouse de quem está olhando a lista.
+    /// </summary>
+    public void PurgeDone(DateTime agora)
+    {
+        var dias = _config.CalendarDoneRetentionDays;
+        if (dias <= 0) return;
+
+        var limite = agora.AddDays(-dias);
+        var removidas = 0;
+
+        foreach (var chave in _config.CalendarNotes.Keys.ToList())
+        {
+            var itens = _config.CalendarNotes[chave];
+            var ficam = itens.Where(n => !(n.Done && n.DoneAt is { } feitoEm && feitoEm <= limite)).ToList();
+            if (ficam.Count == itens.Count) continue;
+
+            removidas += itens.Count - ficam.Count;
+            if (ficam.Count == 0) _config.CalendarNotes.Remove(chave);
+            else _config.CalendarNotes[chave] = ficam;
+        }
+
+        if (removidas == 0) return;
+
+        Log.Trace($"calendário: {removidas} tarefa(s) concluída(s) há mais de {dias} dia(s) apagada(s)");
+        _config.Save();
+        Raise(nameof(Days));
+        RaiseSelection();
     }
 
     /// <summary>

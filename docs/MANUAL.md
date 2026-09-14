@@ -188,6 +188,10 @@ Clique na data, na barra de cima, e o mês aparece. Dentro dele:
 - **O teclado só vai para o cartão quando você clica num campo.** A barra de cima normalmente não
   recebe teclado — é o que a deixa ser clicada sem tirar o foco do programa em que você está. Ao
   clicar no campo ela pega o teclado, e ao fechar o cartão devolve o foco ao programa de antes.
+- **Tarefas concluídas se apagam sozinhas** depois de **2 dias**, contando de quando foram marcadas
+  como feitas (desmarcar zera a contagem). O prazo — ou **Nunca** — fica em
+  **Configurações > Apagar tarefas concluídas**. A limpeza acontece ao abrir o calendário, então nada
+  some com a lista aberta na sua frente.
 - **Marcar, remover e mover gravam na hora.** Uma tarefa nova só é gravada com `Enter` ou com o
   `+`: fechar o cartão (`Esc` ou clique fora) com algo escrito no campo **descarta** o texto.
 - **Mover uma tarefa**: o `→` abre um campo já preenchido com o dia seguinte, e `Enter` (ou

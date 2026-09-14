@@ -675,6 +675,9 @@ public sealed class PanelModel : INotifyPropertyChanged, IDisposable
 
         // marcar ou desmarcar um programa reavalia qual sessão a barra segue, na hora
         if (e.PropertyName is nameof(DockConfig.MediaApps)) _media.SetAllowed(_config.MediaApps);
+
+        // prazo novo vale na hora: diminuir de 30 para 2 dias apaga agora o que já passou dos 2
+        if (e.PropertyName is nameof(DockConfig.CalendarDoneRetentionDays)) Calendar.PurgeDone(DateTime.Now);
     }
 
     private void Update()

@@ -4,6 +4,7 @@
         xmlns:interop="clr-namespace:WinDock.Interop"
         xmlns:ui="clr-namespace:WinDock.Ui"
         xmlns:services="clr-namespace:WinDock.Services"
+        xmlns:sys="clr-namespace:System;assembly=System.Runtime"
         Title="Configurações do WinDock" Icon="/assets/windock.ico"
         Width="560" Height="700" ResizeMode="CanResize" MinWidth="480" MinHeight="420"
         WindowStartupLocation="CenterScreen" ShowInTaskbar="True"
@@ -480,6 +481,32 @@
             </StackPanel>
             <CheckBox Grid.Column="1" Style="{StaticResource FluentToggle}"
                       IsChecked="{Binding PanelCenterClock, Mode=TwoWay}" />
+          </Grid>
+        </Border>
+
+        <!-- uma lista, e não um controle deslizante: a limpeza roda assim que o prazo muda, e
+             arrastar de 30 até "Nunca" passaria por 1 dia no caminho, apagando tarefas no meio -->
+        <Border Style="{StaticResource FluentCardBorderStyle}">
+          <Grid>
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="*" />
+              <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <StackPanel VerticalAlignment="Center" Margin="0,0,12,0">
+              <TextBlock Text="Apagar tarefas concluídas" Style="{StaticResource FluentTitle}" />
+              <TextBlock Text="As do calendário, contando de quando foram marcadas como feitas"
+                         Style="{StaticResource FluentCaption}" TextWrapping="Wrap" />
+            </StackPanel>
+            <ComboBox Grid.Column="1" Width="150" Style="{StaticResource FluentCombo}"
+                      SelectedValue="{Binding CalendarDoneRetentionDays, Mode=TwoWay}" SelectedValuePath="Tag">
+              <ComboBoxItem Content="Nunca"><ComboBoxItem.Tag><sys:Int32>0</sys:Int32></ComboBoxItem.Tag></ComboBoxItem>
+              <ComboBoxItem Content="Depois de 1 dia"><ComboBoxItem.Tag><sys:Int32>1</sys:Int32></ComboBoxItem.Tag></ComboBoxItem>
+              <ComboBoxItem Content="Depois de 2 dias"><ComboBoxItem.Tag><sys:Int32>2</sys:Int32></ComboBoxItem.Tag></ComboBoxItem>
+              <ComboBoxItem Content="Depois de 3 dias"><ComboBoxItem.Tag><sys:Int32>3</sys:Int32></ComboBoxItem.Tag></ComboBoxItem>
+              <ComboBoxItem Content="Depois de 7 dias"><ComboBoxItem.Tag><sys:Int32>7</sys:Int32></ComboBoxItem.Tag></ComboBoxItem>
+              <ComboBoxItem Content="Depois de 15 dias"><ComboBoxItem.Tag><sys:Int32>15</sys:Int32></ComboBoxItem.Tag></ComboBoxItem>
+              <ComboBoxItem Content="Depois de 30 dias"><ComboBoxItem.Tag><sys:Int32>30</sys:Int32></ComboBoxItem.Tag></ComboBoxItem>
+            </ComboBox>
           </Grid>
         </Border>
 
