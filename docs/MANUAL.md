@@ -302,6 +302,7 @@ combinação. Escolher a combinação de outra ação troca as duas de lugar.
 | `Ctrl+Alt+C` | esquece o tamanho flutuante guardado do programa em foco |
 | `Alt+T` | prende a janela em foco acima das outras (de novo, solta) |
 | `Alt+Shift+← → ↑` | música: anterior, próxima, tocar ou pausar (vale com o mosaico desligado; precisa da barra superior) |
+| `Ctrl+Alt+S` | abre as Configurações; já abertas, traz para a frente (vale com o mosaico desligado) |
 
 Arrastar a divisória entre duas janelas também redimensiona. Uma janela minimizada **guarda o
 lugar dela** e volta para a mesma posição ao ser restaurada.
@@ -325,8 +326,8 @@ Aceita três formas:
 - `Microsoft.WindowsCalculator_8wekyb3d8bbwe!App` — o AppUserModelID, para apps como a Calculadora
   e as Configurações, cuja janela pertence ao `ApplicationFrameHost.exe` e não ao próprio app;
 - `classe:OperationStatusWindow` — a classe da janela, quando só **uma** janela do programa
-  incomoda. É o caso da caixa "0% concluído" do Explorer: excluir `explorer.exe` inteiro para tirá-la
-  levaria junto todas as janelas de pasta. Para descobrir a classe, ligue o rastro (crie o arquivo
+  incomoda — excluir o executável inteiro levaria junto todas as outras janelas dele. (A caixa
+  "0% concluído" do Explorer, o caso clássico, já fica de fora sozinha e aparece centralizada.) Para descobrir a classe, ligue o rastro (crie o arquivo
   `rastrear` na pasta `%APPDATA%\WinDock`) e veja as linhas `Refresh: ... [Classe] fora do mosaico`.
 
 ### Ordem dos itens da barra

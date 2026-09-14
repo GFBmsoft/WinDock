@@ -57,6 +57,9 @@ public partial class MainWindow : Window
     private const int MediaNextId = 29;
     private const int MediaPlayId = 30;
 
+    /// <summary>Ctrl+Alt+S: abre as configurações.</summary>
+    private const int SettingsHotkeyId = 31;
+
     /// <summary>
     /// Id do Alt+1; os outros oito vem somando (NumberHotkeyId + 1 e o Alt+2). Deixar por
     /// ultimo mantem a faixa 17..25 livre de choque com os ids fixos acima.
@@ -386,6 +389,7 @@ public partial class MainWindow : Window
             case MediaPreviousId:     _ = _panel?.PreviousMedia(); break;
             case MediaNextId:         _ = _panel?.NextMedia(); break;
             case MediaPlayId:         _ = _panel?.ToggleMedia(); break;
+            case SettingsHotkeyId:    OpenSettings(); break;
             default: return 0;
         }
 
@@ -412,6 +416,7 @@ public partial class MainWindow : Window
         [HotkeyAction.Topmost]    = [TopmostId],
         // três, não quatro: ←, → e ↑ na ordem de ArrowKeys; a ↓ fica para os programas
         [HotkeyAction.Media]      = [MediaPreviousId, MediaNextId, MediaPlayId],
+        [HotkeyAction.Settings]   = [SettingsHotkeyId],
     };
 
     private static readonly uint[] ArrowKeys = [VK_LEFT, VK_RIGHT, VK_UP, VK_DOWN];

@@ -4,7 +4,7 @@ namespace WinDock.Services;
 /// As ações que têm atalho configurável. O nome vira a chave no <c>config.json</c> — renomear um
 /// valor daqui faz quem já tinha escolhido voltar ao padrão.
 /// </summary>
-public enum HotkeyAction { Focus, Swap, Resize, Float, ForgetSize, Hide, Close, Topmost, Media }
+public enum HotkeyAction { Focus, Swap, Resize, Float, ForgetSize, Hide, Close, Topmost, Media, Settings }
 
 /// <summary>O que aconteceu ao registrar o atalho de uma ação.</summary>
 public enum HotkeyState { Active, Off, TilingOff, TopBarOff, InUse, Duplicate }
@@ -80,6 +80,11 @@ public static class HotkeyCatalog
         new(HotkeyAction.Media, "Música",
             "← anterior, → próxima, ↑ tocar ou pausar, no programa que a barra de mídia mostra",
             Arrows: true, Tiling: false, "Alt+Shift", TopBar: true),
+        // Ctrl+Alt como o "Esquecer tamanho": é a família dos atalhos que mexem na própria dock, e
+        // Alt+letra sozinho brigaria com os menus dos programas (Alt+S costuma ser um deles)
+        new(HotkeyAction.Settings, "Configurações",
+            "Abre este painel; se já estiver aberto, traz para a frente",
+            Arrows: false, Tiling: false, "Ctrl+Alt+S"),
     };
 
     /// <summary>Modificadores oferecidos para as ações de setas.</summary>

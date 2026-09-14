@@ -192,6 +192,11 @@ public sealed class TilingService : IDisposable
             // completo (com o ApplyAll no fim) era agendado a **cada** vez que ela ganhava
             // foco. Todo clique no WinRAR reposicionava o grid inteiro — o app estava fora do
             // mosaico, como pedido, mas continuava mandando nele.
+            // a caixa de cópia costuma vir para a frente ao aparecer: é a segunda chance de ela ir para
+            // o centro, se o SHOW chegou cedo demais (o CenterOnce só age uma vez por janela)
+            if (hWnd != 0 && !_centered.Contains(hWnd) && CenteredDialogClasses.Contains(WindowService.ClassOf(hWnd)))
+                CenterDialogSoon(hWnd);
+
             if (hWnd != 0 && !_tree.Contains(hWnd) && !_floating.Contains(hWnd) && !_stubborn.Contains(hWnd)
                 && Concerns(hWnd) && IsResizable(hWnd) && !IsExcluded(hWnd)
                 && _pending is not { Status: DispatcherOperationStatus.Pending })
@@ -310,6 +315,13 @@ public sealed class TilingService : IDisposable
         // recálculo nunca era agendado, e o arranjo só se acertava quando outra coisa qualquer
         // acontecia. A pergunta certa para esses dois eventos não é "essa janela nos interessa?"
         // (já não dá para saber) e sim "essa janela era nossa?", que a árvore ainda responde.
+        // A caixa de progresso do Explorer nunca entra no grid, mas nasce onde o Explorer quiser —
+        // às vezes colada num canto: ao aparecer, vai para o centro do monitor, uma vez. O Concerns
+        // não é perguntado agora, e sim um pouco depois: medido, no instante do SHOW ela ainda não
+        // passa nele (o título chega depois), e a centralização nunca acontecia
+        if (ev == EVENT_OBJECT_SHOW && CenteredDialogClasses.Contains(WindowService.ClassOf(hWnd)))
+            CenterDialogSoon(hWnd);
+
         if (ev is EVENT_OBJECT_DESTROY or EVENT_OBJECT_HIDE)
         {
             if (!_tree.Contains(hWnd) && !_floating.Contains(hWnd) && !_stubborn.Contains(hWnd)) return;
@@ -362,19 +374,18 @@ public sealed class TilingService : IDisposable
     /// (<c>OperationStatusWindow</c> contra <c>CabinetWClass</c>) é o que separa as duas.</summary>
     private bool IsExcluded(TaskWindow w)
     {
+        // a regra embutida vem antes da lista da pessoa, e vale com a lista vazia
+        var classe = WindowService.ClassOf(w.Handle);
+        if (CenteredDialogClasses.Contains(classe)) return true;
+
         if (_config.TilingExcludedApps.Count == 0) return false;
 
         var fileName = Path.GetFileName(w.ExePath);
-
-        // medida só se alguém realmente pedir por classe: é uma chamada ao Windows por janela,
-        // e isto roda para cada janela aberta a cada recálculo do mosaico
-        string? classe = null;
 
         foreach (var padrao in _config.TilingExcludedApps)
         {
             if (padrao.StartsWith(ClassPrefix, StringComparison.OrdinalIgnoreCase))
             {
-                classe ??= WindowService.ClassOf(w.Handle);
                 if (string.Equals(padrao[ClassPrefix.Length..].Trim(), classe, StringComparison.OrdinalIgnoreCase))
                     return true;
 
@@ -401,7 +412,8 @@ public sealed class TilingService : IDisposable
     /// comportamento de antes.</summary>
     private bool IsExcluded(nint hWnd)
     {
-        if (_config.TilingExcludedApps.Count == 0) return false;
+        // sem a lista, só a regra embutida decide — e ela precisa só da classe, sem descrever a janela
+        if (_config.TilingExcludedApps.Count == 0) return CenteredDialogClasses.Contains(WindowService.ClassOf(hWnd));
         var w = WindowService.Describe(hWnd);
         return w is not null && IsExcluded(w);
     }
@@ -845,6 +857,62 @@ public sealed class TilingService : IDisposable
         UpdateBorder();
     }
 
+    /// <summary>
+    /// Classes de janela que ficam fora do mosaico sem precisar estar na lista de exceções, e que
+    /// aparecem centralizadas.
+    ///
+    /// A <c>OperationStatusWindow</c> é a caixa de progresso de copiar e mover do Explorer. Ela tem
+    /// borda de redimensionar, título e nenhum dono — passa em todos os critérios do grid —, mas
+    /// recusa o tamanho pedido: entrava, empurrava as outras janelas para abrir espaço, era expulsa
+    /// como "teimosa" duas tentativas depois e ficava largada no pedaço de coluna que tinha recebido.
+    /// Medido em 14/09: entrou às 15:06:28.412 e saiu 270 ms depois, encostada à esquerda.
+    /// </summary>
+    private static readonly HashSet<string> CenteredDialogClasses = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "OperationStatusWindow"
+    };
+
+    /// <summary>As janelas já centralizadas: cada uma vai para o centro uma vez só. Depois disso a
+    /// posição é de quem a arrastar.</summary>
+    private readonly HashSet<nint> _centered = new();
+
+    /// <summary>Centraliza a caixa de diálogo daqui a pouco, quando ela já tiver título e passar no
+    /// <see cref="Concerns"/> — no instante em que o Windows avisa que ela apareceu, ainda não passa.</summary>
+    private void CenterDialogSoon(nint hwnd)
+    {
+        _dispatcher.InvokeAsync(async () =>
+        {
+            await Task.Delay(250);
+            if (Concerns(hwnd)) CenterOnce(hwnd);
+        }, DispatcherPriority.Background);
+    }
+
+    /// <summary>
+    /// Leva a janela para o centro da área útil do monitor em que ela está, com o tamanho dela —
+    /// só limitado à área útil, para caber inteira.
+    /// </summary>
+    private void CenterOnce(nint hwnd)
+    {
+        _centered.RemoveWhere(h => !IsWindow(h));
+        if (!IsWindow(hwnd) || IsIconic(hwnd) || IsZoomed(hwnd) || !_centered.Add(hwnd)) return;
+        if (!TryGetVisualRect(hwnd, out var r) || r.Width <= 0 || r.Height <= 0) return;
+
+        var info = new MONITORINFO { cbSize = Marshal.SizeOf<MONITORINFO>() };
+        if (!GetMonitorInfo(MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST), ref info)) return;
+        var work = info.rcWork;
+
+        var largura = Math.Min(r.Width, work.Width);
+        var altura = Math.Min(r.Height, work.Height);
+        var esquerda = work.Left + (work.Width - largura) / 2;
+        var topo = work.Top + (work.Height - altura) / 2;
+
+        Log.Trace($"CenterOnce: {hwnd:X} [{WindowService.ClassOf(hwnd)}] de {r.Left},{r.Top} para o centro " +
+                  $"({esquerda},{topo} {largura}x{altura})");
+
+        Apply(hwnd, new RECT { Left = esquerda, Top = topo, Right = esquerda + largura, Bottom = topo + altura });
+        UpdateBorder();
+    }
+
     /// <summary>Alt+Z: minimiza a janela em foco. Some do mosaico até ser restaurada.</summary>
     public void HideFocused()
     {
@@ -1038,7 +1106,16 @@ public sealed class TilingService : IDisposable
 
         if (stuck.Count > 0)
         {
-            foreach (var h in stuck) { _stubborn.Add(h); _suspect.Remove(h); _tree.Remove(h); }
+            foreach (var h in stuck)
+            {
+                _stubborn.Add(h);
+                _suspect.Remove(h);
+                _tree.Remove(h);
+
+                // sai do grid para o centro, e não fica largada no pedaço de coluna que recusou — foi
+                // assim que a caixa de cópia do Explorer acabou encostada à esquerda da tela
+                CenterOnce(h);
+            }
             Refresh();
             return;
         }
