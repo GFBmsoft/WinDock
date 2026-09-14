@@ -121,13 +121,37 @@ public static class WindowService
     /// <see cref="ForceForeground"/> desistia calado porque a janela já estava à frente. Duas
     /// vezes seguidas com o Windows Terminal, sem uma linha no log.
     /// </summary>
+    /// <summary>
+    /// <paramref name="window"/> é <paramref name="owner"/> ou pertence a ela pela cadeia de donos?
+    ///
+    /// É a pergunta que a barra do Windows faz para saber se o botão de um app está "em foco". O
+    /// caso que a expôs foi um Delphi no estilo antigo (o PAFNFCe): o botão é da janela
+    /// <c>TApplication</c> — visível, com título, altura zero e sem dono —, e quem fica em primeiro
+    /// plano é o formulário, que tem essa <c>TApplication</c> como dona. Comparando só o
+    /// identificador, as duas nunca batiam: o clique decidia sempre "trazer para frente" e nunca
+    /// minimizava, e o ícone não acendia como ativo.
+    ///
+    /// A cadeia é seguida à mão, pelo <c>GW_OWNER</c>: o <c>GetAncestor(GA_ROOTOWNER)</c> devolveu
+    /// o próprio formulário, medido nesse mesmo programa.
+    /// </summary>
+    public static bool BelongsTo(nint window, nint owner)
+    {
+        if (window == 0 || owner == 0) return false;
+
+        // o limite só existe para uma cadeia circular, que o Windows não deveria deixar acontecer
+        for (var (w, passos) = (window, 0); w != 0 && passos < 16; w = GetWindow(w, GW_OWNER), passos++)
+            if (w == owner) return true;
+
+        return false;
+    }
+
     public static void ToggleActivate(nint hWnd, nint foreground)
     {
         if (!Alive(hWnd, "alternar")) return;
 
         var actual = GetForegroundWindow();
         var iconic = IsIconic(hWnd);
-        var focused = !iconic && (actual == hWnd || foreground == hWnd);
+        var focused = !iconic && (BelongsTo(actual, hWnd) || BelongsTo(foreground, hWnd));
 
         Log.Trace($"alternar janela {hWnd:X}: foco agora={actual:X}, guardado={foreground:X}, " +
                   $"minimizada={iconic} → {(focused ? "minimizar" : "trazer para frente")}");

@@ -160,7 +160,7 @@ public sealed class DockModel : IDisposable
             if (byApp.Remove(item.Id, out var wins))
             {
                 item.Windows = wins;
-                item.IsActive = wins.Any(w => w.Handle == foreground);
+                item.IsActive = wins.Any(w => WindowService.BelongsTo(foreground, w.Handle));
             }
             else if (item.IsPinned)
             {
@@ -183,7 +183,7 @@ public sealed class DockModel : IDisposable
                 Items.Add(new DockItem(w.AppKey, path, args, label, pinned: false, overlayIcon: picture)
                 {
                     Windows = wins,
-                    IsActive = wins.Any(x => x.Handle == foreground)
+                    IsActive = wins.Any(x => WindowService.BelongsTo(foreground, x.Handle))
                 });
             }
         }
@@ -354,8 +354,8 @@ public sealed class DockModel : IDisposable
         // se nao esta, volta para a ultima que estava sendo mostrada. O foco real vem
         // primeiro pelo mesmo motivo do ToggleActivate: o guardado pode estar congelado
         var actual = GetForegroundWindow();
-        var current = item.Windows.FindIndex(w => w.Handle == actual);
-        if (current < 0) current = item.Windows.FindIndex(w => w.Handle == foreground);
+        var current = item.Windows.FindIndex(w => WindowService.BelongsTo(actual, w.Handle));
+        if (current < 0) current = item.Windows.FindIndex(w => WindowService.BelongsTo(foreground, w.Handle));
         if (current >= 0) item.CycleIndex = (current + 1) % item.Windows.Count;
         else if (item.CycleIndex >= item.Windows.Count) item.CycleIndex = 0;
 
