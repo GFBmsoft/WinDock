@@ -596,6 +596,18 @@ internal static class Native
     public static extern int SHCreateItemFromParsingName(string path, nint bindCtx, ref Guid riid,
                                                          out IShellItemImageFactory item);
 
+    // ── abrir local do arquivo ───────────────────────────────
+    [DllImport("shell32.dll", CharSet = CharSet.Unicode)]
+    public static extern nint ILCreateFromPathW(string path);
+
+    [DllImport("shell32.dll")]
+    public static extern void ILFree(nint pidl);
+
+    /// <summary>Com <c>cidl</c> zero, <c>pidlFolder</c> é o próprio arquivo: a pasta dele abre com ele
+    /// selecionado.</summary>
+    [DllImport("shell32.dll")]
+    public static extern int SHOpenFolderAndSelectItems(nint pidlFolder, uint cidl, nint[]? apidl, uint flags);
+
     [ComImport, Guid("bcc18b79-ba16-442f-80c4-8a59c30c463b"),
      InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
     public interface IShellItemImageFactory

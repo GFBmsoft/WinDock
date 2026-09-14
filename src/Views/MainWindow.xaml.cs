@@ -718,6 +718,11 @@ public partial class MainWindow : Window
         // com consequências muito diferentes.
         Add(menu, "Nova janela", () => DockModel.Launch(item));
 
+        // Apagado, e não escondido, quando não há arquivo que mostrar (app da Store, alvo que sumiu):
+        // pelo mesmo motivo do Fechar logo abaixo, o menu mantém o tamanho e a ordem de sempre
+        var local = DockModel.FileLocationOf(item);
+        Add(menu, "Abrir local do arquivo", () => WindowService.ShowInFolder(local!), enabled: local is not null);
+
         // Fechar e forçar aparecem sempre, apagados quando o app não está aberto — como na
         // barra do Windows. Sumir com eles fazia o menu mudar de tamanho e de ordem conforme
         // o app estivesse ou não rodando, e o item que se procurava não estava onde a última

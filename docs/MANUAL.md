@@ -128,7 +128,8 @@ com os privilégios mais altos.
 | Alternar entre janelas do mesmo app | clique de novo |
 | Ver as janelas de um app | pare o mouse no ícone (a partir de duas janelas) |
 | Ir para uma janela específica | clique na miniatura dela |
-| Menu (nova janela, fechar, finalizar tarefa, fixar ou desafixar) | botão direito no ícone |
+| Menu (nova janela, abrir local do arquivo, fechar, finalizar tarefa, fixar ou desafixar) | botão direito no ícone |
+| Abrir a pasta do programa, com ele selecionado | botão direito > **Abrir local do arquivo** (apagado para apps da Store, cuja pasta o Windows fecha por permissão) |
 | Fixar um atalho específico (`.lnk`) | botão direito > **Adicionar atalho...** |
 | Reordenar | arraste um ícone sobre o outro |
 | Abrir o 1º, 2º... ícone pelo teclado | `Alt+1` a `Alt+9` (desligável em **Configurações > Abrir pela posição com Alt+número**) |

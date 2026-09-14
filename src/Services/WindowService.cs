@@ -138,6 +138,36 @@ public static class WindowService
         ForceForeground(hWnd);
     }
 
+    /// <summary>
+    /// Abre o Explorer na pasta do arquivo, com ele selecionado — o "Abrir local do arquivo" do
+    /// Windows.
+    ///
+    /// Primeiro pelo <c>SHOpenFolderAndSelectItems</c>, o mesmo caminho que o próprio Windows usa.
+    /// Se ele recusar, vai pelo <c>explorer /select</c>. O HRESULT da recusa fica no log: sem ele,
+    /// um clique que não abre nada seria indistinguível de um clique que não chegou.
+    /// </summary>
+    public static void ShowInFolder(string path)
+    {
+        var pidl = ILCreateFromPathW(path);
+        if (pidl != 0)
+        {
+            try
+            {
+                var hr = SHOpenFolderAndSelectItems(pidl, 0, null, 0);
+                if (hr >= 0) return;
+                Log.Write($"SHOpenFolderAndSelectItems recusou '{path}' (0x{hr:X8}); tentando pelo explorer /select");
+            }
+            finally { ILFree(pidl); }
+        }
+        else
+        {
+            Log.Write($"ILCreateFromPathW não reconheceu '{path}'; tentando pelo explorer /select");
+        }
+
+        try { System.Diagnostics.Process.Start("explorer.exe", $"/select,\"{path}\""); }
+        catch (Exception ex) { Log.Write($"não deu para abrir o local de '{path}'", ex); }
+    }
+
     public static void Activate(nint hWnd)
     {
         if (!Alive(hWnd, "ativar")) return;

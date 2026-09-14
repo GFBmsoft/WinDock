@@ -296,6 +296,38 @@ public sealed class DockModel : IDisposable
         Log.Write($"nada abriu para o botao '{item.Label}' (id={item.Id}, alvo={item.LaunchPath})");
     }
 
+    /// <summary>
+    /// O arquivo que "Abrir local do arquivo" mostra selecionado no Explorer, ou <c>null</c> quando
+    /// não há um que valha mostrar — e aí o item do menu fica apagado.
+    ///
+    /// Com o app aberto vale o executável da janela, que é o que está rodando de fato: o Discord na
+    /// pasta da versão de hoje, não na do dia em que foi fixado. Fechado, vale o alvo do botão, e um
+    /// atalho é seguido até o programa, como faz o menu Iniciar.
+    ///
+    /// App da Store fica sem. A pasta <c>WindowsApps</c> é fechada por permissão, e o Explorer só
+    /// mostraria "acesso negado"; e um app hospedado (Calculadora, Configurações) tem como janela o
+    /// <c>ApplicationFrameHost.exe</c>, que não é o app. A própria barra do Windows não oferece a
+    /// opção para eles.
+    /// </summary>
+    public static string? FileLocationOf(DockItem item)
+    {
+        if (item.IsStoreApp) return null;
+
+        var caminho = item.Windows.FirstOrDefault(w => !string.IsNullOrEmpty(w.ExePath))?.ExePath ?? item.LaunchPath;
+
+        if (caminho.EndsWith(".lnk", StringComparison.OrdinalIgnoreCase) &&
+            ShortcutService.Read(caminho)?.Target is { Length: > 0 } alvo)
+            caminho = alvo;
+
+        if (PackagedApps.TryRepair(caminho, out var atual) || SquirrelApps.TryRepair(caminho, out atual))
+            caminho = atual;
+
+        if (string.IsNullOrWhiteSpace(caminho) || !File.Exists(caminho)) return null;
+        if (caminho.Contains(@"\WindowsApps\", StringComparison.OrdinalIgnoreCase)) return null;
+
+        return caminho;
+    }
+
     public void Activate(DockItem item)
     {
         // A lista de janelas é de até três segundos atrás. Se alguma já morreu, o clique
