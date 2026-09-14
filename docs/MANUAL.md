@@ -188,8 +188,8 @@ Clique na data, na barra de cima, e o mês aparece. Dentro dele:
 - **O teclado só vai para o cartão quando você clica num campo.** A barra de cima normalmente não
   recebe teclado — é o que a deixa ser clicada sem tirar o foco do programa em que você está. Ao
   clicar no campo ela pega o teclado, e ao fechar o cartão devolve o foco ao programa de antes.
-- **Cada ação grava na hora** — não há botão de confirmar, e fechar o cartão com algo escrito no
-  campo aproveita o texto como tarefa em vez de descartá-lo. O `Esc` fecha o cartão.
+- **Marcar, remover e mover gravam na hora.** Uma tarefa nova só é gravada com `Enter` ou com o
+  `+`: fechar o cartão (`Esc` ou clique fora) com algo escrito no campo **descarta** o texto.
 - **Mover uma tarefa**: o `→` abre um campo já preenchido com o dia seguinte, e `Enter` (ou
   **Mover**) leva a tarefa; **Cancelar** desiste. Dia e mês bastam (`15/09`); sem o ano vale o do
   dia aberto, e uma data que cairia muito para trás (digitar `05/01` com um dia de dezembro aberto)

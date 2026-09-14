@@ -740,10 +740,8 @@ public partial class PanelWindow : Window
 
     private void OnNewNoteAdd(object sender, RoutedEventArgs e) => CommitNewNote();
 
-    /// <summary>
-    /// Passa o que estiver no campo para o dia escolhido. Também chamado quando o cartão fecha:
-    /// digitar e fechar sem Enter é um gesto comum demais para custar o texto.
-    /// </summary>
+    /// <summary>Passa o que estiver no campo para o dia escolhido — só pelo Enter ou pelo "+";
+    /// fechar o cartão descarta o texto (veja <see cref="CloseAllPopups"/>).</summary>
     private void CommitNewNote()
     {
         var texto = NewNoteBox.Text.Trim();
@@ -1085,11 +1083,12 @@ public partial class PanelWindow : Window
     {
         if (AnyPopupOpen) Log.Trace($"fechando os cartões (pedido por {origem})");
 
-        // o calendário fechando leva junto o que ficou escrito no campo (vira tarefa, como no Enter)
-        // e desiste de mover
+        // O calendário fechando descarta o que ficou escrito no campo e desiste de mover. Só Enter ou
+        // o "+" gravam: Esc ou clique fora são "desisti", e gravar ali deixava na lista a tarefa que
+        // a pessoa começou e abandonou
         if (CalendarPopup.IsOpen)
         {
-            CommitNewNote();
+            NewNoteBox.Clear();
             CancelMove();
         }
 
