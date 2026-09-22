@@ -60,6 +60,9 @@ public partial class MainWindow : Window
     /// <summary>Ctrl+Alt+S: abre as configurações.</summary>
     private const int SettingsHotkeyId = 31;
 
+    /// <summary>Alt+Shift+C: devolve ao mosaico todas as janelas que abriram flutuando.</summary>
+    private const int TilingTileAllId = 32;
+
     /// <summary>
     /// Id do Alt+1; os outros oito vem somando (NumberHotkeyId + 1 e o Alt+2). Deixar por
     /// ultimo mantem a faixa 17..25 livre de choque com os ids fixos acima.
@@ -375,6 +378,7 @@ public partial class MainWindow : Window
             case TilingFocusDownId:  _tiling?.MoveFocus(TilingDirection.Down); break;
             case TilingFloatId:      _tiling?.ToggleFloat(); break;
             case TilingForgetSizeId: _tiling?.ForgetFloatingSize(); break;
+            case TilingTileAllId:    _tiling?.TileAllBornFloating(); break;
             case TopmostId:          WindowService.ToggleTopmost(GetForegroundWindow()); break;
             case TilingHideId:       _tiling?.HideFocused(); break;
             case TilingCloseId:      _tiling?.CloseFocused(); break;
@@ -411,6 +415,7 @@ public partial class MainWindow : Window
         [HotkeyAction.Resize]     = [TilingResizeLeftId, TilingResizeRightId, TilingResizeUpId, TilingResizeDownId],
         [HotkeyAction.Float]      = [TilingFloatId],
         [HotkeyAction.ForgetSize] = [TilingForgetSizeId],
+        [HotkeyAction.TileAll]    = [TilingTileAllId],
         [HotkeyAction.Hide]       = [TilingHideId],
         [HotkeyAction.Close]      = [TilingCloseId],
         [HotkeyAction.Topmost]    = [TopmostId],

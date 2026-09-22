@@ -540,7 +540,10 @@ Ficam fora do grid por conta própria:
   dele, onde o nome do executável não distingue nada.
 
 `Alt+C` tira a janela do grid e a deixa flutuando, centralizada, no **tamanho que aquele app usou
-da última vez**; `Alt+T` prende qualquer janela acima das outras. Um contorno configurável marca a
+da última vez**; `Alt+T` prende qualquer janela acima das outras. A opção **abrir flutuando**
+inverte o padrão: toda janela nova nasce fora do grid, já no tamanho do programa, e entrar no
+mosaico passa a ser o gesto deliberado — uma janela pelo `Alt+C`, todas as que abriram flutuando
+pelo `Alt+Shift+C`. Um contorno configurável marca a
 janela em foco. Os atalhos estão todos no [manual](docs/MANUAL.md) e podem ser trocados no painel,
 entre combinações escolhidas para não cair nas do Windows: as com `Win` já são do Explorer, e
 `Alt+setas` é o voltar/avançar do navegador.

@@ -301,6 +301,7 @@ combinação. Escolher a combinação de outra ação troca as duas de lugar.
 | `Ctrl+Shift+setas` | troca a janela de lugar com a vizinha |
 | `Ctrl+Alt+Shift+setas` | redimensiona a janela (a vizinha cede o espaço) |
 | `Alt+C` | tira a janela do mosaico, centralizada (flutuando fora do lugar, recentraliza; já centralizada, volta pro mosaico) |
+| `Alt+Shift+C` | devolve ao mosaico, de uma vez, todas as janelas que abriram flutuando |
 | `Alt+Z` | minimiza a janela em foco |
 | `Alt+W` | fecha a janela em foco |
 | `Ctrl+Alt+C` | esquece o tamanho flutuante guardado do programa em foco |
@@ -322,6 +323,17 @@ fica em **Configurações > Tamanho das janelas flutuantes**, onde dá para esqu
 e no `FloatingSizes` do `config.json`, com o nome do executável (ou o AppUserModelID, que é
 o que separa um perfil do Chrome do outro); apagar uma linha de lá devolve o app aos 60%. Uma
 janela maximizada não conta como escolha de tamanho.
+
+### Abrir flutuando
+
+Ligando **Configurações > Mosaico > Abrir flutuando**, toda janela nova nasce fora do grid —
+centralizada, no tamanho guardado daquele programa (ou 60% da tela, na primeira vez). O mosaico
+deixa de ser o destino automático e passa a ser um gesto seu: `Alt+C` põe a janela em foco no
+grid, e `Alt+Shift+C` põe todas as que abriram flutuando de uma vez.
+
+As janelas que você mandou flutuar à mão ficam onde estão — o `Alt+Shift+C` não desfaz escolha
+sua. E as que já estavam abertas quando a dock subiu continuam no mosaico: a opção só vale do
+momento em que a janela aparece.
 
 Programas que não devem entrar no mosaico vão em **Configurações > Mosaico > Exceções**.
 Aceita três formas:

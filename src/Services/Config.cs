@@ -413,6 +413,19 @@ public sealed class DockConfig : INotifyPropertyChanged
     /// <summary>Liga o mosaico no monitor principal — atalhos e reorganizacao automatica.</summary>
     public bool TilingEnabled { get => _tilingEnabled; set => Set(ref _tilingEnabled, value); }
 
+    private bool _tilingFloatNewWindows;
+    /// <summary>
+    /// Janela nova nasce flutuando (o que o Alt+C faria nela), em vez de entrar no grid: o
+    /// tamanho guardado deste app em <see cref="FloatingSizes"/>, ou 60% da tela na primeira vez,
+    /// centralizada. Dividir a tela passa a ser o gesto deliberado — o mesmo Alt+C a devolve ao
+    /// mosaico.
+    ///
+    /// Vale só para as janelas que aparecerem daí em diante. As que já estavam abertas quando o
+    /// mosaico ligou continuam no grid: elas já tinham lugar, e jogá-las todas para o centro
+    /// empilharia a área de trabalho inteira a cada arranque da dock.
+    /// </summary>
+    public bool TilingFloatNewWindows { get => _tilingFloatNewWindows; set => Set(ref _tilingFloatNewWindows, value); }
+
     private int _tilingGap = 8;
     /// <summary>Folga entre as janelas do mosaico e entre elas e a borda da tela, em pixels.</summary>
     public int TilingGap { get => _tilingGap; set => Set(ref _tilingGap, Clamp(value, 0, 60)); }
@@ -580,6 +593,7 @@ public sealed class DockConfig : INotifyPropertyChanged
         PanelBrightness = d.PanelBrightness;
         Panel = d.Panel; PanelSize = d.PanelSize;
         TilingEnabled = d.TilingEnabled; TilingGap = d.TilingGap;
+        TilingFloatNewWindows = d.TilingFloatNewWindows;
         TilingBorderColor = d.TilingBorderColor; TilingBorderThickness = d.TilingBorderThickness;
         TilingBorderRadius = d.TilingBorderRadius; TilingResizeStep = d.TilingResizeStep;
         Hotkeys.Clear(); NotifyHotkeysChanged();

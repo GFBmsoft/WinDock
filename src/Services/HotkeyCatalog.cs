@@ -4,7 +4,7 @@ namespace WinDock.Services;
 /// As ações que têm atalho configurável. O nome vira a chave no <c>config.json</c> — renomear um
 /// valor daqui faz quem já tinha escolhido voltar ao padrão.
 /// </summary>
-public enum HotkeyAction { Focus, Swap, Resize, Float, ForgetSize, Hide, Close, Topmost, Media, Settings }
+public enum HotkeyAction { Focus, Swap, Resize, Float, TileAll, ForgetSize, Hide, Close, Topmost, Media, Settings }
 
 /// <summary>O que aconteceu ao registrar o atalho de uma ação.</summary>
 public enum HotkeyState { Active, Off, TilingOff, TopBarOff, InUse, Duplicate }
@@ -60,6 +60,12 @@ public static class HotkeyCatalog
         new(HotkeyAction.Float, "Flutuar",
             "Tira do mosaico, centralizada; fora do lugar, recentraliza; centralizada, devolve",
             Arrows: false, Tiling: true, "Alt+C"),
+        // o par do "Flutuar", e por isso na mesma tecla com um modificador a mais: com o "abrir
+        // flutuando" ligado, nenhuma janela entra no grid sozinha, e devolver uma a uma seria um
+        // atalho por janela — com a dela em foco antes
+        new(HotkeyAction.TileAll, "Devolver todas ao mosaico",
+            "As janelas que abriram flutuando entram no grid de uma vez; as que você mandou flutuar ficam onde estão",
+            Arrows: false, Tiling: true, "Alt+Shift+C"),
         new(HotkeyAction.ForgetSize, "Esquecer tamanho",
             "A janela flutuante em foco volta aos 60% da tela",
             Arrows: false, Tiling: true, "Ctrl+Alt+C"),

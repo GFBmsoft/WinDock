@@ -726,6 +726,22 @@
           </Grid>
         </Border>
 
+        <Border Style="{StaticResource FluentCardBorderStyle}">
+          <Grid>
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="*" />
+              <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <StackPanel VerticalAlignment="Center">
+              <TextBlock Text="Abrir flutuando" Style="{StaticResource FluentTitle}" />
+              <TextBlock Text="Toda janela nova nasce fora do mosaico, centralizada, no tamanho guardado do programa — dividir a tela passa a ser o atalho de flutuar, que devolve a janela ao grid"
+                         Style="{StaticResource FluentCaption}" TextWrapping="Wrap" />
+            </StackPanel>
+            <CheckBox Grid.Column="1" Style="{StaticResource FluentToggle}"
+                      IsChecked="{Binding TilingFloatNewWindows, Mode=TwoWay}" />
+          </Grid>
+        </Border>
+
         <!-- atalhos: uma linha por ação, montada no código a partir do HotkeyCatalog -->
         <Border Style="{StaticResource FluentCardBorderStyle}" MinHeight="0">
           <StackPanel>

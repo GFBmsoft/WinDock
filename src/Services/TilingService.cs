@@ -71,6 +71,31 @@ public sealed class TilingService : IDisposable
     /// <summary>Fora do mosaico por pedido da pessoa (Alt+C), mas ainda rastreada.</summary>
     private readonly HashSet<nint> _floating = new();
 
+    /// <summary>Quem está em <see cref="_floating"/> por ter nascido assim
+    /// (<see cref="DockConfig.TilingFloatNewWindows"/>), e não porque a pessoa pediu.
+    ///
+    /// A diferença importa no atalho de flutuar: numa janela que a pessoa mandou flutuar, o toque
+    /// seguinte recentraliza antes de devolver ao grid — ela arrastou, o atalho traz de volta ao
+    /// lugar. Numa que já nasceu flutuando, esse passo é um toque desperdiçado: ninguém escolheu
+    /// aquele lugar, e o gesto que falta é justamente o de dividir a tela. Basta o programa se
+    /// ajustar alguns pixels depois de abrir (o Terminal arredonda para a grade de células) para
+    /// a janela não estar mais "centralizada" e o primeiro toque cair na recentralização.</summary>
+    private readonly HashSet<nint> _bornFloating = new();
+
+    /// <summary>Toda janela que o mosaico já processou alguma vez, esteja ela onde estiver agora.
+    ///
+    /// É o que define "janela nova" para o <see cref="DockConfig.TilingFloatNewWindows"/>, e não
+    /// pode ser deduzido de "a árvore não conhece": o atalho de flutuar devolve uma janela ao grid
+    /// justamente tirando-a de <see cref="_floating"/> e chamando o Refresh para inseri-la. Vista
+    /// como nova, ela voltava a flutuar no mesmo Refresh — o atalho recentralizava a janela em vez
+    /// de dividir a tela, e se desfazia sozinho.</summary>
+    private readonly HashSet<nint> _seen = new();
+
+    /// <summary>Se o primeiro <see cref="RefreshCore"/> depois de ligar o mosaico já rodou. Só
+    /// depois dele uma janela desconhecida é "nova": no primeiro, desconhecida é toda a área de
+    /// trabalho, e o <see cref="DockConfig.TilingFloatNewWindows"/> empilharia tudo no centro.</summary>
+    private bool _adopted;
+
     /// <summary>Tem borda de redimensionar, mas ignora o tamanho que o mosaico pediu (comum em
     /// formulários Delphi com `Constraints` — o botão de maximizar não garante nada). Uma vez
     /// pega no flagra, fica de fora pelo resto da sessão em vez de brigar com ela a cada
@@ -148,7 +173,10 @@ public sealed class TilingService : IDisposable
 
         _tree.Clear();
         _floating.Clear();
+        _bornFloating.Clear();
+        _seen.Clear();
         _rects.Clear();
+        _adopted = false;
         _border.Hide();
     }
 
@@ -577,6 +605,7 @@ public sealed class TilingService : IDisposable
 
         _tree.Remove(hwnd);
         _floating.Remove(hwnd);
+        _bornFloating.Remove(hwnd);
         _stubborn.Remove(hwnd);
         _suspect.Remove(hwnd);
 
@@ -712,6 +741,15 @@ public sealed class TilingService : IDisposable
 
         if (_floating.Contains(hwnd))
         {
+            // nasceu flutuando: vai direto para o mosaico, sem a escala da recentralização — ver
+            // _bornFloating
+            if (_bornFloating.Remove(hwnd))
+            {
+                _floating.Remove(hwnd);
+                Refresh();
+                return;
+            }
+
             // já flutuando: se a pessoa arrastou ou redimensionou desde o último Alt+C, a tecla
             // devolve a janela ao centro em vez de recolher pro mosaico — recentralizar não
             // tinha tecla nenhuma antes. Só o toque seguinte, com ela já no lugar, fecha o
@@ -727,7 +765,30 @@ public sealed class TilingService : IDisposable
 
         _stubborn.Remove(hwnd);
         _floating.Add(hwnd);
+        // flutuar por escolha: a partir daqui vale o ciclo completo, mesmo que ela tenha nascido
+        // flutuando e voltado ao grid antes
+        _bornFloating.Remove(hwnd);
         CenterFloating(hwnd);
+        Refresh();
+    }
+
+    /// <summary>
+    /// Alt+Shift+C: devolve ao grid, de uma vez, tudo que abriu flutuando
+    /// (<see cref="DockConfig.TilingFloatNewWindows"/>).
+    ///
+    /// As que a pessoa mandou flutuar ficam onde estão: ela as tirou do grid uma a uma e de
+    /// propósito, e um atalho de "arrumar tudo" que desfaz escolha manual é o tipo de coisa que
+    /// se aprende a não apertar. Para essas continua valendo o atalho de flutuar, janela a janela.
+    /// </summary>
+    public void TileAllBornFloating()
+    {
+        if (!_config.TilingEnabled) return;
+        if (_bornFloating.Count == 0) return;
+
+        Log.Trace($"devolvendo ao mosaico {_bornFloating.Count} janela(s) que abriram flutuando");
+
+        _floating.ExceptWith(_bornFloating);
+        _bornFloating.Clear();
         Refresh();
     }
 
@@ -1002,6 +1063,8 @@ public sealed class TilingService : IDisposable
         var minimized = managed.Where(w => w.IsMinimized).Select(w => w.Handle).ToHashSet();
 
         _floating.RemoveWhere(h => !IsWindow(h));
+        _bornFloating.RemoveWhere(h => !IsWindow(h));
+        _seen.RemoveWhere(h => !IsWindow(h));
         _stubborn.RemoveWhere(h => !IsWindow(h));
 
         // saiu do mosaico — fechou, foi flutuar, virou "teimosa", entrou na lista de exceções
@@ -1031,7 +1094,24 @@ public sealed class TilingService : IDisposable
 
         foreach (var w in managed)
         {
+            // antes de qualquer desvio: passou por aqui uma vez, não é mais nova. Add devolve
+            // false quando já estava — ver _seen
+            var nova = _seen.Add(w.Handle);
+
             if (_tree.Contains(w.Handle)) continue;
+
+            // "abrir flutuando": a janela nova nunca chega a entrar na árvore — vai para o centro
+            // com o tamanho deste app, exatamente como se a pessoa tivesse dado Alt+C nela, e o
+            // mesmo Alt+C a devolve ao grid quando ela quiser dividir a tela. O `beside` não anda:
+            // quem flutua não é vizinha de ninguém.
+            if (nova && _adopted && _config.TilingFloatNewWindows && !w.IsMinimized)
+            {
+                Log.Trace($"Refresh: {w.Handle:X} '{w.Title}' nasce flutuando (abrir flutuando ligado)");
+                _floating.Add(w.Handle);
+                _bornFloating.Add(w.Handle);
+                CenterFloating(w.Handle);
+                continue;
+            }
 
             var monitor = MonitorFromWindow(w.Handle, MONITOR_DEFAULTTONEAREST);
             Log.Trace($"Refresh: entrando {w.Handle:X} '{w.Title}' ao lado de {beside:X} " +
@@ -1043,6 +1123,9 @@ public sealed class TilingService : IDisposable
             // exemplo), em vez de uma fileira de irmãos
             beside = w.Handle;
         }
+
+        // daqui em diante, janela que a árvore não conhece é janela que acabou de abrir
+        _adopted = true;
 
         // cada monitor tem o próprio grid, independente dos outros
         var rects = new Dictionary<nint, RECT>();
