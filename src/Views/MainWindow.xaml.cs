@@ -643,7 +643,11 @@ public partial class MainWindow : Window
     {
         _previewClose.Stop();
 
-        if (_thumbnails is { IsVisible: true } && _thumbnails.IsMouseOver)
+        // O `RefazendoAposFechar` é o caso em que o mouse não está em cima mas devia contar como
+        // se estivesse: o painel acabou de encolher debaixo do cursor porque uma janela foi
+        // fechada pelo X, e quem fez isso está fechando várias — não pedindo para sair.
+        if (_thumbnails is { IsVisible: true } &&
+            (_thumbnails.IsMouseOver || _thumbnails.RefazendoAposFechar))
         {
             _previewClose.Start();
             return;

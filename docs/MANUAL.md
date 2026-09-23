@@ -131,6 +131,7 @@ com os privilégios mais altos.
 | Alternar entre janelas do mesmo app | clique de novo |
 | Ver as janelas de um app | pare o mouse no ícone (a partir de duas janelas) |
 | Ir para uma janela específica | clique na miniatura dela |
+| Fechar uma janela sem abri-la | passe o mouse na miniatura e clique no **✕**, ao lado do título (o painel fica aberto para fechar as outras) |
 | Menu (nova janela, abrir local do arquivo, fechar, finalizar tarefa, fixar ou desafixar) | botão direito no ícone |
 | Abrir a pasta do programa, com ele selecionado | botão direito > **Abrir local do arquivo** (apagado para apps da Store, cuja pasta o Windows fecha por permissão) |
 | Fixar um atalho específico (`.lnk`) | botão direito > **Adicionar atalho...** |

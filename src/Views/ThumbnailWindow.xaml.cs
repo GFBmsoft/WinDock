@@ -62,33 +62,84 @@ public partial class ThumbnailWindow : Window
     /// <param name="above">A dock está embaixo: o preview sobe.</param>
     internal void ShowFor(IReadOnlyList<TaskWindow> windows, RECT anchor, bool above)
     {
-        Release();
+        // guardados para quando uma miniatura sair do painel: o que sobra continua ancorado
+        // no mesmo botão da dock, e a conta da posição precisa dos dois
+        _anchor = anchor;
+        _above = above;
 
-        var dpi = VisualTreeHelper.GetDpi(this);
-
-        Items.ItemsSource = windows
+        Mostrar(windows
             .Select(w =>
             {
                 var (width, height) = Proportions(w.Handle);
                 return new ThumbnailItem(w.Handle, Caption(w), width, height);
             })
-            .ToList();
+            .ToList());
+    }
+
+    /// <summary>Faixa do botão da dock que abriu este preview, em pixels físicos.</summary>
+    private RECT _anchor;
+
+    /// <summary>A dock está embaixo, e o preview sobe.</summary>
+    private bool _above;
+
+    /// <summary>Quando a última janela foi fechada pelo X daqui.</summary>
+    private DateTime _ultimoFechamento = DateTime.MinValue;
+
+    /// <summary>
+    /// O painel acabou de se refazer porque uma janela foi fechada por aqui.
+    ///
+    /// Quem pergunta é o <c>ClosePreview</c> da dock, que normalmente fecha o preview quando o
+    /// mouse não está mais em cima dele. Só que ao perder uma miniatura o painel fica menor e
+    /// muda de lugar **debaixo do cursor** — e o cursor, que não se mexeu, pode acabar do lado de
+    /// fora. Sem esta carência, fechar uma janela fechava o preview junto, que é o contrário do
+    /// que se quer: quem clica no X está fechando várias.
+    /// </summary>
+    internal bool RefazendoAposFechar =>
+        DateTime.UtcNow - _ultimoFechamento < TimeSpan.FromSeconds(1.5);
+
+    /// <summary>
+    /// Põe o painel na tela com os itens dados, do tamanho deles e ancorado no botão.
+    ///
+    /// Serve tanto para abrir quanto para refazer depois de uma janela ser fechada por aqui —
+    /// e nos dois casos o tamanho muda, então a posição tem de ser recalculada junto.
+    /// </summary>
+    private void Mostrar(List<ThumbnailItem> items)
+    {
+        Release();
+
+        var dpi = VisualTreeHelper.GetDpi(this);
+        var jaVisivel = IsVisible;
+
+        Items.ItemsSource = items;
 
         // O tamanho só existe depois de a janela ser mostrada — é o `SizeToContent` que o
         // calcula —, e a posição depende do tamanho. Então ela nasce fora da tela e só
         // depois vai para o lugar: posicionar antes deixava o painel meio fora do monitor,
-        // porque a conta usava altura zero.
-        Left = -20000;
-        Top = 0;
-        Show();
+        // porque a conta usava altura zero. Já visível, esse desvio faria o painel piscar:
+        // o layout se refaz no lugar.
+        if (!jaVisivel)
+        {
+            Left = -20000;
+            Top = 0;
+            Show();
+        }
+
         UpdateLayout();
 
         var width = ActualWidth * dpi.DpiScaleX;
         var height = ActualHeight * dpi.DpiScaleY;
-        var centre = (anchor.Left + anchor.Right) / 2.0;
+        var centre = (_anchor.Left + _anchor.Right) / 2.0;
 
-        Left = Math.Clamp(centre - width / 2, 0, Math.Max(0, ScreenWidth() - width)) / dpi.DpiScaleX;
-        Top = (above ? anchor.Top - height - Gap : anchor.Bottom + Gap) / dpi.DpiScaleY;
+        // Centralizado no botão quando abre; **parado** quando só se refez.
+        //
+        // Recentralizar a cada miniatura removida faz o painel escorregar de lado sob o cursor,
+        // e é a maneira mais fácil de tirá-lo de cima do painel sem que ele tenha se mexido.
+        // Encolhendo pela direita, o cursor continua onde estava — sobre a miniatura seguinte,
+        // que é justamente para onde ele vai se a pessoa quiser fechar a próxima.
+        var esquerda = jaVisivel ? Left * dpi.DpiScaleX : centre - width / 2;
+
+        Left = Math.Clamp(esquerda, 0, Math.Max(0, ScreenWidth() - width)) / dpi.DpiScaleX;
+        Top = (_above ? _anchor.Top - height - Gap : _anchor.Bottom + Gap) / dpi.DpiScaleY;
 
         // os retângulos são pedidos depois de a janela existir e estar posicionada: antes
         // disso não há coordenadas de cliente para dar ao compositor
@@ -214,5 +265,36 @@ public partial class ThumbnailWindow : Window
 
         HideThumbnails();
         WindowService.Activate(handle);
+    }
+
+    /// <summary>
+    /// O X de uma miniatura: fecha aquela janela sem sair do preview.
+    ///
+    /// Fechar é <c>WM_CLOSE</c>, o mesmo pedido educado do Alt+W — a janela ainda pode perguntar
+    /// se quer salvar, e ficar aberta. Mesmo assim a miniatura sai na hora: é o que a barra de
+    /// tarefas faz, e esperar pela confirmação deixaria o clique sem resposta. Se a janela
+    /// sobreviver, o próximo preview a traz de volta.
+    ///
+    /// O preview continua aberto enquanto sobrar janela, que é o ponto de fechar várias sem
+    /// precisar abrir nenhuma. Na última, some junto.
+    /// </summary>
+    private void OnThumbnailClose(object sender, RoutedEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.Tag is not nint handle) return;
+
+        // sem isto o clique subiria para o Border da célula, que ativa a janela: a pessoa
+        // pediria para fechar e receberia a janela na frente
+        e.Handled = true;
+
+        WindowService.Close(handle);
+        _ultimoFechamento = DateTime.UtcNow;
+
+        var restantes = Items.ItemsSource is IEnumerable<ThumbnailItem> itens
+                        ? itens.Where(i => i.Handle != handle).ToList()
+                        : new List<ThumbnailItem>();
+
+        if (restantes.Count == 0) { HideThumbnails(); return; }
+
+        Mostrar(restantes);
     }
 }

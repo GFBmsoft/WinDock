@@ -1,6 +1,7 @@
 <Window x:Class="WinDock.ThumbnailWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:ui="clr-namespace:WinDock.Ui"
         Title="WinDock Thumbnails"
         WindowStyle="None" ResizeMode="NoResize" ShowInTaskbar="False" Topmost="True"
         AllowsTransparency="False" Background="#F2242424"
@@ -20,6 +21,46 @@
     embaixo; quem preenche o meio e o compositor.
   -->
 
+  <Window.Resources>
+    <!--
+      O X de cada miniatura.
+
+      Mora na linha do título, e não por cima do desenho como o da barra de tarefas: o DWM
+      compõe a miniatura ACIMA desta janela, então qualquer coisa que o WPF desenhe dentro
+      daquele retângulo fica escondida atrás dela. Aqui embaixo é onde o nosso desenho aparece.
+
+      Some enquanto o mouse não está na célula — mas em Hidden, não Collapsed: assim o espaço
+      dele fica reservado e o título não se mexe quando o mouse entra.
+    -->
+    <Style x:Key="ThumbClose" TargetType="Button">
+      <Setter Property="Width" Value="18" />
+      <Setter Property="Height" Value="18" />
+      <Setter Property="Margin" Value="4,0,0,0" />
+      <Setter Property="Cursor" Value="Hand" />
+      <Setter Property="Focusable" Value="False" />
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="Button">
+            <Border x:Name="Fundo" Background="Transparent" CornerRadius="4">
+              <ui:GlyphIcon x:Name="Risco" Glyph="&#xE8BB;" Size="9" Fill="#FFD0D0D4"
+                            HorizontalAlignment="Center" VerticalAlignment="Center" />
+            </Border>
+            <ControlTemplate.Triggers>
+              <!-- o vermelho de fechar do Windows, no mesmo lugar que a pessoa já espera -->
+              <Trigger Property="IsMouseOver" Value="True">
+                <Setter TargetName="Fundo" Property="Background" Value="#FFC42B1C" />
+                <Setter TargetName="Risco" Property="Fill" Value="#FFFFFFFF" />
+              </Trigger>
+              <Trigger Property="IsPressed" Value="True">
+                <Setter TargetName="Fundo" Property="Background" Value="#FF8E1F14" />
+              </Trigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+  </Window.Resources>
+
   <Border BorderBrush="#2EFFFFFF" BorderThickness="1" Padding="8">
     <ItemsControl x:Name="Items">
       <ItemsControl.ItemsPanel>
@@ -34,14 +75,23 @@
               <!-- o espaco que o DWM preenche -->
               <Border x:Name="Slot" Width="{Binding Width}" Height="{Binding Height}"
                       Background="#18FFFFFF" CornerRadius="3" />
-              <TextBlock Text="{Binding Title}" Foreground="#FFE8E8EA" FontSize="11"
-                         Margin="0,6,0,0" TextTrimming="CharacterEllipsis"
-                         MaxWidth="{Binding Width}" HorizontalAlignment="Center" />
+              <Grid Width="{Binding Width}" Margin="0,6,0,0">
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="*" />
+                  <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <TextBlock Text="{Binding Title}" Foreground="#FFE8E8EA" FontSize="11"
+                           TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                <Button x:Name="BotaoFechar" Grid.Column="1" Style="{StaticResource ThumbClose}"
+                        Visibility="Hidden" Tag="{Binding Handle}" Click="OnThumbnailClose"
+                        ToolTip="Fechar esta janela" />
+              </Grid>
             </StackPanel>
           </Border>
           <DataTemplate.Triggers>
             <Trigger SourceName="Cell" Property="IsMouseOver" Value="True">
               <Setter TargetName="Cell" Property="Background" Value="#22FFFFFF" />
+              <Setter TargetName="BotaoFechar" Property="Visibility" Value="Visible" />
             </Trigger>
           </DataTemplate.Triggers>
         </DataTemplate>

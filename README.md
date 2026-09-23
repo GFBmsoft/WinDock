@@ -468,7 +468,9 @@ Um atalho em `shell:startup` seria a terceira opção — mas ele cai na mesma f
 ## Preview das janelas
 
 Parar o mouse num botão que agrupa **duas ou mais janelas** mostra uma miniatura de cada uma,
-ao vivo, como faz a barra de tarefas. Clicar numa delas traz aquela janela para a frente.
+ao vivo, como faz a barra de tarefas. Clicar numa delas traz aquela janela para a frente, e o
+**✕** ao lado do título fecha aquela janela sem precisar abri-la — o painel continua ali,
+encolhendo a cada uma, que é o ponto de fechar quatro Explorers de uma sentada.
 
 Com uma janela só não aparece nada: o clique no ícone já faz a coisa certa, e o painel seria um
 passo a mais para o mesmo resultado. Os **dois perfis do Chrome não caem aqui** — eles são dois
@@ -487,7 +489,9 @@ Três detalhes que o mecanismo impõe:
   apareceria vazio. Os cantos arredondados vêm do próprio DWM
   (`DWMWA_WINDOW_CORNER_PREFERENCE`), não da transparência.
 - **O desenho fica por cima, não dentro do layout.** O XAML só reserva o espaço; o retângulo de
-  cada miniatura é calculado depois, quando dá para perguntar onde cada espaço ficou.
+  cada miniatura é calculado depois, quando dá para perguntar onde cada espaço ficou. É por isso
+  que o ✕ mora na linha do título, e não sobre a miniatura como o da barra de tarefas: dentro
+  daquele retângulo, quem pinta por último é o compositor, e o botão sumiria atrás dele.
 - **A posição depende do tamanho, e o tamanho só existe depois de mostrar.** A janela nasce fora
   da tela e só então vai para o lugar; posicionar antes deixava o painel meio fora do monitor,
   porque a conta usava altura zero.
