@@ -699,11 +699,30 @@
             </Grid.ColumnDefinitions>
             <StackPanel VerticalAlignment="Center">
               <TextBlock Text="Iniciar com o Windows" Style="{StaticResource FluentTitle}" />
-              <TextBlock Text="Grava o caminho deste executável na chave Run"
-                         Style="{StaticResource FluentCaption}" />
+              <TextBlock Text="Cria uma tarefa de logon, que sobe a dock assim que a sessão abre — sem esperar a fila dos aplicativos de inicialização"
+                         Style="{StaticResource FluentCaption}" TextWrapping="Wrap" />
             </StackPanel>
             <CheckBox x:Name="StartupBox" Grid.Column="1" Style="{StaticResource FluentToggle}"
                       Checked="OnStartupChanged" Unchecked="OnStartupChanged" />
+          </Grid>
+        </Border>
+
+        <Border Style="{StaticResource FluentCardBorderStyle}" Margin="0,0,0,16">
+          <Grid>
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="*" />
+              <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <StackPanel VerticalAlignment="Center">
+              <TextBlock Text="Registrar cada passo no log" Style="{StaticResource FluentTitle}" />
+              <TextBlock Text="Para investigar algum problema. Deixa a dock mais lenta quando o disco está ocupado — cada passo é uma escrita — então convém desligar depois. O log fica em %APPDATA%\WinDock"
+                         Style="{StaticResource FluentCaption}" TextWrapping="Wrap" />
+            </StackPanel>
+            <!-- o rótulo vive num TextBlock ao lado, então sem isto o interruptor chega sem nome
+                 a quem usa leitor de tela (e a quem o aciona de fora, para testar) -->
+            <CheckBox Grid.Column="1" Style="{StaticResource FluentToggle}"
+                      AutomationProperties.Name="Registrar cada passo no log"
+                      IsChecked="{Binding Trace, Mode=TwoWay}" />
           </Grid>
         </Border>
 

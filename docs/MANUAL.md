@@ -343,8 +343,24 @@ Aceita três formas:
   e as Configurações, cuja janela pertence ao `ApplicationFrameHost.exe` e não ao próprio app;
 - `classe:OperationStatusWindow` — a classe da janela, quando só **uma** janela do programa
   incomoda — excluir o executável inteiro levaria junto todas as outras janelas dele. (A caixa
-  "0% concluído" do Explorer, o caso clássico, já fica de fora sozinha e aparece centralizada.) Para descobrir a classe, ligue o rastro (crie o arquivo
-  `rastrear` na pasta `%APPDATA%\WinDock`) e veja as linhas `Refresh: ... [Classe] fora do mosaico`.
+  "0% concluído" do Explorer, o caso clássico, já fica de fora sozinha e aparece centralizada.)
+  Para descobrir a classe, ligue **Registrar cada passo no log** (veja abaixo) e procure as linhas
+  `Refresh: ... [Classe] fora do mosaico`.
+
+### Registrar cada passo no log
+
+O log em `%APPDATA%\WinDock\windock.log` guarda o que deu errado. Ligando **Registrar cada passo no
+log**, ele passa a guardar também o que deu certo — cada janela que entra e sai do mosaico e por
+quê, cada leitura da bandeja, cada atalho registrado ao subir. É o que responde "por que essa
+janela não entrou no mosaico" sem adivinhação.
+
+Fica desligado, e não por causa do espaço em disco: cada passo é uma escrita, e com o disco ocupado
+— descompactando um arquivo grande, por exemplo — é a dock que espera na fila do disco. Ligue
+enquanto investiga alguma coisa e desligue depois. Vale na hora, sem reiniciar a dock.
+
+O arquivo enche rápido com isso ligado: aos 256 KB ele vira `windock.1.log` e um novo começa, então
+a volta anterior fica guardada. Se a dock não chegar a abrir — e aí não há painel onde clicar —, um
+arquivo vazio chamado `rastrear` nessa mesma pasta liga o rastro já no arranque seguinte.
 
 ### Ordem dos itens da barra
 

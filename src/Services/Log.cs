@@ -71,17 +71,22 @@ public static class Log
     /// Existindo este arquivo, a dock passa a registrar o que acontece a cada gesto — não só
     /// os erros.
     ///
-    /// É um arquivo, e não uma opção no painel, porque quem liga isto está investigando: dá
-    /// para criar e apagar sem mexer na configuração e sem reiniciar nada além da dock. E
-    /// fica desligado por padrão: o rastro é detalhado demais para o dia a dia.
+    /// Continua existindo depois de o rastro virar opção no painel, e para um caso que o painel
+    /// não cobre: quando a dock não chega a abrir, não há onde clicar. Criar o arquivo liga o
+    /// rastro já no arranque seguinte, que é justamente o que se precisa ver.
     /// </summary>
     private static readonly string TraceFlag = Path.Combine(DockConfig.Dir, "rastrear");
 
     /// <summary>
-    /// Lido uma vez, ao subir. Conferir o arquivo a cada linha custaria um acesso a disco
-    /// dentro de coisas que acontecem dezenas de vezes por segundo.
+    /// Registrar cada passo, e não só o que deu errado. Quem manda é a configuração
+    /// (<see cref="DockConfig.Trace"/>), que escreve aqui ao carregar e a cada mudança — o
+    /// arquivo <c>rastrear</c> serve de partida, para o arranque que acontece antes de existir
+    /// configuração lida.
+    ///
+    /// Um campo, e não uma consulta ao disco por linha: isto é perguntado dentro de coisas que
+    /// acontecem dezenas de vezes por segundo.
     /// </summary>
-    private static readonly bool Tracing = File.Exists(TraceFlag);
+    public static bool Tracing { get; set; } = File.Exists(TraceFlag);
 
     /// <summary>
     /// Registra um passo do uso, com o relógio em milissegundos — é a diferença entre dois
