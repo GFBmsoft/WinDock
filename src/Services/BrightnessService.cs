@@ -36,23 +36,24 @@ public sealed class BrightnessService : IDisposable
     {
         get
         {
-            Ensure();
-
-            // primeira negativa: quase sempre é o tumulto do arranque, não o monitor.
-            // Passa a insistir em segundo plano e avisa quando conseguir.
-            if (_monitor == 0 && !_insistindo) { _insistindo = true; Retentar(); }
-
-            return _monitor != 0;
+            // Nunca procura aqui: quem pergunta é a thread da interface, montando a barra.
+            //
+            // Procurar custa uma conversa I²C com cada monitor, e o caso caro é justamente o
+            // desta máquina — os dois recusam, e descobrir isso leva quase um segundo. Com a
+            // procura aqui dentro, esse segundo era a dock inteira parada fora da tela, no
+            // logon, que é quando mais se nota. A procura vai para segundo plano e o resultado
+            // chega por <see cref="AvailabilityChanged"/>.
+            if (_monitor == 0) { Sondar(); return false; }
+            return true;
         }
     }
 
-    /// <summary>Brilho atual, de 0 a 100. Zero quando não há suporte.</summary>
+    /// <summary>Brilho atual, de 0 a 100. Zero enquanto não se sabe, e num monitor sem suporte.</summary>
     public int Level
     {
         get
         {
-            Ensure();
-            if (_monitor == 0) return 0;
+            if (_monitor == 0) { Sondar(); return 0; }
 
             return GetMonitorBrightness(_monitor, out _, out var atual, out var max) && max > 0
                 ? (int)Math.Round(atual * 100.0 / max)
@@ -70,8 +71,10 @@ public sealed class BrightnessService : IDisposable
     /// </summary>
     public void Set(int percent)
     {
-        Ensure();
-        if (_monitor == 0) return;
+        // sem Ensure: procurar o monitor daqui seria a mesma conversa I²C na thread da
+        // interface que Available e Level evitam. Se o handle caiu, Sondar o reabre e o
+        // próximo passo do arraste já pega o monitor de volta.
+        if (_monitor == 0) { Sondar(); return; }
 
         Interlocked.Exchange(ref _pendente, Math.Clamp(percent, 0, 100));
 
@@ -119,25 +122,34 @@ public sealed class BrightnessService : IDisposable
     /// receber falso ela esconde o item e nunca mais pergunta, então uma retentativa que só
     /// acontece "na próxima consulta" nunca acontece. Daí o laço ativo, que avisa por
     /// <see cref="AvailabilityChanged"/> quando finalmente consegue.</para>
+    ///
+    /// <para>A <b>primeira</b> tentativa também é daqui, e sem espera: era ela que rodava na
+    /// thread da interface e segurava a barra fora da tela enquanto o monitor não respondia.</para>
     /// </summary>
-    private void Retentar()
+    private void Sondar()
     {
+        if (_insistindo) return;
+        _insistindo = true;
+
         Task.Run(async () =>
         {
             // meio minuto de tentativas espaçadas: passado o tumulto do arranque, o monitor
             // responde na primeira. Se em 30s não respondeu, é monitor que não fala DDC/CI
             // mesmo (o painel deste notebook é um), e insistir só gastaria I²C à toa.
-            for (var i = 0; i < 15 && _monitor == 0; i++)
+            for (var i = 0; i < 16 && _monitor == 0; i++)
             {
-                await Task.Delay(2000).ConfigureAwait(false);
-
                 Ensure();
-                if (_monitor == 0) continue;
+                if (_monitor != 0)
+                {
+                    Log.Trace($"brilho — disponível na tentativa {i + 1}");
+                    AvailabilityChanged?.Invoke(this, EventArgs.Empty);
+                    return;
+                }
 
-                Log.Trace($"brilho — disponível na tentativa {i + 2}");
-                AvailabilityChanged?.Invoke(this, EventArgs.Empty);
-                return;
+                await Task.Delay(2000).ConfigureAwait(false);
             }
+
+            Log.Trace("brilho — nenhum monitor respondeu DDC/CI; sem ajuste de brilho nesta sessão");
         });
     }
 
@@ -238,6 +250,10 @@ public sealed class BrightnessService : IDisposable
     {
         _monitor = 0;
         _procurou = false;
+
+        // o monitor caiu no meio do caminho (trocou de cabo, dormiu): liberar a sondagem
+        // deixa a próxima consulta procurá-lo de novo, em segundo plano como sempre
+        _insistindo = false;
     }
 
     public void Dispose()

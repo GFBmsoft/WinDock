@@ -91,8 +91,21 @@ public partial class MainWindow : Window
         SetWindowLongPtr(hWnd, GWL_EXSTYLE, (nint)(ex | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE));
 
         Log.Trace("janela da dock criada; montando o modelo");
+
+        // Cronômetro do arranque, etapa por etapa.
+        //
+        // Tudo daqui até o fim deste método acontece com a janela ainda fora da tela: a dock só
+        // aparece quando a thread da interface se solta. Sem medir cada parte não há como saber
+        // qual delas está segurando a barra — e "parece rápido aqui" não vale, porque no logon a
+        // máquina está disputada. Medido em milissegundos porque é essa a ordem de grandeza que
+        // a pessoa sente.
+        var relogio = System.Diagnostics.Stopwatch.StartNew();
+        var marcos = new List<string>();
+        void Marcar(string etapa) { marcos.Add($"{etapa} {relogio.ElapsedMilliseconds} ms"); relogio.Restart(); }
+
         _model = new DockModel(_config, Dispatcher);
         DataContext = _model;
+        Marcar("modelo");
 
         WhenShellIsUp(() =>
         {
@@ -102,6 +115,7 @@ public partial class MainWindow : Window
 
             _taskbar.Apply(_config.Taskbar);
         });
+        Marcar("AppBar");
 
         // o Alt+Espaco chega como mensagem nesta janela, entao o hook fica aqui
         HwndSource.FromHwnd(hWnd)?.AddHook(OnWindowMessage);
@@ -110,15 +124,29 @@ public partial class MainWindow : Window
 
         // adianta a lista de apps e os icones: a primeira busca ja acha tudo pronto
         if (_config.Launcher) AppCatalog.Warm();
+        Marcar("lista de apps");
 
         // troca a chave Run pela tarefa de logon para quem ja tinha o arranque ligado;
         // fora da thread da interface, que aqui ainda esta montando a barra
         System.Threading.Tasks.Task.Run(StartupService.Migrate);
 
-        SetPanel(_config.Panel);
+        // A barra de cima fica para depois de a dock aparecer.
+        //
+        // Ela é outra janela WPF, e montá-la e desenhá-la custa perto de meio segundo (medido:
+        // 219 ms para construir, 220 para o primeiro desenho) — na mesma thread, portanto com a
+        // dock ainda fora da tela. Era o maior pedaço do arranque, e o pior colocado: a pessoa
+        // fica olhando a área de trabalho vazia enquanto o relógio se monta.
+        //
+        // Em prioridade de fundo, a dock pinta primeiro e a barra chega logo atrás. A ordem é
+        // essa de propósito: a dock é o que a pessoa usa no primeiro segundo; o relógio, não.
+        Dispatcher.BeginInvoke(DispatcherPriority.Background, () => SetPanel(_config.Panel));
+        Marcar("barra de cima (agendada)");
 
         _tiling = new TilingService(_config, Dispatcher);
+        Marcar("mosaico");
+
         ApplyHotkeys();
+        Marcar("atalhos");
 
         // app em tela cheia (uma sessao remota, por exemplo): a dock sai da frente e volta
         // sozinha quando a janela deixa de ocupar a tela inteira
@@ -144,6 +172,9 @@ public partial class MainWindow : Window
                     Log.Trace("--settings: OpenSettings terminou sem exceção");
             });
         }
+
+        Marcar("resto");
+        Log.Trace("arranque, com a janela ainda fora da tela: " + string.Join(" | ", marcos));
     }
 
     /// <summary>
@@ -277,12 +308,22 @@ public partial class MainWindow : Window
             return;
         }
 
+        var relogio = System.Diagnostics.Stopwatch.StartNew();
+
         _panel = new PanelWindow(_config);
+        var montar = relogio.ElapsedMilliseconds; relogio.Restart();
+
         _panel.Show();
+        var mostrar = relogio.ElapsedMilliseconds; relogio.Restart();
 
         _taskbar.TopReserve = _config.PanelSize;
         _taskbar.Refresh();   // o shell recalculou a area de trabalho ao registrar a AppBar
+        var faixa = relogio.ElapsedMilliseconds; relogio.Restart();
+
         ApplyHotkeys();
+
+        Log.Trace($"barra de cima: montar {montar} ms | mostrar {mostrar} ms | " +
+                  $"faixa {faixa} ms | atalhos {relogio.ElapsedMilliseconds} ms");
     }
 
     // ── launcher (Alt+Espaco) ───────────────────────────────

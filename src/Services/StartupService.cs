@@ -83,15 +83,32 @@ public static class StartupService
             dynamic task = folder.GetTask(TaskName);
             dynamic triggers = task.Definition.Triggers;
 
-            // TASK_TRIGGER_LOGON = 9; a folga é o que esta versão encurtou
-            var certo = triggers.Count == 1 &&
-                        (int)triggers[1].Type == 9 &&
-                        (string)triggers[1].Delay == "PT1S";
+            // TASK_TRIGGER_LOGON = 9; a folga esta versão zerou
+            var folga = (string)triggers[1].Delay ?? string.Empty;
+            var gatilhoOk = triggers.Count == 1 &&
+                            (int)triggers[1].Type == 9 &&
+                            (folga.Length == 0 || folga == "PT0S");
 
-            if (certo) return;
+            // O executável da tarefa, que some quando a pasta do projeto muda de lugar.
+            //
+            // Era o furo que faltava: conferindo só gatilho e folga, uma tarefa apontando para
+            // um caminho que não existe mais seguia "em dia" para sempre. Ela dispara a cada
+            // logon, falha com 0x80070002 e não deixa sinal nenhum na tela — a dock
+            // simplesmente não sobe, e nada no app desconfia.
+            var exeDaTarefa = (string?)task.Definition.Actions[1].Path ?? string.Empty;
+            var exeExiste = exeDaTarefa.Length > 0 && System.IO.File.Exists(exeDaTarefa);
 
-            Log.Write("a tarefa de arranque está desatualizada (gatilho ou folga); reescrevendo");
-            CreateTask();
+            if (gatilhoOk && exeExiste) return;
+
+            Log.Write($"a tarefa de arranque está desatualizada (gatilho/folga={gatilhoOk}, " +
+                      $"executável existe={exeExiste}); reescrevendo");
+
+            // Só troca o executável quando o que está lá sumiu.
+            //
+            // Alinhar sempre com o processo atual seria pior do que o furo: quem desenvolve o
+            // app roda a compilação de bin\Debug o tempo todo, e cada execução dessas passaria
+            // a ser a que sobe no logon. O arranque é da cópia publicada, e continua sendo.
+            CreateTask(exeExiste ? exeDaTarefa : null);
         }
         catch { /* sem acesso ao agendador: fica como está, e a dock sobe do mesmo jeito */ }
     }
@@ -127,11 +144,13 @@ public static class StartupService
         catch { return false; }
     }
 
-    private static bool CreateTask()
+    /// <param name="exe">O executável que a tarefa deve chamar. Nulo usa o processo atual —
+    /// é o caso de quem acabou de ligar o "iniciar com o Windows".</param>
+    private static bool CreateTask(string? exe = null)
     {
         try
         {
-            var exe = Environment.ProcessPath;
+            exe ??= Environment.ProcessPath;
             if (string.IsNullOrEmpty(exe)) return false;
 
             var service = Service();
@@ -159,18 +178,18 @@ public static class StartupService
             dynamic trigger = def.Triggers.Create(9);
             trigger.UserId = $@"{Environment.UserDomainName}\{Environment.UserName}";
 
-            // Um segundo de folga, não mais.
+            // Sem folga nenhuma.
             //
             // A folga existia porque a dock precisa do Explorer de pé para se registrar como
-            // AppBar, e quatro segundos eram um palpite de quanto ele demora. O palpite tem um
-            // custo visível: são quatro segundos de barra do Windows na tela antes de a dock
-            // aparecer e escondê-la — e ainda erra para menos num logon frio, quando o Explorer
-            // passa disso e a AppBar falha calada.
+            // AppBar, e era um palpite de quanto ele demora — primeiro quatro segundos, depois
+            // um. Palpite nenhum se justifica: quem espera pelo Explorer é a própria dock (ver
+            // MainWindow.WhenShellIsUp), que pergunta pelo shell em vez de cronometrar.
             //
-            // Quem espera pelo Explorer agora é a própria dock (ver MainWindow.WhenShellIsUp),
-            // que pergunta pelo shell em vez de cronometrar. O segundo que sobra aqui é só para
-            // não disputar disco no pico do logon, quando tudo sobe ao mesmo tempo.
-            trigger.Delay = "PT1S";
+            // O último segundo sobrevivia como "para não disputar disco no pico do logon", e
+            // isso não se sustenta: o disco disputado atrasa o arranque de qualquer jeito, e
+            // adiar a dock só garante que a pessoa veja a área de trabalho sem barra por mais
+            // um segundo. Numa dock isso é visível demais, porque ela é moldura da tela.
+            trigger.Delay = "PT0S";
 
             dynamic settings = def.Settings;
             settings.DisallowStartIfOnBatteries = false;   // notebook no logon esta na bateria

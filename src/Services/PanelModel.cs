@@ -57,9 +57,18 @@ public sealed class PanelModel : INotifyPropertyChanged, IDisposable
         _media.SetAllowed(_config.MediaApps);
         _ = _media.Start();
 
-        // o brilho é lido uma vez: ninguém o muda por fora com frequência, e cada leitura
-        // conversa com o monitor por I²C
-        _brightnessLevel = _brightness.Level;
+        // O brilho é lido uma vez: ninguém o muda por fora com frequência, e cada leitura
+        // conversa com o monitor por I²C. Esta primeira leitura volta na hora, com zero, e
+        // manda o serviço procurar o monitor em segundo plano — quem traz o valor de verdade
+        // é o AvailabilityChanged ligado logo acima. Era aqui que a barra ficava quase um
+        // segundo parada no arranque, esperando dois monitores dizerem que não falam DDC/CI.
+        //
+        // Só quando o item está ligado. Sem isto, a barra conversava por I²C com monitor
+        // nenhum precisar: HasBrightness curto-circuita no PanelBrightness e nunca chega a
+        // perguntar, então quem tem o brilho desligado pagava a procura inteira para jogar o
+        // resultado fora. Ligar a opção depois não perde nada — HasBrightness passa a
+        // consultar Available, que dispara a mesma procura em segundo plano.
+        if (_config.PanelBrightness) _brightnessLevel = _brightness.Level;
     }
 
     /// <summary>
