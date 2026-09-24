@@ -108,6 +108,7 @@ public partial class PanelWindow : Window
     private bool _calendarWasOpen;
     private bool _mediaWasOpen;
     private bool _brightnessWasOpen;
+    private bool _aiUsageWasOpen;
 
     protected override void OnPreviewMouseDown(System.Windows.Input.MouseButtonEventArgs e)
     {
@@ -118,6 +119,7 @@ public partial class PanelWindow : Window
         _calendarWasOpen = CalendarPopup.IsOpen;
         _mediaWasOpen = MediaPopup.IsOpen;
         _brightnessWasOpen = BrightnessPopup.IsOpen;
+        _aiUsageWasOpen = AiUsagePopup.IsOpen;
 
         base.OnPreviewMouseDown(e);
     }
@@ -196,6 +198,7 @@ public partial class PanelWindow : Window
         ("bluetooth",       "Bluetooth"),
         ("volume",          "Volume"),
         ("brilho",          "Brilho"),
+        ("cotaIa",          "Cota de IA"),
         ("notificacoes",    "Notificações"),
         ("energia",         "Energia"),
         ("relogio",         "Relógio"),
@@ -385,7 +388,8 @@ public partial class PanelWindow : Window
 
     private bool AnyPopupOpen =>
         BluetoothPopup.IsOpen || VolumePopup.IsOpen || PowerPopup.IsOpen ||
-        CalendarPopup.IsOpen || TrayPopup.IsOpen || MediaPopup.IsOpen || BrightnessPopup.IsOpen;
+        CalendarPopup.IsOpen || TrayPopup.IsOpen || MediaPopup.IsOpen || BrightnessPopup.IsOpen ||
+        AiUsagePopup.IsOpen;
 
     private void CheckOutsideClick()
     {
@@ -531,6 +535,27 @@ public partial class PanelWindow : Window
             _model.RefreshAppSessions();
 
             VolumePopup.IsOpen = true;
+        }
+
+        WatchOutsideClick();
+    }
+
+    /// <summary>
+    /// Abre o cartão da cota e manda reler.
+    ///
+    /// O cartão aparece na hora com o número da última leitura, e a nova chega por cima
+    /// quando a rede responder — mesmo desenho do cartão da bandeja. Esperar pela resposta
+    /// para só então abrir deixaria o clique parecendo travado quando a rede está ruim, que é
+    /// justamente quando se quer olhar.
+    /// </summary>
+    private void OnAiUsage(object sender, RoutedEventArgs e)
+    {
+        CloseOpenPanels();   // um painel de cada vez
+
+        if (!_aiUsageWasOpen)
+        {
+            AiUsagePopup.IsOpen = true;
+            _model.RefreshAiUsage();
         }
 
         WatchOutsideClick();
@@ -1106,6 +1131,7 @@ public partial class PanelWindow : Window
         MediaPopup.IsOpen = false;
         _mediaTick.Stop();
         BrightnessPopup.IsOpen = false;
+        AiUsagePopup.IsOpen = false;
 
         // o mostrador de volume não é um painel, mas some junto: o controle de volume já
         // traz o número, e deixá-lo por cima seria a mesma informação duas vezes

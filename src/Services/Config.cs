@@ -339,6 +339,17 @@ public sealed class DockConfig : INotifyPropertyChanged
     /// </summary>
     public bool PanelBrightness { get => _panelBrightness; set => Set(ref _panelBrightness, value); }
 
+    private bool _panelAiUsage;
+    /// <summary>
+    /// Quanto da cota do Claude já foi usada, num cartão da barra.
+    ///
+    /// Desligada por padrão: vale para quem usa o Claude Code, e só aparece quando há
+    /// credencial dele nesta máquina. Os números vêm do mesmo endpoint que o
+    /// <c>/usage</c> do Claude Code usa — veja <c>AiUsageService</c>, inclusive o que ele
+    /// deliberadamente não faz com as credenciais.
+    /// </summary>
+    public bool PanelAiUsage { get => _panelAiUsage; set => Set(ref _panelAiUsage, value); }
+
     private bool _trace;
     /// <summary>
     /// Registrar cada passo no log, e não só o que deu errado.
@@ -429,6 +440,21 @@ public sealed class DockConfig : INotifyPropertyChanged
     /// acompanha — vira outro desenho, logo outra identidade, e a linha antiga fica órfã.
     /// </summary>
     public Dictionary<string, string> TrayNames { get; set; } = new();
+
+    /// <summary>
+    /// Com quantos ícones na bandeja já se sabe que **algum deles nunca ganha nome**, ou -1
+    /// enquanto não se sabe.
+    ///
+    /// Não é preferência de ninguém: é uma medição que custa 400 ms e que, sem isto, era
+    /// refeita a cada sessão. A espera pela lista do painel dá um prazo para os nomes
+    /// chegarem, e há ícones que não vão ganhar nome nunca (o Discord desta máquina não
+    /// publica dica de mouse) — esperar por eles é pagar o prazo inteiro na primeira leitura
+    /// de todo dia. Sabendo de antemão com que contagem isso acontece, a espera é dispensada.
+    ///
+    /// A contagem faz parte da chave de propósito: se a bandeja mudar de composição, o que se
+    /// aprendeu não vale mais e a espera acontece de novo. Veja <c>TrayService.AnonymousAt</c>.
+    /// </summary>
+    public int TrayAnonymousAt { get; set; } = -1;
 
     // ── mosaico (tiling window manager) ──────────────────────
     private bool _tilingEnabled;
@@ -617,7 +643,7 @@ public sealed class DockConfig : INotifyPropertyChanged
         PanelCenterClock = d.PanelCenterClock;
         CalendarDoneRetentionDays = d.CalendarDoneRetentionDays;
         PanelTray = d.PanelTray; PanelAppVolume = d.PanelAppVolume; PanelMedia = d.PanelMedia;
-        PanelBrightness = d.PanelBrightness;
+        PanelBrightness = d.PanelBrightness; PanelAiUsage = d.PanelAiUsage;
         Trace = d.Trace;
         Panel = d.Panel; PanelSize = d.PanelSize;
         TilingEnabled = d.TilingEnabled; TilingGap = d.TilingGap;

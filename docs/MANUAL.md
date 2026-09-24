@@ -152,7 +152,8 @@ a barra do Windows, se você a tinha escondido. Matar o processo à força pula 
 
 Da esquerda para a direita: o que está tocando, os controles de faixa, bateria, wi-fi,
 bluetooth, volume, a seta da bandeja, notificações e energia — mais o **brilho**, quando o
-monitor aceita ser controlado (veja [Brilho](#brilho)). **A ordem é sua** — veja
+monitor aceita ser controlado (veja [Brilho](#brilho)), e a **cota de IA**, se você ligar
+(veja [Cota de IA](#cota-de-ia)). **A ordem é sua** — veja
 [Ordem dos itens](#ordem-dos-itens-da-barra).
 
 | ação | como |
@@ -168,6 +169,7 @@ monitor aceita ser controlado (veja [Brilho](#brilho)). **A ordem é sua** — v
 | Ver a faixa inteira, com capa | clique no nome da música |
 | Desligar, reiniciar, hibernar, bloquear, sair | o botão de energia |
 | Brilho do monitor | clique no ícone de brilho, ou role a roda do mouse sobre ele |
+| Quanto da cota do Claude já foi usada | clique no velocímetro (veja [Cota de IA](#cota-de-ia)) |
 | Trocar de mês no calendário | as setas do cabeçalho, ou a roda do mouse sobre o mês |
 | Fechar o cartão aberto | `Esc`, ou clique fora dele |
 
@@ -257,6 +259,34 @@ Aparece só em monitor que aceita controle por **DDC/CI** — em geral os extern
 notebook costuma não aceitar, e ali o item some sozinho. O ajuste vai direto para o monitor, como
 os botões físicos dele. Para não ter o item nem onde ele funciona, desligue
 **Configurações > Indicador de brilho**.
+
+#### Cota de IA
+
+Quanto da sua cota do Claude já foi usada — a janela de **5 horas**, a de **7 dias** e as que
+houver por modelo —, cada uma com o quanto falta para zerar. É o mesmo número que o `/usage` do
+Claude Code mostra.
+
+No topo do cartão fica **de quem é essa cota**: o nome, a conta, a organização e o papel nela
+quando houver, e o plano na cápsula à direita. Não é enfeite — quem tem conta pessoal e conta da
+empresa troca de uma para a outra no Claude Code, e a cota que aparece é a da que estiver ativa.
+Nome, e-mail e organização saem do `~/.claude.json`, o arquivo onde o Claude Code guarda quem está
+logado; o plano vem da credencial.
+
+Vem desligado, em **Configurações > Cota de IA**, e mesmo ligado só aparece se você usa o Claude
+Code nesta máquina: o cartão se autentica com a credencial que ele guarda em
+`%USERPROFILE%\.claude\.credentials.json`, e sem ela não haveria o que mostrar. O número é
+buscado de dez em dez minutos e toda vez que você abre o cartão.
+
+Três coisas que vale saber:
+
+- **A dock nunca escreve nessa pasta.** A credencial vence de tempos em tempos e renová-la
+  significaria gravar por cima do arquivo do Claude Code — duas coisas escrevendo no mesmo lugar é
+  como se perde o login. Quando vencer, o cartão diz **"Sessão expirada"** e volta ao normal
+  assim que você usar o Claude Code, que renova sozinho.
+- **Seu token não vai para o log**, nem inteiro nem em pedaço.
+- **A fonte não é uma API pública.** É o mesmo endereço que o Claude Code usa, e ele pode mudar
+  sem aviso. Se mudar, o cartão passa a dizer que não conseguiu ler — nada mais na dock depende
+  disso.
 
 #### Energia
 
@@ -365,7 +395,7 @@ arquivo vazio chamado `rastrear` nessa mesma pasta liga o rastro já no arranque
 
 ### Ordem dos itens da barra
 
-**Configurações > Ordem dos itens da barra** lista os dez itens do canto direito com setas para
+**Configurações > Ordem dos itens da barra** lista os onze itens do canto direito com setas para
 mover. A barra muda na hora. A música entra como **dois itens separados** (a informação e os
 controles), então dá para afastá-los ou juntá-los.
 

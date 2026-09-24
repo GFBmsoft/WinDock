@@ -48,7 +48,27 @@ public sealed class PanelModel : INotifyPropertyChanged, IDisposable
         // a thread que le a bandeja sobe junto com a barra, e nao no primeiro clique: criar
         // uma thread STA com bomba de mensagens leva alguns milissegundos, e quem esperava
         // por ela era a thread da interface — a barra travava no primeiro clique da seta.
-        if (_config.PanelTray) { TrayService.ClearLeftovers(); TrayReader.Start(); WarmTray(); }
+        if (_config.PanelTray)
+        {
+            TrayService.ClearLeftovers();
+
+            // O que se aprendeu sobre os ícones sem nome volta do disco antes da primeira
+            // leitura — é só assim que ele serve para alguma coisa: aprendido de novo a cada
+            // sessão, a primeira leitura de todo dia pagava os 400 ms de espera pelos nomes.
+            TrayService.AnonymousAt = _config.TrayAnonymousAt;
+            // pelo dispatcher: o aviso vem da thread da bandeja, e gravar a configuração de
+            // duas threads ao mesmo tempo é um arquivo pela metade
+            TrayService.AnonymousLearned += (_, _) => _dispatcher.InvokeAsync(() =>
+            {
+                _config.TrayAnonymousAt = TrayService.AnonymousAt;
+                _config.Save();
+            });
+
+            TrayReader.Start();
+            WarmTray();
+        }
+
+        WatchAiUsage();
 
         // A mídia avisa sozinha quando muda, mas o evento vem de thread do WinRT — a
         // interface só pode ser tocada pelo dispatcher.
@@ -85,16 +105,47 @@ public sealed class PanelModel : INotifyPropertyChanged, IDisposable
     ///
     /// Uns segundos depois de a barra subir, e não junto: o logon já é o momento mais
     /// disputado da máquina.
+    ///
+    /// **E insiste, porque seis segundos não bastam.** No log de 24/09 o aquecimento falhou
+    /// duas vezes seguidas às 07:50 com "o botão mostrar ícones ocultos não foi encontrado":
+    /// logo depois do logon a árvore de automação da barra do Windows ainda não está de pé, e
+    /// o <c>WaitForChevron</c> estoura. Uma tentativa só que falha deixa o cache vazio — ou
+    /// seja, o primeiro clique do dia paga a leitura inteira, que é exatamente o que este
+    /// aquecimento existe para evitar. As tentativas param assim que uma trouxer ícones.
     /// </summary>
     private void WarmTray()
     {
-        var warm = new DispatcherTimer(DispatcherPriority.Background)
+        // Espaçadas de propósito: se a barra do Windows ainda não montou aos 6 s, insistir
+        // logo em seguida encontra a mesma coisa. Depois de dois minutos, desiste — a essa
+        // altura ou não há bandeja nesta sessão, ou o primeiro clique resolve sozinho.
+        var prazos = new Queue<int>(new[] { 6, 30, 120 });
+
+        var warm = new DispatcherTimer(DispatcherPriority.Background);
+
+        void Agendar()
         {
-            Interval = TimeSpan.FromSeconds(6)
+            if (prazos.Count == 0) { Log.Write("a bandeja não pôde ser lida no arranque; o primeiro clique vai relê-la"); return; }
+            warm.Interval = TimeSpan.FromSeconds(prazos.Dequeue());
+            warm.Start();
+        }
+
+        warm.Tick += (_, _) =>
+        {
+            warm.Stop();
+            RefreshTray(() =>
+            {
+                if (TrayService.Cached.Count > 0)
+                {
+                    Log.Trace($"bandeja aquecida: {TrayService.Cached.Count} ícone(s) prontos antes do primeiro clique");
+                    return;
+                }
+
+                Log.Trace("aquecimento da bandeja não trouxe ícones; tentando de novo mais tarde");
+                Agendar();
+            });
         };
 
-        warm.Tick += (s, _) => { ((DispatcherTimer)s!).Stop(); RefreshTray(); };
-        warm.Start();
+        Agendar();
     }
 
     // ── relogio ─────────────────────────────────────────────
@@ -551,6 +602,161 @@ public sealed class PanelModel : INotifyPropertyChanged, IDisposable
 
     public string TrayTooltip => "Ícones ocultos";
 
+    // ── cota de IA ──────────────────────────────────────────
+
+    private readonly AiUsageService _ai = new();
+    private DispatcherTimer? _aiTimer;
+
+    /// <summary>
+    /// O robô da Segoe, como no projeto que deu a ideia. Conferido de perto: continua
+    /// legível em 15 px, que é o tamanho dos ícones da barra.
+    /// </summary>
+    public string AiGlyph => "";
+
+    /// <summary>
+    /// O ícone só aparece quando a opção está ligada **e** há credencial do Claude Code nesta
+    /// máquina. Um botão que não tem o que mostrar é pior que botão nenhum: quem não usa o
+    /// Claude Code veria um velocímetro que só sabe dizer que não sabe.
+    /// </summary>
+    public bool HasAiUsage => _config.PanelAiUsage && AiUsageService.Installed;
+
+    private AiUsage _aiUsage =
+        new(AiUsageState.Unknown, Array.Empty<AiGauge>(), new AiAccount(null, null, null, null, null), DateTime.MinValue);
+
+    public AiUsage AiUsage
+    {
+        get => _aiUsage;
+        private set
+        {
+            if (!Set(ref _aiUsage, value)) return;
+            OnChanged(nameof(AiGauges));
+            OnChanged(nameof(AiMessage));
+            OnChanged(nameof(HasAiMessage));
+            OnChanged(nameof(AiTooltip));
+            OnChanged(nameof(AiAccountName));
+            OnChanged(nameof(AiAccountLine));
+            OnChanged(nameof(AiPlan));
+            OnChanged(nameof(HasAiAccount));
+        }
+    }
+
+    public IReadOnlyList<AiGauge> AiGauges => _aiUsage.Gauges;
+
+    /// <summary>Quem está logado — o nome, ou o e-mail quando não há nome.</summary>
+    public string AiAccountName
+    {
+        get
+        {
+            var conta = _aiUsage.Conta;
+            return !string.IsNullOrWhiteSpace(conta.Nome) ? conta.Nome!
+                 : !string.IsNullOrWhiteSpace(conta.Email) ? conta.Email!
+                 : "Claude";
+        }
+    }
+
+    /// <summary>
+    /// A linha de baixo do cabeçalho: a conta e, quando houver, a organização e o papel nela.
+    ///
+    /// O e-mail sai quando ele já é o título — repetir a mesma linha duas vezes gasta a
+    /// altura do cartão sem dizer nada.
+    /// </summary>
+    public string AiAccountLine
+    {
+        get
+        {
+            var conta = _aiUsage.Conta;
+            var partes = new List<string>();
+
+            if (!string.IsNullOrWhiteSpace(conta.Email) && conta.Email != AiAccountName)
+                partes.Add(conta.Email!);
+
+            if (!string.IsNullOrWhiteSpace(conta.Organizacao))
+                partes.Add(string.IsNullOrWhiteSpace(conta.Papel)
+                           ? conta.Organizacao!
+                           : $"{conta.Organizacao} · {conta.Papel}");
+
+            return string.Join("  ·  ", partes);
+        }
+    }
+
+    /// <summary>O plano, em caixa de título: a API manda "max", e o cartão mostra "Max".</summary>
+    public string AiPlan
+    {
+        get
+        {
+            var plano = _aiUsage.Conta.Plano;
+            if (string.IsNullOrWhiteSpace(plano)) return string.Empty;
+
+            return CultureInfo.CurrentCulture.TextInfo.ToTitleCase(plano.Replace('_', ' '));
+        }
+    }
+
+    public bool HasAiAccount => !_aiUsage.Conta.Vazia;
+
+    /// <summary>O que o cartão diz quando não há medidor para mostrar.</summary>
+    public string AiMessage => _aiUsage.State switch
+    {
+        AiUsageState.NoCredentials => "Entre no Claude Code para ver a cota aqui.",
+        AiUsageState.Expired => "Sessão expirada — use o Claude Code uma vez para renovar.",
+        AiUsageState.Failed => _aiUsage.Erro ?? "Não deu para ler a cota agora.",
+        AiUsageState.Unknown => "Consultando…",
+        _ => string.Empty
+    };
+
+    public bool HasAiMessage => _aiUsage.Gauges.Count == 0;
+
+    /// <summary>
+    /// A dica do botão traz o número da janela curta — é o que se quer saber de relance, sem
+    /// abrir nada.
+    /// </summary>
+    public string AiTooltip
+    {
+        get
+        {
+            var curta = _aiUsage.Gauges.FirstOrDefault();
+            return curta is null ? "Cota de IA" : $"Cota de IA — {curta.Nome}: {curta.Percent:0}%";
+        }
+    }
+
+    /// <summary>
+    /// Começa a acompanhar a cota, se a opção estiver ligada.
+    ///
+    /// De dez em dez minutos, e não de segundo em segundo: cada volta é uma ida à rede, e a
+    /// cota não muda em saltos que justifiquem mais que isso. Quem quiser o número na hora
+    /// abre o cartão — <see cref="RefreshAiUsage"/> é chamado ali também.
+    /// </summary>
+    private void WatchAiUsage()
+    {
+        if (!HasAiUsage) return;
+
+        _aiTimer = new DispatcherTimer(DispatcherPriority.Background)
+        {
+            Interval = TimeSpan.FromMinutes(10)
+        };
+        _aiTimer.Tick += (_, _) => RefreshAiUsage();
+        _aiTimer.Start();
+
+        // a primeira leitura não espera os dez minutos, mas também não disputa o arranque
+        var primeira = new DispatcherTimer(DispatcherPriority.Background) { Interval = TimeSpan.FromSeconds(8) };
+        primeira.Tick += (s, _) => { ((DispatcherTimer)s!).Stop(); RefreshAiUsage(); };
+        primeira.Start();
+    }
+
+    /// <summary>
+    /// Relê a cota em segundo plano. Nada espera por ela: o cartão mostra o que já tinha até
+    /// a resposta chegar.
+    /// </summary>
+    public void RefreshAiUsage()
+    {
+        if (!HasAiUsage) return;
+
+        _ = Task.Run(async () =>
+        {
+            var uso = await _ai.ReadAsync().ConfigureAwait(false);
+            await _dispatcher.InvokeAsync(() => AiUsage = uso);
+        });
+    }
+
     /// <summary>
     /// Troca pelo apelido o nome dos ícones que a pessoa batizou.
     ///
@@ -681,6 +887,15 @@ public sealed class PanelModel : INotifyPropertyChanged, IDisposable
         // a próxima troca de faixa
         if (e.PropertyName is nameof(DockConfig.PanelMedia)) OnChanged(nameof(ShowMedia));
         if (e.PropertyName is nameof(DockConfig.PanelBrightness)) OnChanged(nameof(HasBrightness));
+
+        // ligada agora: o ícone aparece e o número é buscado na hora, senão o cartão nasceria
+        // dizendo "Consultando…" até o primeiro tique de dez minutos
+        if (e.PropertyName is nameof(DockConfig.PanelAiUsage))
+        {
+            OnChanged(nameof(HasAiUsage));
+            if (_config.PanelAiUsage) { if (_aiTimer is null) WatchAiUsage(); else RefreshAiUsage(); }
+            else _aiTimer?.Stop();
+        }
 
         // marcar ou desmarcar um programa reavalia qual sessão a barra segue, na hora
         if (e.PropertyName is nameof(DockConfig.MediaApps)) _media.SetAllowed(_config.MediaApps);

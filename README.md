@@ -46,7 +46,7 @@ os pixels reservados e a área de trabalho volta ao tamanho normal.
 - **Não rouba o foco** (`WS_EX_NOACTIVATE`): clicar na dock não tira o app da frente
 - **Busca de aplicativos** em `Alt+Espaço`, com comandos de energia e "executar"
 - **Esconder ou recolher a barra do Windows** enquanto a dock roda
-- **Barra de cima** opcional: relógio, data, bateria, volume, brilho, bluetooth, mídia e os
+- **Barra de cima** opcional: relógio, data, bateria, volume, brilho, bluetooth, cota de IA, mídia e os
   painéis do Windows
 - **Ícones da bandeja** dos programas rodando em segundo plano, alcançáveis com a barra do
   Windows escondida — o clique abre o programa, o botão direito abre o menu dele
@@ -151,6 +151,17 @@ tentar imitar o que o Windows já faz bem:
   dia abre as **anotações** dele numa janela à parte — a barra é `WS_EX_NOACTIVATE`, e um campo de
   texto dentro do cartão nunca receberia o teclado;
 - **brilho** do monitor por DDC/CI (`dxva2.dll`), com a roda do mouse sobre o ícone;
+- **cota de IA** (desligada por padrão): quanto da cota do Claude já foi usada, em cápsulas por
+  janela — a de 5 horas, a semanal e as que houver por modelo —, com quem está logado no topo
+  (nome, conta, organização e plano, lidos do `~/.claude.json`): quem alterna entre conta pessoal
+  e da empresa precisa ver de qual conta é o número. Os números vêm do mesmo endereço
+  que o `/usage` do Claude Code usa, autenticados com a credencial que ele guarda em
+  `%USERPROFILE%\.claude\.credentials.json`. Duas decisões moram no `AiUsageService` e não se
+  deduzem do código: **o serviço só lê essa pasta, nunca escreve nela** — renovar o token
+  significaria gravar por cima do arquivo do Claude Code, e duas coisas escrevendo no mesmo
+  arquivo de credenciais é como se perde o login; e **o token não vai para o log** em hipótese
+  nenhuma. O endpoint não é público e pode sumir: quando sumir, o cartão diz que não conseguiu
+  ler, e nada mais depende dele;
 - **mídia**: o que está tocando e os controles de faixa, pelos controles de mídia do Windows
   (`Windows.Media.Control`). A barra de progresso é extrapolada pelo relógio, porque o navegador
   publica a posição uma vez só e não atualiza mais;
@@ -586,6 +597,8 @@ e os testes em `tests/`.
 | `src/Services/PanelModel.cs` | o que a barra de cima mostra e os comandos dela |
 | `src/Services/VolumeService.cs` | volume do sistema e por aplicativo, pelo Core Audio |
 | `src/Services/BrightnessService.cs` | brilho do monitor por DDC/CI |
+| `src/Services/AiUsageService.cs` | a cota do Claude: lê a credencial e a conta do Claude Code e consulta o uso |
+| `src/Views/AiUsageCard.xaml` | o cartão da cota — separado para poder ser montado sozinho num harness |
 | `src/Services/BluetoothService.cs` | o rádio e os aparelhos pareados |
 | `src/Services/MediaService.cs` | o que está tocando, pelos controles de mídia do Windows |
 | `src/Services/PowerService.cs` | as opções do menu de energia, as mesmas que a busca usa |
