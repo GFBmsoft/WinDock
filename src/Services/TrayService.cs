@@ -288,6 +288,25 @@ public static class TrayService
     /// Abrir e fechar o cartão em seguida — que é o gesto de quem está conferindo alguma
     /// coisa — relia toda vez e piscava toda vez. Poucos segundos de validade cobrem esse
     /// vaivém sem deixar a lista velha: o cartão se fecha sozinho em três.
+    ///
+    /// **Tentado em 24/09 subir para um minuto, e desfeito no mesmo dia.** A ideia era que o
+    /// prazo não precisava ser a defesa de verdade: a bandeja só muda quando um programa abre
+    /// ou fecha, e o <see cref="Invalidate"/> já cobre isso (a dock, ao ver a lista de janelas
+    /// mudar; o <see cref="Invoke"/> e o <see cref="ShowMenu"/>, porque um clique pode ter
+    /// fechado o programa). A premissa é **falsa justamente para quem vive na bandeja**: um
+    /// app de bandeja pura não tem janela nenhuma para a dock enxergar — medido, o `Master.exe`
+    /// desta máquina tem 15 janelas e **nenhuma visível** —, então fechá-lo e reabri-lo não
+    /// dispara aviso nenhum e o cartão ficava até um minuto mostrando a lista velha. Foi
+    /// exatamente o que o usuário relatou.
+    ///
+    /// E não há atalho: sondar a composição sem abrir o painel foi testado e não existe. Com o
+    /// painel fechado, a árvore da barra entrega os ícones **do sistema**
+    /// (<c>SystemTrayIcon</c>: rede, volume, bateria, relógio, a própria seta) e zero
+    /// <c>NotifyItemIcon</c> — os ocultos só existem na árvore enquanto o painel está aberto,
+    /// e abri-lo é a leitura inteira. Ou se paga a leitura, ou se confia no prazo.
+    ///
+    /// Fica em cinco segundos, o valor calibrado em uso: cobre o vaivém de abrir e fechar o
+    /// cartão sem deixar a lista velha um tempo que dê para alguém reparar.
     /// </summary>
     private static readonly TimeSpan Fresh = TimeSpan.FromSeconds(5);
 
@@ -327,7 +346,12 @@ public static class TrayService
         // ícones vêm sem desenho. Agora ela existe: uma segunda tentativa sai completa.
         //
         // Só nesse caso, e só uma vez: é o dobro do tempo, mas acontece uma vez por sessão.
-        if (icons is null || icons.Any(i => i.Image is null))
+        // Só quando a leitura **aconteceu** e trouxe ícone sem desenho. Uma leitura que
+        // voltou nula não abriu o painel (a seta não foi achada, o explorer estava ocupado),
+        // e insistir na hora só paga o prazo de novo — agora que ele é de 10 s na primeira
+        // vez, seriam 20 s com a thread da bandeja presa. Quem insiste nesse caso é o
+        // aquecimento do `PanelModel`, espaçado, e a próxima abertura do cartão.
+        if (icons is not null && icons.Any(i => i.Image is null))
         {
             var again = WithShell(Capture);
             if (again is { Count: > 0 } && again.All(i => i.Image is not null)) icons = again;
@@ -534,22 +558,35 @@ public static class TrayService
         }
     }
 
-    /// <summary>Fotografa o painel e recorta um ícone de cada botão.</summary>
-    private static IReadOnlyList<TrayIcon> Capture(nint flyout)
+    /// <summary>
+    /// Uma foto do painel e o retângulo de onde ela veio. <see cref="Valida"/> é falso quando
+    /// o painel sumiu antes de ser fotografado — sem retângulo não há o que recortar.
+    /// </summary>
+    private readonly record struct Foto(byte[]? Pixels, RECT Bounds, int Width, int Height)
     {
-        var found = new List<TrayIcon>();
-        _blank = 0;
+        public bool Valida => Width > 0 && Height > 0;
+    }
 
-        if (!GetWindowRect(flyout, out var bounds)) return found;
+    /// <summary>
+    /// Fotografa o painel, esperando ele pintar.
+    ///
+    /// A foto é tentada até sair com conteúdo: os botões aparecem na árvore de automação
+    /// **antes** de a janela pintar, e fotografar nesse instante devolve uma cor só — o
+    /// recorte descarta tudo e os ícones ficam invisíveis. Antes havia um tempo fixo de
+    /// 150 ms aqui, pago inteiro toda vez; esperar pela pintura custa o que ela precisar,
+    /// que em geral é bem menos.
+    ///
+    /// Devolve a última tentativa mesmo sem pintura: quem chamou distingue "não saiu foto"
+    /// de "saiu de uma cor só", e são dois problemas diferentes no log.
+    /// </summary>
+    private static Foto Photograph(nint flyout)
+    {
+        if (!GetWindowRect(flyout, out var bounds)) return default;
+
         var width = bounds.Right - bounds.Left;
         var height = bounds.Bottom - bounds.Top;
-        if (width <= 0 || height <= 0) { Log.Write("o painel sumiu antes de ser fotografado"); return found; }
+        if (width <= 0 || height <= 0) { Log.Write("o painel sumiu antes de ser fotografado"); return default; }
 
-        // A foto é tentada até sair com conteúdo: os botões aparecem na árvore de automação
-        // **antes** de a janela pintar, e fotografar nesse instante devolve uma cor só — o
-        // recorte descarta tudo e os ícones ficam invisíveis. Antes havia um tempo fixo de
-        // 150 ms aqui, pago inteiro toda vez; esperar pela pintura custa o que ela precisar,
-        // que em geral é bem menos.
         byte[]? shot = null;
         for (var waited = TimeSpan.Zero; waited < Timeout; waited += Poll)
         {
@@ -557,6 +594,20 @@ public static class TrayService
             if (shot is not null && Painted(shot)) break;
             Thread.Sleep(Poll);
         }
+
+        return new Foto(shot, bounds, width, height);
+    }
+
+    /// <summary>Fotografa o painel e recorta um ícone de cada botão.</summary>
+    private static IReadOnlyList<TrayIcon> Capture(nint flyout)
+    {
+        var found = new List<TrayIcon>();
+        _blank = 0;
+
+        var foto = Photograph(flyout);
+        if (!foto.Valida) return found;
+
+        var (shot, bounds, width, height) = foto;
 
         if (shot is null) Log.Write($"a foto do painel saiu vazia ({width}x{height})");
         else if (!Painted(shot))
@@ -584,9 +635,16 @@ public static class TrayService
         if (found.Count == 0) Log.Write("o painel abriu, mas sem nenhum ícone dentro");
 
         // o que se aprendeu sobre os anônimos vale para esta composição de bandeja; veja o
-        // `_anonymous`
-        _anonymous = _blank > 0;
-        _anonymousAt = _anonymous ? found.Count : -1;
+        // `AnonymousAt`
+        var aprendido = _blank > 0 ? found.Count : -1;
+        if (aprendido != AnonymousAt)
+        {
+            AnonymousAt = aprendido;
+            Log.Trace(aprendido < 0
+                ? "todos os ícones da bandeja têm nome; a espera pelos nomes volta a valer"
+                : $"bandeja com {aprendido} ícones tem anônimo: a espera pelos nomes fica dispensada");
+            AnonymousLearned?.Invoke(null, EventArgs.Empty);
+        }
 
         // um ícone sem imagem é sintoma, não detalhe: quer dizer que a foto do painel não
         // saiu, ou que a automação devolveu retângulos vazios (é o que acontece se a janela
@@ -765,6 +823,54 @@ public static class TrayService
     private const int BackgroundTolerance = 40;
 
     /// <summary>
+    /// A cor de fundo de um botão do painel, pela mediana da moldura dele.
+    ///
+    /// Amostra os quatro cantos e o meio de cada lado, sempre a 2 px da borda, e tira a
+    /// mediana de cada canal em separado. Oito pontos e mediana por canal: basta um ou dois
+    /// caírem em cima de desenho, ou num pixel de transição do acrílico, para o resultado
+    /// continuar sendo a cor de fundo — que é o que um pixel só não garantia.
+    /// </summary>
+    private static (byte B, byte G, byte R) Background(byte[] pixels, int width, int height,
+                                                       int x, int y, int boxWidth, int boxHeight)
+    {
+        const int Margin = 2;
+
+        Span<int> bs = stackalloc int[8], gs = stackalloc int[8], rs = stackalloc int[8];
+        var n = 0;
+
+        var x0 = x + Margin;                 var x1 = x + boxWidth - 1 - Margin;
+        var y0 = y + Margin;                 var y1 = y + boxHeight - 1 - Margin;
+        var xm = x + boxWidth / 2;           var ym = y + boxHeight / 2;
+
+        foreach (var (px, py) in new[] { (x0, y0), (x1, y0), (x0, y1), (x1, y1),
+                                         (xm, y0), (xm, y1), (x0, ym), (x1, ym) })
+        {
+            if (px < 0 || py < 0 || px >= width || py >= height) continue;
+
+            var i = (py * width + px) * 4;
+            bs[n] = pixels[i]; gs[n] = pixels[i + 1]; rs[n] = pixels[i + 2];
+            n++;
+        }
+
+        // nenhum ponto válido: o retângulo do botão não cabe na foto. Devolver preto faria
+        // tudo virar desenho; o canto cru ao menos mantém o comportamento antigo.
+        if (n == 0)
+        {
+            var corner = (Math.Clamp(y, 0, height - 1) * width + Math.Clamp(x, 0, width - 1)) * 4;
+            return (pixels[corner], pixels[corner + 1], pixels[corner + 2]);
+        }
+
+        return (Median(bs[..n]), Median(gs[..n]), Median(rs[..n]));
+    }
+
+    /// <summary>A mediana de uma amostra pequena — ordenar oito valores não pede mais que isto.</summary>
+    private static byte Median(Span<int> values)
+    {
+        values.Sort();
+        return (byte)values[values.Length / 2];
+    }
+
+    /// <summary>
     /// Tira um ícone da foto do painel, sem o fundo.
     ///
     /// O fundo do painel é opaco, não transparente: recortado e colado na nossa barra ele
@@ -791,11 +897,19 @@ public static class TrayService
         for (var row = 0; row < size; row++)
             Buffer.BlockCopy(pixels, ((top + row) * width + left) * 4, crop, row * size * 4, size * 4);
 
-        // A cor de fundo vem do canto do **botão**, não do canto do recorte: o recorte já
+        // A cor de fundo vem da moldura do **botão**, não do canto do recorte: o recorte já
         // começa recuado 25% e nesse ponto pode haver ícone. Amostrar ali fazia a cor do
         // próprio desenho virar "fundo", e o ícone saía inteiro transparente.
-        var corner = (y * width + x) * 4;
-        byte bb = pixels[corner], bg = pixels[corner + 1], br = pixels[corner + 2];
+        //
+        // E vem da **mediana de vários pontos** da moldura, não de um pixel só. Um pixel é
+        // frágil: medido em 24/09, uma leitura em seis saía com as células de borda da
+        // assinatura marcadas como desenho em vez de fundo — assinatura diferente, apelido
+        // perdido, e o ícone batizado voltando a aparecer como "Ícone da bandeja 2". O canto
+        // do botão cai justamente onde o desenho do painel tem menos margem: basta o
+        // retângulo da automação vir um pixel deslocado, ou o acrílico do painel compor
+        // diferente naquele ponto, para a cor amostrada não ser mais a do fundo — e aí quase
+        // nada fica dentro da tolerância. A mediana ignora esses pontos fora da curva.
+        var (bb, bg, br) = Background(pixels, width, height, x, y, boxWidth, boxHeight);
 
         var opaque = 0;
         for (var i = 0; i < crop.Length; i += 4)
@@ -1228,6 +1342,16 @@ public static class TrayService
     /// existe porque a posição sozinha não basta: se um programa fechou nesse meio-tempo, a
     /// posição guardada passou a ser de outro ícone, e acionar o errado é pior que não fazer
     /// nada.
+    ///
+    /// **E quando o nome não bate, ainda há o desenho.** O nome é uma chave instável para
+    /// quem não tem nome: o anônimo recebe do <see cref="NameOf"/> um rótulo tirado da
+    /// posição, então basta o shell preencher — ou deixar de preencher — o nome daquele botão
+    /// entre a leitura e o clique para a conferência falhar. No log de 24/09 isso aconteceu
+    /// duas vezes ("'Ícone da bandeja 2' não foi acionado", "'Ícone da bandeja 3'"), e as duas
+    /// vezes o clique da pessoa não fez nada. A <see cref="TrayIcon.Signature"/> do desenho —
+    /// a mesma que identifica os ícones batizados — não depende de o shell ter preenchido
+    /// coisa nenhuma, e é ela a segunda chance. Custa uma foto do painel (~45 ms), paga só
+    /// nesse caso.
     /// </summary>
     private static AutomationElement? Find(nint flyout, TrayIcon icon)
     {
@@ -1237,8 +1361,54 @@ public static class TrayService
             Clean(NameOf(buttons[icon.Position], icon.Position)).Equals(icon.Name, StringComparison.Ordinal))
             return buttons[icon.Position];
 
+        if (FindByDrawing(flyout, buttons, icon) is { } porDesenho) return porDesenho;
+
         Log.Write($"a bandeja mudou desde a última leitura; '{icon.Label}' não foi acionado");
         return null;
+    }
+
+    /// <summary>
+    /// O botão cujo desenho é o mesmo do ícone guardado.
+    ///
+    /// Só é chamado quando o nome falhou, e recusa empate: se dois botões do painel têm o
+    /// mesmo desenho (duas janelas do mesmo programa, por exemplo), não há como saber qual é
+    /// o da pessoa, e acionar o errado é pior que não acionar nada — a mesma regra do
+    /// <see cref="Find"/>.
+    /// </summary>
+    private static AutomationElement? FindByDrawing(nint flyout, IReadOnlyList<AutomationElement> buttons,
+                                                    TrayIcon icon)
+    {
+        if (string.IsNullOrEmpty(icon.Signature) || buttons.Count == 0) return null;
+
+        var foto = Photograph(flyout);
+        if (!foto.Valida || foto.Pixels is null) return null;
+
+        var (shot, bounds, width, height) = foto;
+
+        AutomationElement? achado = null;
+        for (var i = 0; i < buttons.Count; i++)
+        {
+            var box = buttons[i].Cached.BoundingRectangle;
+            Crop(shot!, width, height,
+                 (int)box.Left - bounds.Left, (int)box.Top - bounds.Top,
+                 (int)box.Width, (int)box.Height, out var assinatura);
+
+            if (!assinatura.Equals(icon.Signature, StringComparison.Ordinal)) continue;
+
+            if (achado is not null)
+            {
+                Log.Write($"dois ícones da bandeja com o mesmo desenho; '{icon.Label}' não foi acionado");
+                return null;
+            }
+
+            achado = buttons[i];
+
+            // no log de verdade, e não no rastro: é raro, e é a prova de que esta segunda
+            // chance salvou um clique que antes não fazia nada
+            Log.Write($"'{icon.Label}' mudou de nome desde a leitura; achado pelo desenho na posição {i + 1}");
+        }
+
+        return achado;
     }
 
     /// <summary>Nome do processo dono de uma janela — "explorer" para as do shell.</summary>
@@ -1329,6 +1499,16 @@ public static class TrayService
         var previous = -1;
         var settled = TimeSpan.MinValue;
 
+        // O tempo decorrido é medido, e não contado em múltiplos do `Poll`.
+        //
+        // Somar `Poll` a cada volta supõe que `Thread.Sleep(25)` dorme 25 ms, e ele não
+        // dorme: o passo do relógio do Windows é de ~15,6 ms, então cada espera custa ~31 e
+        // a volta inteira ~46 (medido: 18 sondagens, 196 ms dentro do `Buttons()` e 633
+        // dormindo). Com a conta antiga, os prazos daqui valiam quase o dobro do que dizem —
+        // o `Naming` de 400 ms era ~560 ms de verdade, pagos em toda leitura com ícone
+        // anônimo. Quem conta o tempo agora é o relógio.
+        var decorrido = Stopwatch.StartNew();
+
         // Onde vão os ~840 ms desta fase: dormindo entre sondagens, ou dentro delas? Cada
         // volta enumera a árvore de automação do painel, e isso não é barato — se o custo
         // estiver aqui, encurtar prazos não adianta e o caminho é sondar menos ou mais
@@ -1337,8 +1517,10 @@ public static class TrayService
         long emButtons = 0;
         var cronometro = new System.Diagnostics.Stopwatch();
 
-        for (var waited = TimeSpan.Zero; waited < Timeout; waited += Poll)
+        while (decorrido.Elapsed < Timeout)
         {
+            var waited = decorrido.Elapsed;
+
             var flyout = Overflow();
             if (flyout == 0) return false;
 
@@ -1353,8 +1535,7 @@ public static class TrayService
             {
                 if (settled == TimeSpan.MinValue) settled = waited;
                 if (buttons.All(b => !string.IsNullOrWhiteSpace(b.Cached.Name))) return true;
-                if ((_anonymous && buttons.Count == _anonymousAt) ||
-                    waited - settled >= Naming) return true;
+                if (buttons.Count == AnonymousAt || waited - settled >= Naming) return true;
             }
             else settled = TimeSpan.MinValue;
 
@@ -1373,19 +1554,30 @@ public static class TrayService
     private static readonly TimeSpan Naming = TimeSpan.FromMilliseconds(400);
 
     /// <summary>
-    /// Há um ícone que já se sabe que não vai ganhar nome nenhum.
+    /// Com quantos ícones já se sabe que **algum deles nunca ganha nome** — ou -1 enquanto
+    /// não se sabe.
     ///
     /// Existe para o prazo de nomeação não virar imposto: alguns programas — o Discord é o
     /// caso daqui — simplesmente não publicam dica de mouse, e o registro do Windows confirma
     /// (<c>NotifyIconSettings</c>, <c>InitialTooltip</c> vazio). Esperar por eles custaria os
     /// 400 ms em **toda** leitura, para sempre. Depois da primeira, já se sabe: espera-se uma
-    /// vez, aprende-se, e as seguintes voltam aos ~200 ms. Se a bandeja mudar, a contagem
-    /// muda com ela e a espera acontece de novo.
+    /// vez, aprende-se, e as seguintes voltam aos ~200 ms. A contagem faz parte da chave: se
+    /// a bandeja mudar de composição, o aprendizado não vale mais e a espera acontece de novo.
+    ///
+    /// **É público porque atravessa sessões.** O que se aprende aqui não muda de um dia para
+    /// o outro — a bandeja desta máquina é a mesma —, mas morria junto com o processo, e a
+    /// primeira leitura de todo dia pagava os 400 ms de novo. Quem guarda no disco é o
+    /// <c>PanelModel</c>, em <c>DockConfig.TrayAnonymousAt</c>: o serviço continua sem
+    /// conhecer a configuração, como o resto daqui.
     /// </summary>
-    private static bool _anonymous;
+    public static int AnonymousAt { get; set; } = -1;
 
-    /// <summary>Com quantos ícones o aprendizado acima foi feito — se mudar, ele não vale mais.</summary>
-    private static int _anonymousAt = -1;
+    /// <summary>
+    /// Avisa quando o aprendizado acima muda, para quem guarda poder gravá-lo. Não dispara
+    /// quando a leitura só confirma o que já se sabia — gravar a configuração inteira a cada
+    /// abertura do cartão seria uma ida ao disco por clique.
+    /// </summary>
+    public static event EventHandler? AnonymousLearned;
 
     /// <summary>Quantos ícones ficaram sem nome na leitura em curso.</summary>
     private static int _blank;
@@ -1436,6 +1628,16 @@ public static class TrayService
     /// </summary>
     private static AutomationElement? _chevron;
 
+    /// <summary>
+    /// A seta já foi achada alguma vez nesta sessão — o que separa "a barra ainda está
+    /// subindo" de "alguma coisa quebrou". Diferente do <see cref="_chevron"/>, isto não se
+    /// apaga quando o elemento morre: o explorer reiniciado continua tendo uma barra pronta.
+    /// </summary>
+    private static bool _chevronJaVisto;
+
+    /// <summary>Quanto se espera pela seta **na primeira vez**, logo depois do logon.</summary>
+    private static readonly TimeSpan FirstChevron = TimeSpan.FromSeconds(10);
+
     private static AutomationElement? WaitForChevron(nint taskbar)
     {
         if (_chevron is not null)
@@ -1448,7 +1650,16 @@ public static class TrayService
             catch { _chevron = null; }
         }
 
-        for (var waited = TimeSpan.Zero; waited < Timeout; waited += Poll)
+        // A primeira busca da sessão tem prazo folgado, e as seguintes não.
+        //
+        // Os dois casos não se parecem: depois da primeira, a barra do Windows já montou e a
+        // seta é achada em poucas sondagens — se não for, é porque o explorer caiu, e esperar
+        // mais não traz nada. A primeira é o aquecimento logo depois do logon, quando a
+        // árvore de automação da barra ainda está subindo: com os 2 s de sempre, ela estourava
+        // e o aquecimento voltava sem ícone nenhum (log de 24/09, 07:50).
+        var prazo = _chevronJaVisto ? Timeout : FirstChevron;
+
+        for (var waited = TimeSpan.Zero; waited < prazo; waited += Poll)
         {
             // a árvore da barra só aparece pela janela filha; na Shell_TrayWnd ela vem vazia
             var bridge = FindWindowEx(taskbar, 0, "Windows.UI.Composition.DesktopWindowContentBridge", null);
@@ -1463,7 +1674,7 @@ public static class TrayService
                     .Cast<AutomationElement>()
                     .FirstOrDefault(e => e.Current.Name.Contains("Ícones Ocultos",
                                                                  StringComparison.CurrentCultureIgnoreCase));
-                if (chevron is not null) { _chevron = chevron; return chevron; }
+                if (chevron is not null) { _chevron = chevron; _chevronJaVisto = true; return chevron; }
             }
 
             Thread.Sleep(Poll);

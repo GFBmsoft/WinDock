@@ -139,15 +139,24 @@ public sealed class DockModel : IDisposable
 
         // o filtro de eventos precisa saber quais janelas a dock mostra agora; veja o
         // `Concerns`
-        var gone = _known.Count > 0 && windows.Count < _known.Count;
+        // Mudou o **conjunto**, e não só o tamanho dele: uma janela que fecha e outra que
+        // abre na mesma varredura deixam a contagem igual, e era assim que uma troca de
+        // programa passava batida. Comparar os identificadores custa o mesmo e não erra.
+        var mudou = _known.Count > 0 &&
+                    (windows.Count != _known.Count || windows.Any(w => !_known.Contains(w.Handle)));
+
         _known.Clear();
         foreach (var w in windows) _known.Add(w.Handle);
 
-        // Programa que fecha costuma levar o ícone da bandeja junto, e o cartão guarda a
-        // última leitura por alguns segundos: sem este aviso ele continuava mostrando o
-        // ícone de um app já fechado. Não relê nada agora — só marca que a próxima abertura
-        // não pode se servir do que está guardado.
-        if (gone) TrayService.Invalidate();
+        // Programa que fecha costuma levar o ícone da bandeja junto, e o que abre costuma
+        // trazer um: o cartão guarda a última leitura, e sem este aviso ele mostraria o ícone
+        // de um app já fechado — ou esconderia o de um recém-aberto. Não relê nada agora — só
+        // marca que a próxima abertura não pode se servir do que está guardado.
+        //
+        // Este aviso ajuda, mas não substitui o prazo do `TrayService.Fresh`: um app de
+        // bandeja pura não tem janela nenhuma aqui, e abrir ou fechar esse tipo de programa
+        // não chega a ser visto. Veja o comentário do `Fresh`.
+        if (mudou) TrayService.Invalidate();
 
         var byApp = windows.GroupBy(w => w.AppKey)
                            .ToDictionary(g => g.Key, g => g.ToList(), StringComparer.OrdinalIgnoreCase);
