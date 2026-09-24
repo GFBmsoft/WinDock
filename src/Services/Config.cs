@@ -350,6 +350,38 @@ public sealed class DockConfig : INotifyPropertyChanged
     /// </summary>
     public bool PanelAiUsage { get => _panelAiUsage; set => Set(ref _panelAiUsage, value); }
 
+    /// <summary>
+    /// Quais contas do Claude Code o cartão acompanha, pelo nome da pasta de cada uma
+    /// (".claude", ".claude-bm").
+    ///
+    /// **Vazia quer dizer todas**, e não nenhuma: é o que faz o cartão funcionar sem
+    /// configuração nenhuma e o que faz uma conta nova aparecer sozinha quando ela passa a
+    /// existir. Quem quiser só uma marca só ela.
+    ///
+    /// Guarda o nome da pasta, e não o e-mail, porque é a pasta que o Claude Code usa para
+    /// separar as contas — o e-mail de dentro dela muda quando a pessoa troca de login ali,
+    /// e a escolha continuaria valendo.
+    /// </summary>
+    public List<string> AiUsageAccounts { get; set; } = new();
+
+    private bool _aiUsageExpanded;
+    /// <summary>
+    /// O cartão da cota mostra tudo (cada barra com a conta, o prazo e a hora em que zera) ou
+    /// só o essencial (uma linha por janela de cota, com a barra ao lado do nome).
+    ///
+    /// Começa compacto porque o tamanho do cartão cresce com o número de contas: com duas, a
+    /// versão detalhada passa de 400 px de altura. A seta no rodapé alterna, e o que a pessoa
+    /// escolher fica — é preferência de leitura, não estado de sessão.
+    /// </summary>
+    public bool AiUsageExpanded { get => _aiUsageExpanded; set => Set(ref _aiUsageExpanded, value); }
+
+    /// <summary>
+    /// Avisa que a lista acima mudou. A lista é um objeto só, então trocar o conteúdo dela
+    /// não dispara o <c>PropertyChanged</c> sozinho — o mesmo caminho do <c>PanelOrder</c>.
+    /// </summary>
+    public void NotifyAiUsageAccountsChanged() =>
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(AiUsageAccounts)));
+
     private bool _trace;
     /// <summary>
     /// Registrar cada passo no log, e não só o que deu errado.

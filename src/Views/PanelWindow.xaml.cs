@@ -44,6 +44,10 @@ public partial class PanelWindow : Window
         };
         _volumeOsd.Tick += (_, _) => HideVolumeOsd();
         _mediaTick.Tick += (_, _) => UpdateMediaProgress();
+
+        // um cartão que encolhe deixa o cursor do lado de fora sem ninguém ter mexido no
+        // mouse; o vigia precisa saber disso. Veja o `PanelModel.CardResized`.
+        _model.CardResized += (_, _) => IgnoreNextOutsideClick();
         TrayPopup.CustomPopupPlacementCallback = PlaceTrayCard;
         CalendarPopup.CustomPopupPlacementCallback = PlaceCalendarCard;
         ApplyPanelOrder();
@@ -386,10 +390,52 @@ public partial class PanelWindow : Window
         Log.Trace($"vigia de clique fora: {(_outsideClick.IsEnabled ? "ligado" : "desligado")}");
     }
 
-    private bool AnyPopupOpen =>
-        BluetoothPopup.IsOpen || VolumePopup.IsOpen || PowerPopup.IsOpen ||
-        CalendarPopup.IsOpen || TrayPopup.IsOpen || MediaPopup.IsOpen || BrightnessPopup.IsOpen ||
-        AiUsagePopup.IsOpen;
+    /// <summary>
+    /// Todos os cartões da barra, numa lista só.
+    ///
+    /// <para><b>Existe porque a lista estava em três lugares e um deles ficou para trás.</b> O
+    /// cartão da cota de IA foi acrescentado ao "algum cartão está aberto?" e ao "feche todos",
+    /// mas não ao "o clique caiu dentro de um cartão?" do <see cref="CheckOutsideClick"/> — e
+    /// o efeito não se parece nem um pouco com a causa: o cartão se fechava no instante do
+    /// clique, de modo que o botão de dentro dele nunca chegava a receber o evento. O relato
+    /// foi "clicando na seta não mostra nada", e o rastro mostrou um "clique fora dos painéis"
+    /// em coordenadas que estavam bem dentro do cartão.</para>
+    ///
+    /// <para>Com a lista aqui, um cartão novo entra em todos os caminhos de uma vez.</para>
+    /// </summary>
+    private IEnumerable<Popup> AllPopups()
+    {
+        yield return BluetoothPopup;
+        yield return VolumePopup;
+        yield return PowerPopup;
+        yield return CalendarPopup;
+        yield return TrayPopup;
+        yield return MediaPopup;
+        yield return BrightnessPopup;
+        yield return AiUsagePopup;
+    }
+
+    private bool AnyPopupOpen => AllPopups().Any(p => p.IsOpen);
+
+    /// <summary>
+    /// Até quando o vigia deve fingir que não viu o clique que está pendente.
+    ///
+    /// É curto de propósito — o suficiente para o tique seguinte passar. Mais que isso e um
+    /// clique de verdade do lado de fora, logo depois de recolher o cartão, deixaria de
+    /// fechá-lo.
+    /// </summary>
+    private DateTime _ignorarCliqueAte;
+
+    private void IgnoreNextOutsideClick()
+    {
+        _ignorarCliqueAte = DateTime.UtcNow.AddMilliseconds(350);
+
+        // consome o bit "foi apertado desde a consulta anterior" já: sem isto, o clique que
+        // acabou de ser tratado dentro do cartão ficaria guardado e seria lido como novo no
+        // primeiro tique depois da carência
+        GetAsyncKeyState(VK_LBUTTON);
+        GetAsyncKeyState(VK_RBUTTON);
+    }
 
     private void CheckOutsideClick()
     {
@@ -398,6 +444,8 @@ public partial class PanelWindow : Window
             _outsideClick.Stop();
             return;
         }
+
+        if (DateTime.UtcNow < _ignorarCliqueAte) return;
 
         // O Esc fecha o cartão aberto — o mesmo bit "foi apertado desde a consulta anterior"
         // que serve para o mouse. Vem por aqui, e não por um KeyDown, porque a barra é
@@ -436,11 +484,9 @@ public partial class PanelWindow : Window
 
         var point = new Point(cursor.X, cursor.Y);
 
-        // dentro do painel aberto: quem cuida é o próprio painel
-        if (Contains(BluetoothPopup, point) || Contains(VolumePopup, point) ||
-            Contains(PowerPopup, point) || Contains(CalendarPopup, point) ||
-            Contains(TrayPopup, point) || Contains(MediaPopup, point) ||
-            Contains(BrightnessPopup, point)) return;
+        // dentro do painel aberto: quem cuida é o próprio painel. A lista vem do `AllPopups`
+        // de propósito — ver o comentário de lá.
+        if (AllPopups().Any(p => Contains(p, point))) return;
 
         // na barra, só o clique em cima de um botão é dele: fechar aqui faria o clique no
         // ícone reabrir logo em seguida. O vazio entre os ícones não é de ninguém, e é o
@@ -1121,17 +1167,11 @@ public partial class PanelWindow : Window
             CancelMove();
         }
 
-        BluetoothPopup.IsOpen = false;
-        VolumePopup.IsOpen = false;
-        PowerPopup.IsOpen = false;
-        CalendarPopup.IsOpen = false;
-        TrayPopup.IsOpen = false;
-        _trayCardTimeout.Stop();
+        foreach (var popup in AllPopups()) popup.IsOpen = false;
 
-        MediaPopup.IsOpen = false;
+        // os relógios que só correm com um cartão aberto param junto
+        _trayCardTimeout.Stop();
         _mediaTick.Stop();
-        BrightnessPopup.IsOpen = false;
-        AiUsagePopup.IsOpen = false;
 
         // o mostrador de volume não é um painel, mas some junto: o controle de volume já
         // traz o número, e deixá-lo por cima seria a mesma informação duas vezes

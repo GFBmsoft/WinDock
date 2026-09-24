@@ -9,10 +9,170 @@
        sem precisar clicar na barra da pessoa. -->
   <UserControl.Resources>
     <BooleanToVisibilityConverter x:Key="BoolToVisible" />
-    <ui:BoolToCollapsed x:Key="BoolToCollapsed" />
     <ui:UsageBrush x:Key="UsageBrush" />
     <ui:ResetText x:Key="ResetText" />
     <ui:EmptyToCollapsed x:Key="EmptyToCollapsed" />
+
+    <!-- O cabeçalho de uma conta, igual nos dois modos: o robô, o nome e a cápsula do plano.
+
+         Três colunas, e não um StackPanel horizontal: ali o nome receberia largura infinita
+         na medição, o `TextTrimming` nunca entraria e o texto ficaria cortado a seco contra a
+         cápsula do plano, sem as reticências que avisam que há mais. Na coluna `*` ele recebe
+         o que sobra e trunca como deve. -->
+    <DataTemplate x:Key="CabecalhoDaConta">
+      <Grid Margin="0,0,0,3">
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="Auto" />
+          <ColumnDefinition Width="*" />
+          <ColumnDefinition Width="Auto" />
+        </Grid.ColumnDefinitions>
+
+        <!-- o glifo é do modelo da barra, e não do item: cada bloco é uma conta, e o robô é o
+             mesmo para todas -->
+        <ui:GlyphIcon Fill="#FFF2F2F2" Size="17" VerticalAlignment="Center" Margin="0,0,9,0"
+                      Glyph="{Binding DataContext.AiGlyph,
+                                      RelativeSource={RelativeSource AncestorType=UserControl}}" />
+
+        <TextBlock Grid.Column="1" Text="{Binding Titulo}" Foreground="#FFF2F2F2"
+                   FontSize="14" FontWeight="SemiBold" VerticalAlignment="Center"
+                   TextTrimming="CharacterEllipsis" Margin="0,0,8,0" />
+
+        <!-- a cápsula do plano: o mesmo realce das barras, em fundo lavado -->
+        <Border Grid.Column="2" VerticalAlignment="Center"
+                Background="#284CC2FF" CornerRadius="9" Padding="8,2"
+                Visibility="{Binding Plano, Converter={StaticResource EmptyToCollapsed}}">
+          <TextBlock Text="{Binding Plano}" Foreground="#FF4CC2FF" FontSize="11"
+                     FontWeight="SemiBold" />
+        </Border>
+      </Grid>
+    </DataTemplate>
+
+    <!-- COMPACTO: uma linha por janela de cota, com a barra entre o nome e a porcentagem.
+         É o que faz o cartão caber com várias contas — cada medidor ocupa uma linha em vez
+         das três do modo detalhado (nome, barra, "zera em"). O que sai é o prazo e a linha
+         da conta; o que fica é o que se olha de relance. -->
+    <DataTemplate x:Key="ContaCompacta">
+      <StackPanel>
+        <Border Height="1" Background="#1AFFFFFF" Margin="0,2,0,10"
+                Visibility="{Binding TemSeparador, Converter={StaticResource BoolToVisible}}" />
+
+        <ContentPresenter Content="{Binding}" ContentTemplate="{StaticResource CabecalhoDaConta}" />
+
+        <TextBlock Text="{Binding Mensagem}" Foreground="#FF9D9D9D" FontSize="12"
+                   TextWrapping="Wrap" Margin="26,3,0,4"
+                   Visibility="{Binding TemMensagem, Converter={StaticResource BoolToVisible}}" />
+
+        <ItemsControl ItemsSource="{Binding Gauges}" Margin="26,4,0,2">
+          <ItemsControl.ItemTemplate>
+            <DataTemplate>
+              <Grid Margin="0,0,0,6">
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="72" />
+                  <ColumnDefinition Width="*" />
+                  <ColumnDefinition Width="38" />
+                </Grid.ColumnDefinitions>
+
+                <TextBlock Text="{Binding Nome}" Foreground="#FFE8E8EA" FontSize="11"
+                           VerticalAlignment="Center" TextTrimming="CharacterEllipsis"
+                           Margin="0,0,6,0" />
+
+                <Border Grid.Column="1" Height="6" CornerRadius="3" Background="#28FFFFFF"
+                        VerticalAlignment="Center" SizeChanged="OnGaugeSizeChanged">
+                  <Border Height="6" CornerRadius="3" Width="0" HorizontalAlignment="Left"
+                          Background="{Binding Percent, Converter={StaticResource UsageBrush}}" />
+                </Border>
+
+                <TextBlock Grid.Column="2" Text="{Binding Percent, StringFormat='{}{0:0}%'}"
+                           HorizontalAlignment="Right" VerticalAlignment="Center"
+                           FontSize="11" FontWeight="SemiBold"
+                           Foreground="{Binding Percent, Converter={StaticResource UsageBrush}}" />
+              </Grid>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+
+        <!-- os números são de antes: quem olha precisa saber -->
+        <TextBlock Text="{Binding Nota}" Foreground="#FFFFB900" FontSize="10"
+                   Margin="26,0,0,2"
+                   Visibility="{Binding Nota, Converter={StaticResource EmptyToCollapsed}}" />
+      </StackPanel>
+    </DataTemplate>
+
+    <!-- DETALHADO: a conta por extenso, cada janela com a barra larga e o prazo embaixo. -->
+    <DataTemplate x:Key="ContaDetalhada">
+      <StackPanel>
+        <Border Height="1" Background="#1AFFFFFF" Margin="0,2,0,14"
+                Visibility="{Binding TemSeparador, Converter={StaticResource BoolToVisible}}" />
+
+        <ContentPresenter Content="{Binding}" ContentTemplate="{StaticResource CabecalhoDaConta}" />
+
+        <!-- conta e organização, alinhadas com o nome (o glifo ocupa os 26 px) -->
+        <TextBlock Text="{Binding Linha}" Foreground="#FF9D9D9D" FontSize="11"
+                   TextTrimming="CharacterEllipsis" Margin="26,0,0,14"
+                   Visibility="{Binding Linha, Converter={StaticResource EmptyToCollapsed}}" />
+
+        <!-- Sem medidor não há o que desenhar: fica o motivo, em uma linha. É o caminho de
+             quem está com a sessão vencida, de quando a rede não responde, e da espera pela
+             primeira resposta. -->
+        <TextBlock Text="{Binding Mensagem}" Foreground="#FF9D9D9D" FontSize="12"
+                   TextWrapping="Wrap" Margin="0,0,0,6"
+                   Visibility="{Binding TemMensagem, Converter={StaticResource BoolToVisible}}" />
+
+        <ItemsControl ItemsSource="{Binding Gauges}">
+          <ItemsControl.ItemTemplate>
+            <DataTemplate>
+              <StackPanel Margin="0,0,0,13">
+                <Grid Margin="0,0,0,6">
+                  <TextBlock Text="{Binding Nome}" Foreground="#FFE8E8EA" FontSize="12"
+                             TextTrimming="CharacterEllipsis" Margin="0,0,44,0" />
+                  <TextBlock Text="{Binding Percent, StringFormat='{}{0:0}%'}"
+                             HorizontalAlignment="Right" FontSize="12" FontWeight="SemiBold"
+                             Foreground="{Binding Percent, Converter={StaticResource UsageBrush}}" />
+                </Grid>
+
+                <!-- a cápsula: trilho por baixo, preenchimento por cima. O preenchimento é
+                     dimensionado no código (OnGaugeSizeChanged), porque a largura em pixels de
+                     uma porcentagem só existe depois do layout. -->
+                <Border Height="6" CornerRadius="3" Background="#28FFFFFF"
+                        SizeChanged="OnGaugeSizeChanged">
+                  <Border Height="6" CornerRadius="3" Width="0" HorizontalAlignment="Left"
+                          Background="{Binding Percent, Converter={StaticResource UsageBrush}}" />
+                </Border>
+
+                <TextBlock Text="{Binding ResetaEm, Converter={StaticResource ResetText}}"
+                           Foreground="#FF9D9D9D" FontSize="11" Margin="0,5,0,0" />
+              </StackPanel>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+
+        <TextBlock Text="{Binding Nota}" Foreground="#FFFFB900" FontSize="10" Margin="0,0,0,2"
+                   Visibility="{Binding Nota, Converter={StaticResource EmptyToCollapsed}}" />
+      </StackPanel>
+    </DataTemplate>
+
+    <!-- a seta do rodapé, no desenho dos botões da barra: só o realce ao passar o mouse -->
+    <Style x:Key="ExpandButton" TargetType="Button">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="Cursor" Value="Hand" />
+      <Setter Property="Padding" Value="10,2" />
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="Button">
+            <Border x:Name="Fundo" Background="{TemplateBinding Background}" CornerRadius="5"
+                    Padding="{TemplateBinding Padding}">
+              <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+            </Border>
+            <ControlTemplate.Triggers>
+              <Trigger Property="IsMouseOver" Value="True">
+                <Setter TargetName="Fundo" Property="Background" Value="#18FFFFFF" />
+              </Trigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
   </UserControl.Resources>
 
   <Border Background="#F7242424" BorderBrush="#2EFFFFFF" BorderThickness="1"
@@ -22,80 +182,34 @@
     </Border.Effect>
     <StackPanel Width="280">
 
-      <!-- Mesmo cabeçalho dos cartões de volume e bluetooth, para os três combinarem — com o
-           nome de quem está logado no lugar de um título fixo: a cota é de uma conta, e quem
-           tem mais de uma precisa ver de qual. O plano fica à direita, onde o cartão de
-           volume põe a porcentagem. -->
-      <!-- Três colunas, e não um StackPanel: dentro de um StackPanel horizontal o nome
-           recebe largura infinita na medição, o `TextTrimming` nunca entra e o texto fica
-           cortado a seco contra a cápsula do plano, sem as reticências que avisam que há
-           mais. Na coluna `*` ele recebe o que sobra e trunca como deve. -->
-      <Grid Margin="0,0,0,3">
-        <Grid.ColumnDefinitions>
-          <ColumnDefinition Width="Auto" />
-          <ColumnDefinition Width="*" />
-          <ColumnDefinition Width="Auto" />
-        </Grid.ColumnDefinitions>
-
-        <ui:GlyphIcon Glyph="{Binding AiGlyph}" Fill="#FFF2F2F2" Size="17"
-                      VerticalAlignment="Center" Margin="0,0,9,0" />
-
-        <TextBlock Grid.Column="1" Text="{Binding AiAccountName}" Foreground="#FFF2F2F2"
-                   FontSize="14" FontWeight="SemiBold" VerticalAlignment="Center"
-                   TextTrimming="CharacterEllipsis" Margin="0,0,8,0" />
-
-        <!-- a cápsula do plano: o mesmo realce das barras, em fundo lavado -->
-        <Border Grid.Column="2" VerticalAlignment="Center"
-                Background="#284CC2FF" CornerRadius="9" Padding="8,2"
-                Visibility="{Binding AiPlan, Converter={StaticResource EmptyToCollapsed}}">
-          <TextBlock Text="{Binding AiPlan}" Foreground="#FF4CC2FF" FontSize="11"
-                     FontWeight="SemiBold" />
-        </Border>
-      </Grid>
-
-      <!-- conta e organização, alinhadas com o nome (o glifo ocupa os 26 px da esquerda) -->
-      <TextBlock Text="{Binding AiAccountLine}" Foreground="#FF9D9D9D" FontSize="11"
-                 TextTrimming="CharacterEllipsis" Margin="26,0,0,14"
-                 Visibility="{Binding AiAccountLine, Converter={StaticResource EmptyToCollapsed}}" />
-
-      <!-- Sem medidor não há o que desenhar: fica o motivo, em uma linha. É o caminho de quem
-           não entrou no Claude Code, de quem está com a sessão vencida e de quando a rede não
-           responde. -->
-      <TextBlock Text="{Binding AiMessage}" Foreground="#FF9D9D9D" FontSize="12"
-                 TextWrapping="Wrap" Margin="0,0,0,2"
-                 Visibility="{Binding HasAiMessage, Converter={StaticResource BoolToVisible}}" />
-
-      <ItemsControl ItemsSource="{Binding AiGauges}">
-        <ItemsControl.ItemTemplate>
-          <DataTemplate>
-            <StackPanel Margin="0,0,0,13">
-              <Grid Margin="0,0,0,6">
-                <TextBlock Text="{Binding Nome}" Foreground="#FFE8E8EA" FontSize="12"
-                           TextTrimming="CharacterEllipsis" Margin="0,0,44,0" />
-                <TextBlock Text="{Binding Percent, StringFormat='{}{0:0}%'}"
-                           HorizontalAlignment="Right" FontSize="12" FontWeight="SemiBold"
-                           Foreground="{Binding Percent, Converter={StaticResource UsageBrush}}" />
-              </Grid>
-
-              <!-- a cápsula: trilho por baixo, preenchimento por cima. O preenchimento é
-                   dimensionado no código (OnGaugeSizeChanged), porque a largura em pixels de
-                   uma porcentagem só existe depois do layout. -->
-              <Border Height="6" CornerRadius="3" Background="#28FFFFFF"
-                      SizeChanged="OnGaugeSizeChanged">
-                <Border Height="6" CornerRadius="3" Width="0" HorizontalAlignment="Left"
-                        Background="{Binding Percent, Converter={StaticResource UsageBrush}}" />
-              </Border>
-
-              <TextBlock Text="{Binding ResetaEm, Converter={StaticResource ResetText}}"
-                         Foreground="#FF9D9D9D" FontSize="11" Margin="0,5,0,0" />
-            </StackPanel>
-          </DataTemplate>
-        </ItemsControl.ItemTemplate>
+      <!-- Uma conta por bloco, empilhadas — a pessoa pode ter a conta pessoal e a da empresa
+           lado a lado. O molde de cada bloco é o compacto ou o detalhado, conforme a seta do
+           rodapé; o separador fica no topo de cada um, menos o primeiro. -->
+      <ItemsControl ItemsSource="{Binding AiCards}">
+        <ItemsControl.Style>
+          <Style TargetType="ItemsControl">
+            <Setter Property="ItemTemplate" Value="{StaticResource ContaCompacta}" />
+            <Style.Triggers>
+              <DataTrigger Binding="{Binding AiExpanded}" Value="True">
+                <Setter Property="ItemTemplate" Value="{StaticResource ContaDetalhada}" />
+              </DataTrigger>
+            </Style.Triggers>
+          </Style>
+        </ItemsControl.Style>
       </ItemsControl>
 
-      <TextBlock Foreground="#FF6E6E6E" FontSize="10" Margin="0,1,0,0"
-                 Text="{Binding AiUsage.Quando, StringFormat='atualizado às {0:HH:mm}'}"
-                 Visibility="{Binding HasAiMessage, Converter={StaticResource BoolToCollapsed}}" />
+      <!-- o rodapé: a hora da leitura à esquerda, a seta de abrir/fechar à direita -->
+      <Grid Margin="0,6,0,0">
+        <TextBlock Foreground="#FF6E6E6E" FontSize="10" VerticalAlignment="Center"
+                   Text="{Binding AiUsage.Quando, StringFormat='atualizado às {0:HH:mm}'}"
+                   Visibility="{Binding HasAiReading, Converter={StaticResource BoolToVisible}}" />
+
+        <Button HorizontalAlignment="Right" Style="{StaticResource ExpandButton}"
+                Click="OnToggleExpand" ToolTip="{Binding AiExpandTooltip}"
+                AutomationProperties.Name="{Binding AiExpandTooltip}">
+          <ui:GlyphIcon Glyph="{Binding AiExpandGlyph}" Fill="#FF9D9D9D" Size="11" />
+        </Button>
+      </Grid>
     </StackPanel>
   </Border>
 </UserControl>

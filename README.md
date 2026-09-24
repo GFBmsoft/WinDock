@@ -153,15 +153,30 @@ tentar imitar o que o Windows já faz bem:
 - **brilho** do monitor por DDC/CI (`dxva2.dll`), com a roda do mouse sobre o ícone;
 - **cota de IA** (desligada por padrão): quanto da cota do Claude já foi usada, em cápsulas por
   janela — a de 5 horas, a semanal e as que houver por modelo —, com quem está logado no topo
-  (nome, conta, organização e plano, lidos do `~/.claude.json`): quem alterna entre conta pessoal
-  e da empresa precisa ver de qual conta é o número. Os números vêm do mesmo endereço
+  (nome, conta, organização e plano, lidos do `.claude.json`). **Uma conta por bloco,
+  empilhadas**: o Claude Code usa uma conta por vez, mas o `CLAUDE_CONFIG_DIR` permite dar a cada
+  uma a sua pasta, e quem tem a conta pessoal e a da empresa quer ver as duas. O serviço acha as
+  pastas sozinho (`%USERPROFILE%\.claude*` com credencial dentro, mais a que a variável apontar) e
+  lê todas em paralelo — enfileirá-las faria o cartão de duas contas demorar o dobro do de uma.
+  Qual acompanhar é escolhido nas Configurações; lista vazia quer dizer **todas**, que é o que faz
+  uma conta nova aparecer sem ninguém configurar nada. A seta do rodapé alterna entre **compacto**
+  (o padrão: cada janela de cota numa linha, com a barra entre o nome e a porcentagem) e
+  **detalhado** (a conta por extenso e o prazo de cada barra) — com duas contas, 222 px contra
+  431. São dois `DataTemplate` que dividem o cabeçalho por um `ContentPresenter`, trocados por um
+  `DataTrigger` no `ItemsControl.Style`: dois `ItemsControl` com visibilidade alternada mediriam
+  os dois em todo layout. Os números vêm do mesmo endereço
   que o `/usage` do Claude Code usa, autenticados com a credencial que ele guarda em
   `%USERPROFILE%\.claude\.credentials.json`. Duas decisões moram no `AiUsageService` e não se
   deduzem do código: **o serviço só lê essa pasta, nunca escreve nela** — renovar o token
   significaria gravar por cima do arquivo do Claude Code, e duas coisas escrevendo no mesmo
   arquivo de credenciais é como se perde o login; e **o token não vai para o log** em hipótese
   nenhuma. O endpoint não é público e pode sumir: quando sumir, o cartão diz que não conseguiu
-  ler, e nada mais depende dele;
+  ler, e nada mais depende dele. **A API corta quem pergunta demais** (`429`), e foi o que
+  aconteceu no primeiro dia: cada abertura do cartão pedia uma leitura por conta, e abrir e fechar
+  algumas vezes deu quatro pedidos em 34 segundos. Agora há validade de dois minutos por conta,
+  castigo depois do `429` (o `Retry-After` quando ele vem, dez minutos quando não vem) e — o que
+  mais importa — **uma leitura que falha não apaga os números que já havia**: ficam as barras
+  anteriores com um aviso de quando foram lidas, em vez de um cartão vazio;
 - **mídia**: o que está tocando e os controles de faixa, pelos controles de mídia do Windows
   (`Windows.Media.Control`). A barra de progresso é extrapolada pelo relógio, porque o navegador
   publica a posição uma vez só e não atualiza mais;
@@ -599,6 +614,7 @@ e os testes em `tests/`.
 | `src/Services/BrightnessService.cs` | brilho do monitor por DDC/CI |
 | `src/Services/AiUsageService.cs` | a cota do Claude: lê a credencial e a conta do Claude Code e consulta o uso |
 | `src/Views/AiUsageCard.xaml` | o cartão da cota — separado para poder ser montado sozinho num harness |
+| `src/Services/AiCard.cs` | uma conta do cartão, com o texto já montado, para o XAML não decidir nada |
 | `src/Services/BluetoothService.cs` | o rádio e os aparelhos pareados |
 | `src/Services/MediaService.cs` | o que está tocando, pelos controles de mídia do Windows |
 | `src/Services/PowerService.cs` | as opções do menu de energia, as mesmas que a busca usa |

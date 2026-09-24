@@ -610,18 +610,19 @@ public sealed class PanelModel : INotifyPropertyChanged, IDisposable
     /// <summary>
     /// O robô da Segoe, como no projeto que deu a ideia. Conferido de perto: continua
     /// legível em 15 px, que é o tamanho dos ícones da barra.
+    ///
+    /// Escrito pelo código, e não pelo caractere: veja o `TrayGlyph`.
     /// </summary>
-    public string AiGlyph => "";
+    public string AiGlyph => "\uE99A";
 
     /// <summary>
-    /// O ícone só aparece quando a opção está ligada **e** há credencial do Claude Code nesta
-    /// máquina. Um botão que não tem o que mostrar é pior que botão nenhum: quem não usa o
-    /// Claude Code veria um velocímetro que só sabe dizer que não sabe.
+    /// O ícone só aparece quando a opção está ligada **e** há alguma conta do Claude Code
+    /// nesta máquina. Um botão que não tem o que mostrar é pior que botão nenhum: quem não
+    /// usa o Claude Code veria um robô que só sabe dizer que não sabe.
     /// </summary>
     public bool HasAiUsage => _config.PanelAiUsage && AiUsageService.Installed;
 
-    private AiUsage _aiUsage =
-        new(AiUsageState.Unknown, Array.Empty<AiGauge>(), new AiAccount(null, null, null, null, null), DateTime.MinValue);
+    private AiUsage _aiUsage = new(Array.Empty<AiAccountUsage>(), DateTime.MinValue);
 
     public AiUsage AiUsage
     {
@@ -629,101 +630,113 @@ public sealed class PanelModel : INotifyPropertyChanged, IDisposable
         private set
         {
             if (!Set(ref _aiUsage, value)) return;
-            OnChanged(nameof(AiGauges));
-            OnChanged(nameof(AiMessage));
-            OnChanged(nameof(HasAiMessage));
+            OnChanged(nameof(AiCards));
             OnChanged(nameof(AiTooltip));
-            OnChanged(nameof(AiAccountName));
-            OnChanged(nameof(AiAccountLine));
-            OnChanged(nameof(AiPlan));
-            OnChanged(nameof(HasAiAccount));
-        }
-    }
-
-    public IReadOnlyList<AiGauge> AiGauges => _aiUsage.Gauges;
-
-    /// <summary>Quem está logado — o nome, ou o e-mail quando não há nome.</summary>
-    public string AiAccountName
-    {
-        get
-        {
-            var conta = _aiUsage.Conta;
-            return !string.IsNullOrWhiteSpace(conta.Nome) ? conta.Nome!
-                 : !string.IsNullOrWhiteSpace(conta.Email) ? conta.Email!
-                 : "Claude";
+            OnChanged(nameof(HasAiReading));
         }
     }
 
     /// <summary>
-    /// A linha de baixo do cabeçalho: a conta e, quando houver, a organização e o papel nela.
+    /// Uma entrada por conta, na ordem em que vieram — a padrão primeiro.
     ///
-    /// O e-mail sai quando ele já é o título — repetir a mesma linha duas vezes gasta a
-    /// altura do cartão sem dizer nada.
+    /// Enquanto a primeira leitura não chega, sai uma entrada por conta encontrada, cada uma
+    /// dizendo "Consultando…": o cartão nasce com o tamanho e os nomes certos, em vez de
+    /// aparecer vazio e pular para o tamanho final quando a rede responde.
     /// </summary>
-    public string AiAccountLine
+    public IReadOnlyList<AiCard> AiCards
     {
         get
         {
-            var conta = _aiUsage.Conta;
-            var partes = new List<string>();
+            var leituras = _aiUsage.Contas;
 
-            if (!string.IsNullOrWhiteSpace(conta.Email) && conta.Email != AiAccountName)
-                partes.Add(conta.Email!);
+            if (leituras.Count == 0)
+                leituras = Escolhidas()
+                    .Select(p => new AiAccountUsage(p, AiUsageState.Unknown, Array.Empty<AiGauge>(), null))
+                    .ToList();
 
-            if (!string.IsNullOrWhiteSpace(conta.Organizacao))
-                partes.Add(string.IsNullOrWhiteSpace(conta.Papel)
-                           ? conta.Organizacao!
-                           : $"{conta.Organizacao} · {conta.Papel}");
-
-            return string.Join("  ·  ", partes);
+            return leituras.Select((c, i) => new AiCard(c, i == 0)).ToList();
         }
     }
-
-    /// <summary>O plano, em caixa de título: a API manda "max", e o cartão mostra "Max".</summary>
-    public string AiPlan
-    {
-        get
-        {
-            var plano = _aiUsage.Conta.Plano;
-            if (string.IsNullOrWhiteSpace(plano)) return string.Empty;
-
-            return CultureInfo.CurrentCulture.TextInfo.ToTitleCase(plano.Replace('_', ' '));
-        }
-    }
-
-    public bool HasAiAccount => !_aiUsage.Conta.Vazia;
-
-    /// <summary>O que o cartão diz quando não há medidor para mostrar.</summary>
-    public string AiMessage => _aiUsage.State switch
-    {
-        AiUsageState.NoCredentials => "Entre no Claude Code para ver a cota aqui.",
-        AiUsageState.Expired => "Sessão expirada — use o Claude Code uma vez para renovar.",
-        AiUsageState.Failed => _aiUsage.Erro ?? "Não deu para ler a cota agora.",
-        AiUsageState.Unknown => "Consultando…",
-        _ => string.Empty
-    };
-
-    public bool HasAiMessage => _aiUsage.Gauges.Count == 0;
 
     /// <summary>
-    /// A dica do botão traz o número da janela curta — é o que se quer saber de relance, sem
-    /// abrir nada.
+    /// Já houve uma leitura nesta sessão? É o que decide o "atualizado às" do rodapé: antes
+    /// da primeira resposta ele mostraria a hora em que o cartão foi aberto, como se aquele
+    /// "Consultando…" acima já tivesse sido respondido.
+    /// </summary>
+    public bool HasAiReading => _aiUsage.Quando > DateTime.MinValue;
+
+    /// <summary>
+    /// O cartão está detalhado ou compacto? Mora na configuração porque é preferência de
+    /// leitura: quem escolheu um dos dois não quer reescolher a cada abertura.
+    /// </summary>
+    public bool AiExpanded => _config.AiUsageExpanded;
+
+    /// <summary>A seta do rodapé aponta para onde o clique leva: para baixo abre, para cima fecha.</summary>
+    public string AiExpandGlyph => _config.AiUsageExpanded ? "" : "";
+
+    public string AiExpandTooltip => _config.AiUsageExpanded ? "Mostrar só o essencial" : "Mostrar os detalhes";
+
+    /// <summary>Alterna entre o cartão detalhado e o compacto. Chamado pela seta do rodapé.</summary>
+    public void ToggleAiExpanded()
+    {
+        _config.AiUsageExpanded = !_config.AiUsageExpanded;
+        _config.Save();
+        Log.Trace($"cota: cartão agora {(_config.AiUsageExpanded ? "detalhado" : "compacto")}");
+
+        CardResized?.Invoke(this, EventArgs.Empty);
+    }
+
+    /// <summary>
+    /// O cartão acabou de mudar de tamanho por um clique dentro dele.
+    ///
+    /// Quem escuta é a barra, e o motivo é específico: ao **recolher**, o cartão encolhe, o
+    /// botão sobe junto e o cursor parado fica do lado de fora. O vigia de clique fora corre
+    /// logo depois, ainda vê o mesmo clique pendente e, agora que a geometria mudou, conclui
+    /// que ele foi fora do cartão — que então se fecha sozinho, 25 ms depois de a pessoa ter
+    /// clicado dentro dele (medido em 24/09, 16:19:33.980 → 16:19:34.005). Expandir não tem o
+    /// problema: o cartão cresce e o cursor continua dentro.
+    /// </summary>
+    public event EventHandler? CardResized;
+
+    /// <summary>As contas que a configuração manda mostrar — todas, quando ela não diz nada.</summary>
+    private IReadOnlyList<AiProfile> Escolhidas()
+    {
+        var todas = AiUsageService.Profiles();
+        var pedidas = _config.AiUsageAccounts;
+
+        return pedidas.Count == 0
+               ? todas
+               : todas.Where(p => pedidas.Contains(p.Id, StringComparer.OrdinalIgnoreCase)).ToList();
+    }
+
+    /// <summary>
+    /// A dica do botão traz a janela curta de cada conta — é o que se quer saber de relance,
+    /// sem abrir nada. Com uma conta só, o nome dela sai: o cartão já é dela.
     /// </summary>
     public string AiTooltip
     {
         get
         {
-            var curta = _aiUsage.Gauges.FirstOrDefault();
-            return curta is null ? "Cota de IA" : $"Cota de IA — {curta.Nome}: {curta.Percent:0}%";
+            var cartoes = AiCards;
+            if (cartoes.Count == 0) return "Cota de IA";
+
+            var linhas = cartoes.Select(c =>
+            {
+                var curta = c.Gauges.FirstOrDefault();
+                var valor = curta is null ? c.Mensagem : $"{curta.Nome}: {curta.Percent:0}%";
+                return cartoes.Count == 1 ? valor : $"{c.Titulo} — {valor}";
+            });
+
+            return "Cota de IA\n" + string.Join("\n", linhas);
         }
     }
 
     /// <summary>
     /// Começa a acompanhar a cota, se a opção estiver ligada.
     ///
-    /// De dez em dez minutos, e não de segundo em segundo: cada volta é uma ida à rede, e a
-    /// cota não muda em saltos que justifiquem mais que isso. Quem quiser o número na hora
-    /// abre o cartão — <see cref="RefreshAiUsage"/> é chamado ali também.
+    /// De dez em dez minutos, e não de segundo em segundo: cada volta é uma ida à rede por
+    /// conta, e a cota não muda em saltos que justifiquem mais que isso. Quem quiser o número
+    /// na hora abre o cartão — <see cref="RefreshAiUsage"/> é chamado ali também.
     /// </summary>
     private void WatchAiUsage()
     {
@@ -750,9 +763,13 @@ public sealed class PanelModel : INotifyPropertyChanged, IDisposable
     {
         if (!HasAiUsage) return;
 
+        // a lista de escolhidas é lida aqui, na thread da interface, e não lá dentro: é a
+        // configuração, e ela muda por clique de quem está olhando o painel
+        var escolhidas = _config.AiUsageAccounts.ToList();
+
         _ = Task.Run(async () =>
         {
-            var uso = await _ai.ReadAsync().ConfigureAwait(false);
+            var uso = await _ai.ReadAsync(escolhidas).ConfigureAwait(false);
             await _dispatcher.InvokeAsync(() => AiUsage = uso);
         });
     }
@@ -895,6 +912,20 @@ public sealed class PanelModel : INotifyPropertyChanged, IDisposable
             OnChanged(nameof(HasAiUsage));
             if (_config.PanelAiUsage) { if (_aiTimer is null) WatchAiUsage(); else RefreshAiUsage(); }
             else _aiTimer?.Stop();
+        }
+
+        if (e.PropertyName is nameof(DockConfig.AiUsageExpanded))
+        {
+            OnChanged(nameof(AiExpanded));
+            OnChanged(nameof(AiExpandGlyph));
+            OnChanged(nameof(AiExpandTooltip));
+        }
+
+        // marcar ou desmarcar uma conta muda o cartão na hora, sem esperar os dez minutos
+        if (e.PropertyName is nameof(DockConfig.AiUsageAccounts))
+        {
+            OnChanged(nameof(AiCards));
+            RefreshAiUsage();
         }
 
         // marcar ou desmarcar um programa reavalia qual sessão a barra segue, na hora

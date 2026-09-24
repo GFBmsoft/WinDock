@@ -12,13 +12,13 @@ namespace WinDock.Services;
 /// <param name="ResetaEm">Quando a janela zera, em hora local; nulo quando a API não diz.</param>
 public sealed record AiGauge(string Nome, double Percent, DateTime? ResetaEm);
 
-/// <summary>Em que pé está a leitura — é o que decide o que o cartão mostra.</summary>
+/// <summary>Em que pé está a leitura de uma conta — é o que decide o que o cartão mostra dela.</summary>
 public enum AiUsageState
 {
     /// <summary>Ainda não se tentou ler nesta sessão.</summary>
     Unknown,
 
-    /// <summary>Não há credencial do Claude Code nesta máquina — o cartão não tem o que mostrar.</summary>
+    /// <summary>A pasta não tem credencial utilizável.</summary>
     NoCredentials,
 
     /// <summary>A credencial existe mas venceu. Veja <see cref="AiUsageService"/> para o porquê de não renovarmos.</summary>
@@ -32,40 +32,47 @@ public enum AiUsageState
 }
 
 /// <summary>
-/// Quem está logado, para o cartão dizer de quem é a cota que ele mostra.
+/// Uma conta do Claude Code nesta máquina: a pasta de configuração dela e quem está logado.
 ///
-/// Importa mais do que parece: quem tem conta pessoal e conta da empresa troca de uma para
-/// outra no Claude Code, e a cota que aparece é a da que estiver ativa. Sem o nome e o
-/// e-mail, o cartão mostraria números de origem desconhecida.
+/// <para><b>Por que há mais de uma.</b> O Claude Code guarda uma conta por vez, mas a variável
+/// <c>CLAUDE_CONFIG_DIR</c> permite apontá-lo para outra pasta — é assim que se mantém a conta
+/// pessoal e a da empresa lado a lado, cada uma com o seu login. Nesta máquina são
+/// <c>~/.claude</c> e <c>~/.claude-bm</c>.</para>
 /// </summary>
-/// <param name="Nome">O nome da pessoa, como o Claude Code o guarda.</param>
-/// <param name="Email">A conta.</param>
-/// <param name="Organizacao">A organização, quando a conta pertence a uma.</param>
-/// <param name="Papel">O papel dentro dela ("admin", "member"), quando houver.</param>
-/// <param name="Plano">"max", "pro", "team" — do arquivo de credenciais.</param>
-public sealed record AiAccount(string? Nome, string? Email, string? Organizacao,
-                               string? Papel, string? Plano)
+/// <param name="Id">O nome da pasta (".claude", ".claude-bm"). É o que a configuração guarda.</param>
+/// <param name="Pasta">O caminho completo dela.</param>
+public sealed record AiProfile(string Id, string Pasta, string? Nome, string? Email,
+                               string? Organizacao, string? Papel)
 {
-    /// <summary>Tem alguma coisa para mostrar?</summary>
-    public bool Vazia => string.IsNullOrWhiteSpace(Nome) && string.IsNullOrWhiteSpace(Email) &&
-                         string.IsNullOrWhiteSpace(Organizacao) && string.IsNullOrWhiteSpace(Plano);
+    /// <summary>O nome que a pessoa reconhece: o dela, senão a conta, senão a pasta.</summary>
+    public string Titulo => !string.IsNullOrWhiteSpace(Nome) ? Nome!
+                          : !string.IsNullOrWhiteSpace(Email) ? Email!
+                          : Id;
 }
 
+/// <summary>O que se leu de uma conta.</summary>
+/// <param name="Erro">Por que não deu certo — só quando não há <paramref name="Gauges"/>.</param>
+/// <param name="Desde">
+/// Quando estes números foram lidos, se eles vieram de uma leitura anterior porque a de agora
+/// falhou. Nulo quer dizer recém-lidos.
+/// </param>
+public sealed record AiAccountUsage(AiProfile Perfil, AiUsageState State,
+                                    IReadOnlyList<AiGauge> Gauges, string? Plano,
+                                    string? Erro = null, DateTime? Desde = null);
+
 /// <summary>O que o cartão precisa saber, junto.</summary>
-public sealed record AiUsage(AiUsageState State, IReadOnlyList<AiGauge> Gauges,
-                             AiAccount Conta, DateTime Quando, string? Erro = null);
+public sealed record AiUsage(IReadOnlyList<AiAccountUsage> Contas, DateTime Quando);
 
 /// <summary>
 /// Quanto da cota do Claude já foi usada — o que o Claude Code mostra no <c>/usage</c>.
 ///
 /// <para><b>De onde vêm os números.</b> Do mesmo lugar de onde o próprio Claude Code os tira:
 /// <c>GET https://api.anthropic.com/api/oauth/usage</c>, autenticado com o token OAuth que o
-/// Claude Code guarda em <c>%USERPROFILE%\.claude\.credentials.json</c>. Não há API pública
-/// para isto — o endpoint não é documentado, e pode mudar ou sumir sem aviso. Quando isso
-/// acontecer, o cartão passa a dizer que não conseguiu ler; nada mais no WinDock depende
-/// dele.</para>
+/// Claude Code guarda em <c>&lt;pasta&gt;\.credentials.json</c>. Não há API pública para isto —
+/// o endpoint não é documentado, e pode mudar ou sumir sem aviso. Quando isso acontecer, o
+/// cartão passa a dizer que não conseguiu ler; nada mais no WinDock depende dele.</para>
 ///
-/// <para><b>Este serviço nunca escreve na pasta <c>.claude</c>, e é uma decisão, não um
+/// <para><b>Este serviço nunca escreve nessas pastas, e é uma decisão, não um
 /// esquecimento.</b> O token vence de tempos em tempos e existe um endpoint de renovação —
 /// mas renovar rotaciona o <c>refreshToken</c>, e quem renova precisa gravar o novo no
 /// arquivo. Duas coisas escrevendo no mesmo arquivo de credenciais (o Claude Code e nós) é
@@ -102,85 +109,284 @@ public sealed class AiUsageService
         NumberHandling = JsonNumberHandling.AllowReadingFromString
     };
 
-    /// <summary>O caminho do arquivo de credenciais do Claude Code nesta máquina.</summary>
-    private static string CredentialsPath =>
-        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
-                     ".claude", ".credentials.json");
+    private static string Home => Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+
+    /// <summary>A pasta padrão, a que o Claude Code usa sem <c>CLAUDE_CONFIG_DIR</c>.</summary>
+    private const string DefaultId = ".claude";
+
+    // ── as contas que existem nesta máquina ──────────────────
 
     /// <summary>
-    /// O arquivo de estado do Claude Code, que guarda quem está logado.
+    /// As contas do Claude Code encontradas aqui, na ordem: a padrão primeiro, depois as
+    /// outras em ordem alfabética.
     ///
-    /// É outro arquivo, e vale reparar: o token mora no <c>.credentials.json</c>, dentro da
-    /// pasta <c>.claude</c>; a identidade mora neste, ao lado dela. Aqui não há segredo
-    /// nenhum — nome, e-mail, organização —, e é só isso que se lê dele.
+    /// <para><b>Como se acha cada uma.</b> Toda pasta <c>~/.claude*</c> que tenha um
+    /// <c>.credentials.json</c> dentro é uma conta, mais a que <c>CLAUDE_CONFIG_DIR</c>
+    /// apontar. A identidade está num <c>.claude.json</c> cujo lugar **muda com o caso**, e
+    /// isso foi medido nesta máquina: para uma pasta alternativa ele fica **dentro** dela
+    /// (<c>~/.claude-bm/.claude.json</c>); para a padrão, fica no home
+    /// (<c>~/.claude.json</c>), ao lado da pasta. Os dois lugares são tentados, nessa ordem.</para>
     /// </summary>
-    private static string StatePath =>
-        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".claude.json");
+    public static IReadOnlyList<AiProfile> Profiles()
+    {
+        var pastas = new List<string>();
+
+        try
+        {
+            var padrao = Path.Combine(Home, DefaultId);
+            if (TemCredencial(padrao)) pastas.Add(padrao);
+
+            foreach (var dir in Directory.EnumerateDirectories(Home, ".claude*").OrderBy(d => d))
+                if (!pastas.Contains(dir) && TemCredencial(dir)) pastas.Add(dir);
+
+            // a variável pode apontar para fora do home, e aí a varredura acima não a acha
+            var apontada = Environment.GetEnvironmentVariable("CLAUDE_CONFIG_DIR");
+            if (!string.IsNullOrWhiteSpace(apontada))
+            {
+                var cheio = Path.GetFullPath(apontada);
+                if (!pastas.Contains(cheio) && TemCredencial(cheio)) pastas.Add(cheio);
+            }
+        }
+        catch (Exception ex)
+        {
+            Log.Write($"cota de IA: não deu para procurar as contas do Claude Code ({ex.GetType().Name})");
+        }
+
+        return pastas.Select(Identidade).ToList();
+    }
+
+    private static bool TemCredencial(string pasta) =>
+        File.Exists(Path.Combine(pasta, ".credentials.json"));
 
     /// <summary>
-    /// Existe credencial do Claude Code aqui? É o que decide se o ícone aparece na barra —
-    /// e é só um <c>File.Exists</c>, sem abrir nada.
+    /// Quem está logado numa pasta, do <c>.claude.json</c> dela.
+    ///
+    /// Guardado entre leituras e conferido pela data do arquivo: ele tem centenas de KB (traz
+    /// o histórico de projetos junto) e reler isso a cada dez minutos seria pagar o parse
+    /// inteiro por um punhado de campos — mas quem troca de conta precisa ver o cartão mudar
+    /// sem reiniciar a dock, e a data do arquivo responde isso de graça.
+    ///
+    /// Falhar aqui não impede o cartão: sem estes campos ele mostra a pasta e os medidores,
+    /// que são o que ele existe para mostrar.
     /// </summary>
-    public static bool Installed => File.Exists(CredentialsPath);
+    private static AiProfile Identidade(string pasta)
+    {
+        var id = Path.GetFileName(pasta.TrimEnd(Path.DirectorySeparatorChar));
 
-    private static readonly AiAccount SemConta = new(null, null, null, null, null);
+        // o de dentro primeiro: é onde ele fica quando a pasta veio do CLAUDE_CONFIG_DIR
+        var caminho = new[] { Path.Combine(pasta, ".claude.json"), Path.Combine(Home, $"{id}.json") }
+            .FirstOrDefault(File.Exists);
+
+        if (caminho is null) return new AiProfile(id, pasta, null, null, null, null);
+
+        try
+        {
+            var carimbo = File.GetLastWriteTimeUtc(caminho);
+            if (_identidades.TryGetValue(caminho, out var guardada) && guardada.Quando == carimbo)
+                return guardada.Perfil with { Id = id, Pasta = pasta };
+
+            using var fluxo = new FileStream(caminho, FileMode.Open, FileAccess.Read,
+                                             FileShare.ReadWrite | FileShare.Delete);
+            var oauth = JsonSerializer.Deserialize<StateFile>(fluxo, Json)?.OauthAccount;
+
+            // `fullName` é o nome completo e `displayName` costuma ser o primeiro nome; o
+            // cartão é estreito, então o curto vem primeiro quando existe.
+            var perfil = new AiProfile(id, pasta,
+                                       Primeiro(oauth?.DisplayName, oauth?.FullName),
+                                       oauth?.EmailAddress, oauth?.OrganizationName,
+                                       oauth?.OrganizationRole);
+
+            _identidades[caminho] = (carimbo, perfil);
+            return perfil;
+        }
+        catch (Exception ex)
+        {
+            Log.Write($"cota de IA: não deu para ler a conta em {id} ({ex.GetType().Name})");
+            return new AiProfile(id, pasta, null, null, null, null);
+        }
+    }
+
+    private static readonly Dictionary<string, (DateTime Quando, AiProfile Perfil)> _identidades = new();
+
+    private static string? Primeiro(params string?[] valores) =>
+        valores.FirstOrDefault(v => !string.IsNullOrWhiteSpace(v));
+
+    /// <summary>
+    /// Há alguma conta do Claude Code aqui? É o que decide se o ícone aparece na barra.
+    /// </summary>
+    public static bool Installed => Profiles().Count > 0;
+
+    // ── ler ──────────────────────────────────────────────────
 
     /// <summary>A última leitura, para o cartão abrir com algo enquanto a nova não chega.</summary>
-    public AiUsage Current { get; private set; } =
-        new(AiUsageState.Unknown, Array.Empty<AiGauge>(), SemConta, DateTime.MinValue);
+    public AiUsage Current { get; private set; } = new(Array.Empty<AiAccountUsage>(), DateTime.MinValue);
 
     /// <summary>
-    /// Lê a cota. Roda fora da thread da interface — é rede, e rede trava.
+    /// Lê a cota das contas pedidas. Roda fora da thread da interface — é rede, e rede trava.
     /// </summary>
-    public async Task<AiUsage> ReadAsync(CancellationToken cancel = default)
+    /// <param name="escolhidas">
+    /// Os <see cref="AiProfile.Id"/> que a pessoa quer ver. Vazio quer dizer **todas as que
+    /// existirem**: é o que faz o cartão funcionar sem configuração nenhuma, e o que faz uma
+    /// conta nova aparecer sozinha quando ela é criada.
+    /// </param>
+    public async Task<AiUsage> ReadAsync(IReadOnlyCollection<string> escolhidas,
+                                         CancellationToken cancel = default)
     {
-        var resultado = await LerAsync(cancel).ConfigureAwait(false);
+        var perfis = Profiles();
+        if (escolhidas.Count > 0)
+            perfis = perfis.Where(p => escolhidas.Contains(p.Id, StringComparer.OrdinalIgnoreCase)).ToList();
+
+        // em paralelo: são idas à rede independentes, e enfileirá-las faria o cartão de duas
+        // contas demorar o dobro do de uma
+        var leituras = await Task.WhenAll(perfis.Select(p => ComCacheAsync(p, cancel))).ConfigureAwait(false);
+
+        var resultado = new AiUsage(leituras, DateTime.Now);
         Current = resultado;
         return resultado;
     }
 
-    private async Task<AiUsage> LerAsync(CancellationToken cancel)
+    /// <summary>
+    /// O que se sabe de uma conta entre leituras: os últimos números bons e até quando não
+    /// vale insistir.
+    /// </summary>
+    private sealed class Estado
     {
-        var agora = DateTime.Now;
-        var conta = LerConta();
+        public AiAccountUsage? Ultima;
+        public DateTime LidaEm;
+        public DateTime EsperarAte;
+    }
 
+    private static readonly Dictionary<string, Estado> Estados = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Quanto uma leitura vale antes de valer a pena perguntar de novo.
+    ///
+    /// **Isto existe porque a API cortou.** Cada abertura do cartão pedia uma leitura por
+    /// conta, e abrir e fechar o cartão algumas vezes seguidas — que é o que se faz ao testar
+    /// qualquer coisa nele — virou quatro pedidos em 34 segundos e um <c>429 Too Many
+    /// Requests</c> (log de 24/09, 16:03). O cartão já abre com o que tem; perguntar de novo
+    /// só faz sentido quando o número teve tempo de mudar, e cota não muda em segundos.
+    /// </summary>
+    private static readonly TimeSpan Fresh = TimeSpan.FromMinutes(2);
+
+    /// <summary>
+    /// Quanto se espera depois de um <c>429</c>, quando o servidor não diz quanto esperar.
+    ///
+    /// Generoso de propósito: quem cortou fomos nós, e insistir cedo é pedir para ser cortado
+    /// de novo — e por mais tempo. O cartão continua mostrando os últimos números bons nesse
+    /// intervalo, então a espera não deixa ninguém sem informação.
+    /// </summary>
+    private static readonly TimeSpan Backoff = TimeSpan.FromMinutes(10);
+
+    /// <summary>
+    /// A leitura de uma conta, respeitando a validade da anterior e o castigo do 429.
+    ///
+    /// <para><b>E uma leitura que falha nunca apaga os números que já havia.</b> É a mesma
+    /// regra da bandeja, aprendida lá: o cartão mostrar um "a API respondeu 429" no lugar das
+    /// barras é pior que mostrar as barras de dois minutos atrás com um aviso. Sem isto, o
+    /// primeiro corte da API deixava o cartão inteiro vazio — que foi exatamente o que se viu
+    /// quando ele apareceu.</para>
+    /// </summary>
+    private async Task<AiAccountUsage> ComCacheAsync(AiProfile perfil, CancellationToken cancel)
+    {
+        Estado estado;
+        lock (Estados)
+        {
+            if (!Estados.TryGetValue(perfil.Id, out estado!)) Estados[perfil.Id] = estado = new Estado();
+        }
+
+        var agora = DateTime.Now;
+
+        if (estado.Ultima is { } guardada)
+        {
+            if (agora - estado.LidaEm < Fresh) return Envelhecida(guardada, estado.LidaEm, null);
+
+            if (agora < estado.EsperarAte)
+                return Envelhecida(guardada, estado.LidaEm, "a API pediu para esperar");
+        }
+        else if (agora < estado.EsperarAte)
+        {
+            // nem números velhos existem: o castigo continua valendo, mas é preciso dizer algo
+            return new AiAccountUsage(perfil, AiUsageState.Failed, Array.Empty<AiGauge>(), null,
+                                      "a API pediu para esperar um pouco");
+        }
+
+        var leitura = await LerContaAsync(perfil, cancel).ConfigureAwait(false);
+
+        if (leitura.State == AiUsageState.Ok)
+        {
+            estado.Ultima = leitura;
+            estado.LidaEm = agora;
+            estado.EsperarAte = default;
+            return leitura;
+        }
+
+        // falhou: guarda o castigo quando foi a API que pediu, e devolve o que já se tinha
+        if (leitura.State == AiUsageState.Failed && _ultimoRetry.TryGetValue(perfil.Id, out var espera))
+        {
+            estado.EsperarAte = agora + espera;
+            _ultimoRetry.Remove(perfil.Id);
+            Log.Write($"cota de IA ({perfil.Id}): esperando {espera.TotalMinutes:0} min antes de perguntar de novo");
+
+            // sem números velhos para mostrar, o cartão fica só com esta frase — então ela
+            // precisa dizer o que aconteceu e quando melhora, e não um número de protocolo
+            if (estado.Ultima is null)
+                leitura = leitura with { Erro = $"muitas consultas seguidas — tentando de novo às {estado.EsperarAte:HH:mm}" };
+        }
+
+        return estado.Ultima is { } antiga
+               ? Envelhecida(antiga, estado.LidaEm, leitura.Erro)
+               : leitura;
+    }
+
+    /// <summary>Os números de antes, marcados com a hora em que foram lidos.</summary>
+    private static AiAccountUsage Envelhecida(AiAccountUsage guardada, DateTime quando, string? erro) =>
+        guardada with { Erro = erro, Desde = quando };
+
+    /// <summary>Quanto a API pediu para esperar, por conta — preenchido ao ver um 429.</summary>
+    private static readonly Dictionary<string, TimeSpan> _ultimoRetry = new(StringComparer.OrdinalIgnoreCase);
+
+    private async Task<AiAccountUsage> LerContaAsync(AiProfile perfil, CancellationToken cancel)
+    {
         string token;
+        string? plano;
+
         try
         {
-            if (!File.Exists(CredentialsPath))
-                return new AiUsage(AiUsageState.NoCredentials, Array.Empty<AiGauge>(), conta, agora);
+            var credenciais = Path.Combine(perfil.Pasta, ".credentials.json");
+            if (!File.Exists(credenciais))
+                return new AiAccountUsage(perfil, AiUsageState.NoCredentials, Array.Empty<AiGauge>(), null);
 
             // O arquivo é do Claude Code, que pode estar gravando nele neste instante: a
             // leitura compartilhada evita a exceção de arquivo em uso, e uma leitura que
             // pegue o arquivo pela metade cai no catch e vira "não deu para ler" — a próxima
             // atualização acerta.
-            await using var fluxo = new FileStream(CredentialsPath, FileMode.Open, FileAccess.Read,
+            await using var fluxo = new FileStream(credenciais, FileMode.Open, FileAccess.Read,
                                                    FileShare.ReadWrite | FileShare.Delete);
-            var creds = await JsonSerializer.DeserializeAsync<CredentialsFile>(fluxo, Json, cancel)
-                                            .ConfigureAwait(false);
+            var oauth = (await JsonSerializer.DeserializeAsync<CredentialsFile>(fluxo, Json, cancel)
+                                             .ConfigureAwait(false))?.ClaudeAiOauth;
 
-            var oauth = creds?.ClaudeAiOauth;
             if (oauth is null || string.IsNullOrWhiteSpace(oauth.AccessToken))
-                return new AiUsage(AiUsageState.NoCredentials, Array.Empty<AiGauge>(), conta, agora);
+                return new AiAccountUsage(perfil, AiUsageState.NoCredentials, Array.Empty<AiGauge>(), null);
 
             // o plano é a única coisa que sai daqui além do token, e não é segredo
-            conta = conta with { Plano = oauth.SubscriptionType };
+            plano = oauth.SubscriptionType;
 
             // `expiresAt` vem em milissegundos desde 1970. Uma folga de um minuto evita
             // gastar uma ida à rede para receber 401 de um token que vence agora.
             if (oauth.ExpiresAt > 0 &&
                 DateTimeOffset.FromUnixTimeMilliseconds(oauth.ExpiresAt) <= DateTimeOffset.UtcNow.AddMinutes(1))
-                return new AiUsage(AiUsageState.Expired, Array.Empty<AiGauge>(), conta, agora);
+                return new AiAccountUsage(perfil, AiUsageState.Expired, Array.Empty<AiGauge>(), plano);
 
             token = oauth.AccessToken;
         }
         catch (Exception ex)
         {
-            // sem o texto da exceção quando ela puder carregar conteúdo do arquivo: aqui só
+            // sem o texto da exceção, que poderia carregar conteúdo do arquivo: aqui só
             // interessa o tipo
-            Log.Write($"cota de IA: não deu para ler as credenciais do Claude Code ({ex.GetType().Name})");
-            return new AiUsage(AiUsageState.Failed, Array.Empty<AiGauge>(), conta, agora,
-                               "não deu para ler as credenciais");
+            Log.Write($"cota de IA ({perfil.Id}): não deu para ler as credenciais ({ex.GetType().Name})");
+            return new AiAccountUsage(perfil, AiUsageState.Failed, Array.Empty<AiGauge>(), null,
+                                      "não deu para ler as credenciais");
         }
 
         try
@@ -199,9 +405,23 @@ public sealed class AiUsageService
                 var estado = resposta.StatusCode == System.Net.HttpStatusCode.Unauthorized
                              ? AiUsageState.Expired : AiUsageState.Failed;
 
-                Log.Write($"cota de IA: a API respondeu {(int)resposta.StatusCode}");
-                return new AiUsage(estado, Array.Empty<AiGauge>(), conta, agora,
-                                   $"a API respondeu {(int)resposta.StatusCode}");
+                // 429 é "pare de perguntar". O cabeçalho `Retry-After` diz por quanto tempo
+                // quando o servidor se dá ao trabalho; quando não diz, vale o nosso castigo
+                // fixo. Quem guarda isso é o `ComCacheAsync`, que decide o que fazer com a
+                // leitura inteira.
+                if (resposta.StatusCode == System.Net.HttpStatusCode.TooManyRequests)
+                {
+                    var pedido429 = resposta.Headers.RetryAfter?.Delta
+                                    ?? (resposta.Headers.RetryAfter?.Date is { } quando
+                                        ? quando - DateTimeOffset.Now : null);
+
+                    _ultimoRetry[perfil.Id] = pedido429 is { } d && d > TimeSpan.Zero && d < TimeSpan.FromHours(2)
+                                              ? d : Backoff;
+                }
+
+                Log.Write($"cota de IA ({perfil.Id}): a API respondeu {(int)resposta.StatusCode}");
+                return new AiAccountUsage(perfil, estado, Array.Empty<AiGauge>(), plano,
+                                          $"a API respondeu {(int)resposta.StatusCode}");
             }
 
             await using var corpo = await resposta.Content.ReadAsStreamAsync(cancel).ConfigureAwait(false);
@@ -210,63 +430,20 @@ public sealed class AiUsageService
 
             var medidores = Montar(uso);
             if (medidores.Count == 0)
-                return new AiUsage(AiUsageState.Failed, Array.Empty<AiGauge>(), conta, agora,
-                                   "a resposta não trouxe nenhuma cota");
+                return new AiAccountUsage(perfil, AiUsageState.Failed, Array.Empty<AiGauge>(), plano,
+                                          "a resposta não trouxe nenhuma cota");
 
-            Log.Trace($"cota de IA: {string.Join(" | ", medidores.Select(m => $"{m.Nome} {m.Percent:0}%"))}");
-            return new AiUsage(AiUsageState.Ok, medidores, conta, agora);
+            Log.Trace($"cota de IA ({perfil.Id}): " +
+                      string.Join(" | ", medidores.Select(m => $"{m.Nome} {m.Percent:0}%")));
+            return new AiAccountUsage(perfil, AiUsageState.Ok, medidores, plano);
         }
         catch (Exception ex)
         {
-            Log.Write($"cota de IA: falha ao consultar a API ({ex.GetType().Name})");
-            return new AiUsage(AiUsageState.Failed, Array.Empty<AiGauge>(), conta, agora,
-                               "não deu para falar com a API");
+            Log.Write($"cota de IA ({perfil.Id}): falha ao consultar a API ({ex.GetType().Name})");
+            return new AiAccountUsage(perfil, AiUsageState.Failed, Array.Empty<AiGauge>(), plano,
+                                      "não deu para falar com a API");
         }
     }
-
-    /// <summary>
-    /// Quem está logado no Claude Code, do <c>~/.claude.json</c>.
-    ///
-    /// Guardado depois da primeira vez: a conta não muda enquanto a pessoa não troca de
-    /// login, e o arquivo tem umas centenas de KB (ele carrega o histórico de projetos junto)
-    /// — reler isso a cada dez minutos seria pagar o parse inteiro por um punhado de campos.
-    /// Quem troca de conta vê o cartão acertar na próxima vez que a dock subir.
-    ///
-    /// Falhar aqui não é motivo para o cartão não aparecer: sem estes campos ele mostra só os
-    /// medidores, que são o que ele existe para mostrar.
-    /// </summary>
-    private static AiAccount LerConta()
-    {
-        if (_conta is not null) return _conta;
-
-        try
-        {
-            if (!File.Exists(StatePath)) return _conta = SemConta;
-
-            using var fluxo = new FileStream(StatePath, FileMode.Open, FileAccess.Read,
-                                             FileShare.ReadWrite | FileShare.Delete);
-            var estado = JsonSerializer.Deserialize<StateFile>(fluxo, Json);
-            var oauth = estado?.OauthAccount;
-            if (oauth is null) return _conta = SemConta;
-
-            // `fullName` é o nome completo e `displayName` costuma ser o primeiro nome; o
-            // cartão é estreito, então o curto vem primeiro quando existe.
-            var nome = Primeiro(oauth.DisplayName, oauth.FullName);
-
-            return _conta = new AiAccount(nome, oauth.EmailAddress, oauth.OrganizationName,
-                                          oauth.OrganizationRole, null);
-        }
-        catch (Exception ex)
-        {
-            Log.Write($"cota de IA: não deu para ler a conta do Claude Code ({ex.GetType().Name})");
-            return _conta = SemConta;
-        }
-    }
-
-    private static AiAccount? _conta;
-
-    private static string? Primeiro(params string?[] valores) =>
-        valores.FirstOrDefault(v => !string.IsNullOrWhiteSpace(v));
 
     /// <summary>
     /// Vira a resposta em medidores, na ordem em que fazem sentido de ler: a janela curta
@@ -335,7 +512,7 @@ public sealed class AiUsageService
     }
 
     /// <summary>
-    /// Só os campos de identidade. O <c>~/.claude.json</c> tem dezenas de outros (histórico de
+    /// Só os campos de identidade. O <c>.claude.json</c> tem dezenas de outros (histórico de
     /// projetos, preferências, avisos já vistos) e nenhum interessa aqui — o que não está
     /// declarado nem chega a virar objeto.
     /// </summary>

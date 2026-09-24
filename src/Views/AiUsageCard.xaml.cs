@@ -22,6 +22,16 @@ public partial class AiUsageCard : UserControl
     /// de mudança de tamanho resolve com o que o layout já calculou — e é chamado de novo
     /// sozinho quando o cartão muda de largura.
     /// </summary>
+    /// <summary>
+    /// A seta do rodapé: alterna entre o cartão compacto e o detalhado.
+    ///
+    /// Chama o modelo por reflection pelo mesmo motivo que o medidor: o harness que confere o
+    /// desenho monta este controle com um objeto de mentira, e um `cast` para `PanelModel`
+    /// derrubaria o harness em vez de alternar.
+    /// </summary>
+    private void OnToggleExpand(object sender, RoutedEventArgs e) =>
+        DataContext?.GetType().GetMethod("ToggleAiExpanded")?.Invoke(DataContext, null);
+
     private void OnGaugeSizeChanged(object sender, SizeChangedEventArgs e)
     {
         if (sender is not Border trilho || trilho.Child is not Border preenchimento) return;

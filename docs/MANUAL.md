@@ -266,11 +266,25 @@ Quanto da sua cota do Claude já foi usada — a janela de **5 horas**, a de **7
 houver por modelo —, cada uma com o quanto falta para zerar. É o mesmo número que o `/usage` do
 Claude Code mostra.
 
-No topo do cartão fica **de quem é essa cota**: o nome, a conta, a organização e o papel nela
-quando houver, e o plano na cápsula à direita. Não é enfeite — quem tem conta pessoal e conta da
-empresa troca de uma para a outra no Claude Code, e a cota que aparece é a da que estiver ativa.
-Nome, e-mail e organização saem do `~/.claude.json`, o arquivo onde o Claude Code guarda quem está
-logado; o plano vem da credencial.
+No topo de cada bloco fica **de quem é essa cota**: o nome, a conta, a organização e o papel nela
+quando houver, e o plano na cápsula à direita. Nome, e-mail e organização saem do `.claude.json`,
+o arquivo onde o Claude Code guarda quem está logado; o plano vem da credencial.
+
+**Mais de uma conta.** O Claude Code usa uma conta por vez, mas a variável `CLAUDE_CONFIG_DIR`
+permite apontá-lo para outra pasta — é assim que se mantém a conta pessoal e a da empresa lado a
+lado, cada uma com o seu login. O WinDock acha todas sozinho: toda pasta `%USERPROFILE%\.claude*`
+com uma credencial dentro é uma conta, mais a que a variável apontar. O cartão mostra uma embaixo
+da outra, separadas por uma linha.
+
+Havendo mais de uma, aparece em **Configurações > Contas no cartão de cota** uma lista para
+escolher quais acompanhar. Sem nenhuma marcada, o cartão mostra todas — inclusive as que
+passarem a existir depois. Com uma conta só, esse cartão de configuração nem aparece: não há o
+que escolher.
+
+**Compacto ou detalhado.** A seta no rodapé do cartão alterna entre os dois, e o que você
+escolher fica. O compacto — que é como ele começa — põe cada janela de cota numa linha só, com a
+barra entre o nome e a porcentagem; some a linha da conta e o "zera em". Com duas contas, ele tem
+pouco mais da metade da altura do detalhado.
 
 Vem desligado, em **Configurações > Cota de IA**, e mesmo ligado só aparece se você usa o Claude
 Code nesta máquina: o cartão se autentica com a credencial que ele guarda em
@@ -287,6 +301,10 @@ Três coisas que vale saber:
 - **A fonte não é uma API pública.** É o mesmo endereço que o Claude Code usa, e ele pode mudar
   sem aviso. Se mudar, o cartão passa a dizer que não conseguiu ler — nada mais na dock depende
   disso.
+- **A cota é consultada no máximo de dois em dois minutos por conta.** Abrir o cartão dez vezes
+  seguidas não faz dez consultas: ele mostra o que já tem. Se mesmo assim a API pedir uma pausa
+  (o `429`), a dock espera o tempo que ela pedir — ou dez minutos — e, enquanto isso, **continua
+  mostrando os últimos números**, com um aviso em âmbar dizendo de quando eles são.
 
 #### Energia
 

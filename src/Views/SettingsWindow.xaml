@@ -635,6 +635,48 @@
           </Grid>
         </Border>
 
+        <!-- As contas do Claude Code encontradas na máquina. Com uma conta só não há o que
+             escolher, e este cartão nem aparece: quem o mostra é o LoadAiAccounts. -->
+        <Border x:Name="AiAccountsCard" Style="{StaticResource FluentCardBorderStyle}"
+                Visibility="Collapsed">
+          <StackPanel>
+            <TextBlock Text="Contas no cartão de cota" Style="{StaticResource FluentTitle}" />
+            <TextBlock Text="Você tem mais de uma conta do Claude Code nesta máquina. Marque as que o cartão deve mostrar, uma embaixo da outra. Sem nenhuma marcada, ele mostra todas."
+                       Style="{StaticResource FluentCaption}" TextWrapping="Wrap" />
+
+            <ItemsControl x:Name="AiAccountList" Margin="0,12,0,0">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate>
+                  <Border Background="{StaticResource FluentControl}"
+                          BorderBrush="{StaticResource FluentControlBorder}" BorderThickness="1"
+                          CornerRadius="6" Padding="10,7" Margin="0,0,0,4">
+                    <Grid>
+                      <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                      </Grid.ColumnDefinitions>
+
+                      <StackPanel VerticalAlignment="Center">
+                        <TextBlock Text="{Binding Titulo}" FontSize="12"
+                                   Foreground="{StaticResource FluentText}"
+                                   TextTrimming="CharacterEllipsis" />
+                        <TextBlock Text="{Binding Detalhe}" FontSize="11"
+                                   Foreground="{StaticResource FluentTextDim}"
+                                   TextTrimming="CharacterEllipsis" />
+                      </StackPanel>
+
+                      <CheckBox Grid.Column="1" Style="{StaticResource FluentToggle}"
+                                AutomationProperties.Name="{Binding Titulo}"
+                                Tag="{Binding Id}" IsChecked="{Binding Marcada, Mode=TwoWay}"
+                                Checked="OnAiAccountToggled" Unchecked="OnAiAccountToggled" />
+                    </Grid>
+                  </Border>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </StackPanel>
+        </Border>
+
         <!-- A ordem dos itens do canto direito da barra. Vale para o que existe hoje; item
              novo entra no fim até ser movido. -->
         <Border Style="{StaticResource FluentCardBorderStyle}">

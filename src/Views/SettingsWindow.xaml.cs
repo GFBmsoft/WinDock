@@ -33,6 +33,7 @@ public partial class SettingsWindow : Window
         LoadTrayNames();
         LoadMediaApps();
         LoadPanelOrder();
+        LoadAiAccounts();
         ExcludedAppsList.ItemsSource = _excludedApps;
 
         FloatingSizesList.ItemsSource = _floatingSizes;
@@ -395,6 +396,63 @@ public partial class SettingsWindow : Window
         PanelOrderList.ItemsSource = CurrentPanelOrder()
             .Select((k, i) => new PanelOrderRow(i + 1, k, nomes.TryGetValue(k, out var n) ? n : k))
             .ToList();
+    }
+
+    /// <summary>Uma conta do Claude Code na lista de escolha do cartão de cota.</summary>
+    private sealed class AiAccountRow
+    {
+        public required string Id { get; init; }
+        public required string Titulo { get; init; }
+        public required string Detalhe { get; init; }
+        public bool Marcada { get; set; }
+    }
+
+    /// <summary>
+    /// Lista as contas do Claude Code encontradas, com o que está marcado hoje.
+    ///
+    /// **Com uma conta só o cartão inteiro some.** Não há escolha a fazer, e um cartão com um
+    /// único interruptor que não muda nada só atrapalha quem está procurando outra coisa. Ele
+    /// volta sozinho no dia em que uma segunda conta existir.
+    ///
+    /// Lista vazia na configuração quer dizer **todas**, então todas nascem marcadas: é o que
+    /// a pessoa vê no cartão, e a tela tem de dizer a verdade sobre isso.
+    /// </summary>
+    private void LoadAiAccounts()
+    {
+        var contas = AiUsageService.Profiles();
+        if (contas.Count < 2) return;
+
+        var escolhidas = _config.AiUsageAccounts;
+
+        AiAccountsCard.Visibility = Visibility.Visible;
+        AiAccountList.ItemsSource = contas.Select(c => new AiAccountRow
+        {
+            Id = c.Id,
+            Titulo = c.Titulo,
+
+            // a pasta vai junto porque é o que separa as contas de verdade — dois logins
+            // podem ter o mesmo nome, e a pasta é o que a configuração guarda
+            Detalhe = string.IsNullOrWhiteSpace(c.Email) ? c.Id : $"{c.Email}  ·  {c.Id}",
+            Marcada = escolhidas.Count == 0 || escolhidas.Contains(c.Id, StringComparer.OrdinalIgnoreCase)
+        }).ToList();
+    }
+
+    /// <summary>
+    /// Marcar ou desmarcar uma conta.
+    ///
+    /// Grava **todas as marcadas**, e não a que mudou: a configuração é a lista inteira. E
+    /// quando todas estão marcadas, grava a lista vazia — que é como se diz "todas", e é o
+    /// que faz uma conta nova aparecer no cartão sozinha em vez de nascer de fora.
+    /// </summary>
+    private void OnAiAccountToggled(object sender, RoutedEventArgs e)
+    {
+        if (AiAccountList.ItemsSource is not IEnumerable<AiAccountRow> linhas) return;
+
+        var todas = linhas.ToList();
+        var marcadas = todas.Where(l => l.Marcada).Select(l => l.Id).ToList();
+
+        _config.AiUsageAccounts = marcadas.Count == todas.Count ? new List<string>() : marcadas;
+        _config.NotifyAiUsageAccountsChanged();
     }
 
     private void OnPanelItemUp(object sender, RoutedEventArgs e) => MovePanelItem(sender, -1);
