@@ -152,8 +152,9 @@ a barra do Windows, se você a tinha escondido. Matar o processo à força pula 
 
 Da esquerda para a direita: o que está tocando, os controles de faixa, bateria, wi-fi,
 bluetooth, volume, a seta da bandeja, notificações e energia — mais o **brilho**, quando o
-monitor aceita ser controlado (veja [Brilho](#brilho)), e a **cota de IA**, se você ligar
-(veja [Cota de IA](#cota-de-ia)). **A ordem é sua** — veja
+monitor aceita ser controlado (veja [Brilho](#brilho)), a **cota de IA**, se você ligar
+(veja [Cota de IA](#cota-de-ia)), e o **pen-drive**, enquanto houver um espetado
+(veja [Remover dispositivo externo](#remover-dispositivo-externo)). **A ordem é sua** — veja
 [Ordem dos itens](#ordem-dos-itens-da-barra).
 
 | ação | como |
@@ -170,6 +171,8 @@ monitor aceita ser controlado (veja [Brilho](#brilho)), e a **cota de IA**, se v
 | Desligar, reiniciar, hibernar, bloquear, sair | o botão de energia |
 | Brilho do monitor | clique no ícone de brilho, ou role a roda do mouse sobre ele |
 | Quanto da cota do Claude já foi usada | clique no velocímetro (veja [Cota de IA](#cota-de-ia)) |
+| Abrir um pen-drive ou HD externo | clique no pen-drive > **Abrir** |
+| Remover um pen-drive ou HD externo | clique no pen-drive > **Remover** (veja [Remover dispositivo externo](#remover-dispositivo-externo)) |
 | Trocar de mês no calendário | as setas do cabeçalho, ou a roda do mouse sobre o mês |
 | Fechar o cartão aberto | `Esc`, ou clique fora dele |
 
@@ -259,6 +262,31 @@ Aparece só em monitor que aceita controle por **DDC/CI** — em geral os extern
 notebook costuma não aceitar, e ali o item some sozinho. O ajuste vai direto para o monitor, como
 os botões físicos dele. Para não ter o item nem onde ele funciona, desligue
 **Configurações > Indicador de brilho**.
+
+#### Remover dispositivo externo
+
+Um ícone de pen-drive aparece na barra assim que você espeta um pen-drive, cartão de memória ou
+HD externo — e some sozinho quando o último sai. **Só existe enquanto houver o que remover**: não
+é um botão que passa o dia parado dizendo "nenhum dispositivo".
+
+Clique nele e o cartão lista o que está conectado, um por linha: o nome do aparelho, as letras que
+ele montou e o tamanho. Cada linha tem duas ações:
+
+- **Abrir** — a pasta do aparelho no Explorer, e o cartão se fecha. Um aparelho com duas
+  partições abre as duas janelas: são os dois volumes dele.
+- **Remover** — o Windows é avisado de que aquele aparelho vai sair.
+
+Um aparelho por linha, e não uma letra por linha: um HD externo particionado em duas aparece uma
+vez só, com "E:, F:" ao lado. Quem sai da máquina é o aparelho inteiro.
+
+**Quando dá certo**, a linha some e o cartão diz que você já pode desconectar. **Quando não dá**,
+ele diz o motivo — em geral porque algum programa ainda está com um arquivo aberto ali, e o
+Windows costuma dizer qual. Feche o programa e clique de novo. A dock **não força** a remoção: é
+exatamente a mesma via do "Remover hardware com segurança" da bandeja do Windows, e um pedido
+recusado é o aviso de que ainda há coisa por gravar.
+
+Para não ter o botão nem quando há dispositivo, desligue **Configurações > Remover dispositivo
+externo**.
 
 #### Cota de IA
 

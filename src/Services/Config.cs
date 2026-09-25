@@ -339,6 +339,16 @@ public sealed class DockConfig : INotifyPropertyChanged
     /// </summary>
     public bool PanelBrightness { get => _panelBrightness; set => Set(ref _panelBrightness, value); }
 
+    private bool _panelRemovable = true;
+    /// <summary>
+    /// O botão de remover pen-drive e HD externo com segurança.
+    ///
+    /// Ligada por padrão, e sem custo para quem nunca espeta nada: o item só existe na barra
+    /// enquanto houver dispositivo externo montado — veja <c>PanelModel.HasRemovable</c>.
+    /// A opção é para quem prefere não ter o botão nem quando há.
+    /// </summary>
+    public bool PanelRemovable { get => _panelRemovable; set => Set(ref _panelRemovable, value); }
+
     private bool _panelAiUsage;
     /// <summary>
     /// Quanto da cota do Claude já foi usada, num cartão da barra.
@@ -676,6 +686,7 @@ public sealed class DockConfig : INotifyPropertyChanged
         CalendarDoneRetentionDays = d.CalendarDoneRetentionDays;
         PanelTray = d.PanelTray; PanelAppVolume = d.PanelAppVolume; PanelMedia = d.PanelMedia;
         PanelBrightness = d.PanelBrightness; PanelAiUsage = d.PanelAiUsage;
+        PanelRemovable = d.PanelRemovable;
         Trace = d.Trace;
         Panel = d.Panel; PanelSize = d.PanelSize;
         TilingEnabled = d.TilingEnabled; TilingGap = d.TilingGap;

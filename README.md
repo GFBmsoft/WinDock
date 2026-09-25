@@ -46,8 +46,8 @@ os pixels reservados e a área de trabalho volta ao tamanho normal.
 - **Não rouba o foco** (`WS_EX_NOACTIVATE`): clicar na dock não tira o app da frente
 - **Busca de aplicativos** em `Alt+Espaço`, com comandos de energia e "executar"
 - **Esconder ou recolher a barra do Windows** enquanto a dock roda
-- **Barra de cima** opcional: relógio, data, bateria, volume, brilho, bluetooth, cota de IA, mídia e os
-  painéis do Windows
+- **Barra de cima** opcional: relógio, data, bateria, volume, brilho, bluetooth, cota de IA,
+  remoção segura de pen-drive, mídia e os painéis do Windows
 - **Ícones da bandeja** dos programas rodando em segundo plano, alcançáveis com a barra do
   Windows escondida — o clique abre o programa, o botão direito abre o menu dele
 - **Volume por aplicativo**, um controle para cada programa com som
@@ -151,6 +151,24 @@ tentar imitar o que o Windows já faz bem:
   dia abre as **anotações** dele numa janela à parte — a barra é `WS_EX_NOACTIVATE`, e um campo de
   texto dentro do cartão nunca receberia o teclado;
 - **brilho** do monitor por DDC/CI (`dxva2.dll`), com a roda do mouse sobre o ícone;
+- **remoção segura** de pen-drive, cartão e HD externo, com **Abrir** ao lado para chegar na pasta
+  sem passar pelo Explorer. O ícone **só existe enquanto houver o que remover** — é o mesmo
+  critério dos controles de mídia. A lista é do **aparelho**, não da letra:
+  um HD particionado em duas aparece uma vez, com "E:, F:" ao lado, porque quem sai da máquina é o
+  aparelho inteiro. Três coisas não se deduzem do código e moram no `RemovableService`: **não
+  basta olhar o `DriveType`** — pen-drive vem como `Removable`, mas HD externo por USB vem como
+  `Fixed`, igual ao disco de sistema, e a diferença está no barramento, então cada letra é
+  perguntada ao driver (`IOCTL_STORAGE_QUERY_PROPERTY`) e só passa quem estiver em USB, FireWire,
+  SD ou MMC; **quem é ejetado não é o disco, é o ancestral removível** — o nó do disco devolveria
+  sucesso sem tirar nada, e é o aparelho USB acima dele que carrega o `CM_DEVCAP_REMOVABLE`; e a
+  saída é **pedida**, nunca forçada (`CM_Request_Device_Eject`, a mesma chamada do "Remover
+  hardware" do Windows), porque desmontar na marra com `FSCTL_DISMOUNT_VOLUME` "resolveria"
+  justamente o aviso de que ainda há escrita pendente. O veto volta com o nome de quem vetou, e é
+  ele que vira a frase no cartão. Quem avisa que algo entrou ou saiu é o `WM_DEVICECHANGE`, que a
+  barra **assina** em vez de esperar pela difusão: ela é `WS_EX_NOACTIVATE` e `WS_EX_TOOLWINDOW`,
+  e não está escrito em lugar nenhum que a difusão alcança janelas assim. Não há relógio nenhum
+  por trás da lista — perguntar de tempos em tempos acordaria um HD externo adormecido só para
+  saber que ele continua lá;
 - **cota de IA** (desligada por padrão): quanto da cota do Claude já foi usada, em cápsulas por
   janela — a de 5 horas, a semanal e as que houver por modelo —, com quem está logado no topo
   (nome, conta, organização e plano, lidos do `.claude.json`). **Uma conta por bloco,

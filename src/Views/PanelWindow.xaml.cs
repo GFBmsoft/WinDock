@@ -44,6 +44,7 @@ public partial class PanelWindow : Window
         };
         _volumeOsd.Tick += (_, _) => HideVolumeOsd();
         _mediaTick.Tick += (_, _) => UpdateMediaProgress();
+        _deviceSettle.Tick += (_, _) => { _deviceSettle.Stop(); _model.RefreshRemovable(); };
 
         // um cartão que encolhe deixa o cursor do lado de fora sem ninguém ter mexido no
         // mouse; o vigia precisa saber disso. Veja o `PanelModel.CardResized`.
@@ -60,6 +61,8 @@ public partial class PanelWindow : Window
         {
             _outsideClick.Stop();
             _volumeOsd.Stop();
+            _deviceSettle.Stop();
+            RemovableService.Unwatch(_deviceNotify);
             _config.PropertyChanged -= OnPanelConfigChanged;
             _model.Dispose();
             _appBar?.Dispose();
@@ -78,7 +81,37 @@ public partial class PanelWindow : Window
         // barra nativa continua registrada e empurraria esta para baixo dela.
         _appBar = new AppBar(this) { IgnoreOtherBars = _config.Taskbar != TaskbarMode.Keep };
         _appBar.Register(DockEdge.Top, _config.PanelSize, reserveSpace: true);
+
+        // espetar ou tirar um pen-drive precisa chegar até aqui: é o que faz o botão de
+        // remover aparecer e sumir sozinho, sem relógio nenhum perguntando à toa
+        _deviceNotify = RemovableService.Watch(hWnd);
+        HwndSource.FromHwnd(hWnd)?.AddHook(OnDeviceChange);
     }
+
+    /// <summary>O registro dos avisos de dispositivo, desfeito no fechamento.</summary>
+    private nint _deviceNotify;
+
+    /// <summary>
+    /// Um volume entrou ou saiu: a lista de dispositivos externos é remontada.
+    ///
+    /// O aviso chega mais de uma vez por aparelho — um pen-drive com duas partições traz um
+    /// por letra —, e remontar a lista é ir ao disco. Daí a pausa de meio segundo: os avisos
+    /// da mesma espetada se juntam numa leitura só, e o botão aparece uma vez, e não três.
+    /// </summary>
+    private nint OnDeviceChange(nint hwnd, int msg, nint wParam, nint lParam, ref bool handled)
+    {
+        if (msg != RemovableService.WM_DEVICECHANGE || !RemovableService.IsArrivalOrRemoval(wParam))
+            return nint.Zero;
+
+        _deviceSettle.Stop();
+        _deviceSettle.Start();
+        return nint.Zero;
+    }
+
+    private readonly System.Windows.Threading.DispatcherTimer _deviceSettle = new()
+    {
+        Interval = TimeSpan.FromMilliseconds(500)
+    };
 
     /// <summary>Reaplica altura e posicao quando a configuracao muda.</summary>
     /// <summary>Os comandos de música para o atalho de teclado — os mesmos dos botões da barra,
@@ -113,6 +146,7 @@ public partial class PanelWindow : Window
     private bool _mediaWasOpen;
     private bool _brightnessWasOpen;
     private bool _aiUsageWasOpen;
+    private bool _removableWasOpen;
 
     protected override void OnPreviewMouseDown(System.Windows.Input.MouseButtonEventArgs e)
     {
@@ -124,6 +158,7 @@ public partial class PanelWindow : Window
         _mediaWasOpen = MediaPopup.IsOpen;
         _brightnessWasOpen = BrightnessPopup.IsOpen;
         _aiUsageWasOpen = AiUsagePopup.IsOpen;
+        _removableWasOpen = RemovablePopup.IsOpen;
 
         base.OnPreviewMouseDown(e);
     }
@@ -202,6 +237,7 @@ public partial class PanelWindow : Window
         ("bluetooth",       "Bluetooth"),
         ("volume",          "Volume"),
         ("brilho",          "Brilho"),
+        ("remover",         "Remover dispositivo externo"),
         ("cotaIa",          "Cota de IA"),
         ("notificacoes",    "Notificações"),
         ("energia",         "Energia"),
@@ -215,8 +251,15 @@ public partial class PanelWindow : Window
     /// dados: cada item continua sendo o XAML dele, com os bindings e handlers que já tem, e
     /// só o lugar muda. Um <c>StackPanel</c> desenha na ordem de <c>Children</c>.
     ///
-    /// Quem não aparece na configuração fica no fim, na ordem original — é o que faz uma
-    /// preferência antiga continuar válida quando a barra ganha um item novo.
+    /// Quem não aparece na configuração entra ao lado do vizinho que tinha no XAML — é o que
+    /// faz uma preferência antiga continuar válida quando a barra ganha um item novo, <b>e o
+    /// item novo nascer onde ele foi desenhado para nascer</b>.
+    ///
+    /// <para>Ele já foi para o fim da fila, e isso estava errado: o "Remover dispositivo"
+    /// nasceu à esquerda da cota de IA no XAML justamente porque é ali que ele faz sentido, e
+    /// quem tivesse reordenado a barra alguma vez o receberia no canto oposto, depois do
+    /// relógio. A preferência salva diz onde ficam os itens que ela cita; sobre um item que
+    /// ela nem conhece, ela não tem opinião — e aí o desenho é quem decide.</para>
     /// </summary>
     private void ApplyPanelOrder()
     {
@@ -234,8 +277,21 @@ public partial class PanelWindow : Window
             .Where(e => e is not null)
             .ToList();
 
-        // os que a configuração não citou seguem no fim, na ordem em que estavam
-        ordenados.AddRange(atuais.Where(e => !ordenados.Contains(e)));
+        // Os que a configuração não citou entram junto do vizinho que tinham no XAML: procura-se
+        // o primeiro sucessor dele na ordem original que já esteja colocado, e ele entra logo
+        // antes. Sem sucessor colocado (o item era o último), vai para o fim.
+        foreach (var orfao in atuais.Where(e => !ordenados.Contains(e)))
+        {
+            var chave = (orfao as FrameworkElement)?.Tag as string ?? "";
+            var depoisNoXaml = _defaultOrder.SkipWhile(k => k != chave).Skip(1);
+
+            var vizinho = depoisNoXaml
+                .Select(k => ordenados.FirstOrDefault(e => (e as FrameworkElement)?.Tag as string == k))
+                .FirstOrDefault(e => e is not null);
+
+            var onde = vizinho is null ? ordenados.Count : ordenados.IndexOf(vizinho);
+            ordenados.Insert(onde, orfao);
+        }
 
         RightItems.Children.Clear();
         foreach (var e in ordenados) RightItems.Children.Add(e!);
@@ -413,6 +469,7 @@ public partial class PanelWindow : Window
         yield return MediaPopup;
         yield return BrightnessPopup;
         yield return AiUsagePopup;
+        yield return RemovablePopup;
     }
 
     private bool AnyPopupOpen => AllPopups().Any(p => p.IsOpen);
@@ -604,6 +661,56 @@ public partial class PanelWindow : Window
             _model.RefreshAiUsage();
         }
 
+        WatchOutsideClick();
+    }
+
+    /// <summary>
+    /// Abre o cartão dos dispositivos externos e relê a lista.
+    ///
+    /// A releitura na abertura não é redundância do aviso do Windows: é a rede de segurança
+    /// dela. Se por algum motivo um <c>WM_DEVICECHANGE</c> não chegar, quem abre o cartão vê
+    /// o que está espetado agora, e não o que estava da última vez que a barra soube.
+    /// </summary>
+    private void OnRemovable(object sender, RoutedEventArgs e)
+    {
+        CloseOpenPanels();   // um painel de cada vez
+
+        if (!_removableWasOpen)
+        {
+            _model.RefreshRemovable();
+            RemovablePopup.IsOpen = true;
+        }
+
+        WatchOutsideClick();
+    }
+
+    /// <summary>
+    /// Pede a remoção da linha clicada.
+    ///
+    /// O cartão fica aberto de propósito: é nele que aparece o "pode desconectar" — ou o
+    /// motivo de não ter dado. Fechar na hora do clique deixaria a pessoa sem saber se podia
+    /// puxar o pen-drive, que é a única pergunta que ela tinha.
+    /// </summary>
+    private async void OnEjectRemovable(object sender, RoutedEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.Tag is not string id) return;
+
+        await _model.EjectRemovable(id);
+    }
+
+    /// <summary>
+    /// Abre o aparelho no Explorer e fecha o cartão.
+    ///
+    /// Aqui fechar é o certo, ao contrário do "Remover": o cartão já fez o que tinha para
+    /// fazer, e deixá-lo de pé por cima da janela de pasta que acabou de abrir seria o
+    /// resto de um clique que já terminou.
+    /// </summary>
+    private void OnOpenRemovable(object sender, RoutedEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.Tag is not string id) return;
+
+        _model.OpenRemovable(id);
+        CloseAllPopups();
         WatchOutsideClick();
     }
 
@@ -1172,6 +1279,10 @@ public partial class PanelWindow : Window
         // os relógios que só correm com um cartão aberto param junto
         _trayCardTimeout.Stop();
         _mediaTick.Stop();
+
+        // o recado da última remoção morre com o cartão: reabri-lo dez minutos depois com um
+        // "pode desconectar" na tela falaria de um pen-drive que já foi embora
+        _model.ClearRemovableMessage();
 
         // o mostrador de volume não é um painel, mas some junto: o controle de volume já
         // traz o número, e deixá-lo por cima seria a mesma informação duas vezes

@@ -283,6 +283,15 @@
           </Button.ToolTip>
           <ui:GlyphIcon Glyph="{Binding BrightnessGlyph}" Fill="#FFF2F2F2" Size="15" VerticalAlignment="Center" />
         </Button>
+        <!-- Remover dispositivo externo: só existe enquanto houver pen-drive ou HD externo
+             montado. O clique abre o cartão com a lista; remover é lá dentro, e não neste
+             botão, porque com dois aparelhos espetados não há como o botão adivinhar qual. -->
+        <Button Tag="remover" x:Name="RemovableButton" Style="{StaticResource PanelButton}"
+                Click="OnRemovable" ToolTip="{Binding RemovableTooltip}"
+                Visibility="{Binding HasRemovable, Converter={StaticResource BoolToVisible}}">
+          <ui:GlyphIcon Glyph="{Binding RemovableGlyph}" Fill="#FFF2F2F2" Size="15" VerticalAlignment="Center" />
+        </Button>
+
         <!-- Cota de IA: só aparece com a opção ligada e credencial do Claude Code na
              máquina. O clique abre o cartão com as janelas de uso. -->
         <Button Tag="cotaIa" x:Name="AiUsageButton" Style="{StaticResource PanelButton}"
@@ -612,6 +621,89 @@
                 </DataTemplate>
               </ItemsControl.ItemTemplate>
             </ItemsControl>
+          </StackPanel>
+        </Border>
+      </Popup>
+
+      <!-- Os dispositivos externos, um por linha, e o recado da última tentativa embaixo.
+           Uma linha inteira é o botão: o alvo do clique é a linha toda, e não um "✕" de seis
+           pixels no canto — remover é a única coisa que se faz aqui. -->
+      <Popup x:Name="RemovablePopup" PlacementTarget="{Binding ElementName=RemovableButton}"
+             Placement="Bottom" VerticalOffset="6" HorizontalOffset="-8"
+             StaysOpen="True" AllowsTransparency="True" PopupAnimation="Fade">
+        <Border Background="#F7242424" BorderBrush="#2EFFFFFF" BorderThickness="1"
+                CornerRadius="10" Padding="16,14" Margin="10">
+          <Border.Effect>
+            <DropShadowEffect BlurRadius="20" ShadowDepth="5" Opacity="0.55" Color="Black" />
+          </Border.Effect>
+          <!-- O cartão inteiro é desligado enquanto uma remoção está em curso, em vez de
+               cada linha por sua conta: dentro do DataTemplate o item é o RemovableDevice, e
+               um binding para `RemovableReady` ali procuraria a propriedade dentro dele, onde
+               ela não existe — o botão ficaria sempre ligado e aceitaria o segundo clique.
+               Aqui o DataContext ainda é o modelo da barra. -->
+          <StackPanel Width="280" IsEnabled="{Binding RemovableReady}">
+
+            <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+              <ui:GlyphIcon Glyph="{Binding RemovableGlyph}" Fill="#FFF2F2F2" Size="16"
+                            VerticalAlignment="Center" Margin="0,0,10,0" />
+              <TextBlock Text="Remover com segurança" Foreground="#FFF2F2F2" FontSize="14"
+                         FontWeight="SemiBold" VerticalAlignment="Center" />
+            </StackPanel>
+
+            <ItemsControl ItemsSource="{Binding Removable}">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate>
+                  <!-- A linha NÃO é um botão: são duas ações, e um botão dentro de outro
+                       deixaria "abrir" e "remover" disputando o mesmo clique. O realce de
+                       mouse, que o PanelRow daria de graça, sai do gatilho lá embaixo. -->
+                  <Border x:Name="Row" Background="Transparent" CornerRadius="6"
+                          Padding="8,7" Margin="0,1">
+                    <Grid>
+                      <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                      </Grid.ColumnDefinitions>
+
+                      <StackPanel VerticalAlignment="Center">
+                        <TextBlock Text="{Binding Name}" Foreground="#FFE8E8EA" FontSize="12"
+                                   TextTrimming="CharacterEllipsis" />
+                        <TextBlock Text="{Binding Detail}" Foreground="#FF9D9D9D" FontSize="11"
+                                   TextTrimming="CharacterEllipsis" />
+                      </StackPanel>
+
+                      <!-- As palavras, e não ícones. Nenhum glifo da fonte diz "ejetar" sem
+                           ambiguidade em 13 px — a seta para cima lê-se como "enviar" e o
+                           chevron, como "abre outra coisa" —, e com duas ações na mesma linha
+                           a diferença entre elas é o que mais precisa ficar claro. -->
+                      <Button Grid.Column="1" Style="{StaticResource PanelButton}" Padding="6,2"
+                              Click="OnOpenRemovable" Tag="{Binding Id}"
+                              ToolTip="Abrir no Explorer">
+                        <TextBlock Text="Abrir" Foreground="#FF4CC2FF" FontSize="11" />
+                      </Button>
+
+                      <Button Grid.Column="2" Style="{StaticResource PanelButton}" Padding="6,2"
+                              Margin="2,0,0,0"
+                              Click="OnEjectRemovable" Tag="{Binding Id}"
+                              ToolTip="Remover este dispositivo com segurança">
+                        <TextBlock Text="Remover" Foreground="#FF4CC2FF" FontSize="11" />
+                      </Button>
+                    </Grid>
+                  </Border>
+
+                  <DataTemplate.Triggers>
+                    <Trigger SourceName="Row" Property="IsMouseOver" Value="True">
+                      <Setter TargetName="Row" Property="Background" Value="#14FFFFFF" />
+                    </Trigger>
+                  </DataTemplate.Triggers>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+
+            <!-- só aparece depois de uma tentativa; é aqui que o veto do Windows vira frase -->
+            <TextBlock Text="{Binding RemovableMessage}" Foreground="#FF9D9D9D" FontSize="11"
+                       TextWrapping="Wrap" Margin="2,10,2,0"
+                       Visibility="{Binding HasRemovableMessage, Converter={StaticResource BoolToVisible}}" />
           </StackPanel>
         </Border>
       </Popup>

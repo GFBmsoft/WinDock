@@ -625,6 +625,23 @@
               <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
             <StackPanel VerticalAlignment="Center">
+              <TextBlock Text="Remover dispositivo externo" Style="{StaticResource FluentTitle}" />
+              <TextBlock Text="Um botão na barra para remover pen-drive e HD externo com segurança, pela mesma via do &quot;Remover hardware&quot; do Windows. Só existe enquanto houver algum dispositivo externo conectado."
+                         Style="{StaticResource FluentCaption}" TextWrapping="Wrap" />
+            </StackPanel>
+            <CheckBox Grid.Column="1" Style="{StaticResource FluentToggle}"
+                      AutomationProperties.Name="Remover dispositivo externo"
+                      IsChecked="{Binding PanelRemovable, Mode=TwoWay}" />
+          </Grid>
+        </Border>
+
+        <Border Style="{StaticResource FluentCardBorderStyle}">
+          <Grid>
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="*" />
+              <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <StackPanel VerticalAlignment="Center">
               <TextBlock Text="Cota de IA" Style="{StaticResource FluentTitle}" />
               <TextBlock Text="Quanto da cota do Claude já foi usada, num cartão da barra: a janela de 5 horas, a da semana e quando cada uma zera. Só aparece se você usa o Claude Code nesta máquina; os números vêm da mesma fonte do /usage dele."
                          Style="{StaticResource FluentCaption}" TextWrapping="Wrap" />

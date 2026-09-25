@@ -70,6 +70,14 @@ public sealed class PanelModel : INotifyPropertyChanged, IDisposable
 
         WatchAiUsage();
 
+        // A lista de dispositivos externos não tem relógio: quem avisa é o Windows, pelo
+        // WM_DEVICECHANGE que a barra assina (veja PanelWindow.OnDeviceChange). Esta é só a
+        // primeira leitura, para o pen-drive que já estava espetado antes de a dock subir —
+        // uns segundos depois, porque o logon já é o momento mais disputado da máquina.
+        var primeiroUsb = new DispatcherTimer(DispatcherPriority.Background) { Interval = TimeSpan.FromSeconds(4) };
+        primeiroUsb.Tick += (s, _) => { ((DispatcherTimer)s!).Stop(); RefreshRemovable(); };
+        primeiroUsb.Start();
+
         // A mídia avisa sozinha quando muda, mas o evento vem de thread do WinRT — a
         // interface só pode ser tocada pelo dispatcher.
         _media.Changed += () => _dispatcher.InvokeAsync(() => Media = _media.Current);
@@ -602,6 +610,138 @@ public sealed class PanelModel : INotifyPropertyChanged, IDisposable
 
     public string TrayTooltip => "Ícones ocultos";
 
+    // ── remover dispositivo externo ─────────────────────────
+
+    /// <summary>
+    /// O pen-drive da Segoe. Conferido em 15 px, que é o tamanho dos ícones da barra.
+    ///
+    /// Escrito pelo código, e não pelo caractere: veja o <see cref="TrayGlyph"/>.
+    /// </summary>
+    public string RemovableGlyph => "";
+
+    private IReadOnlyList<RemovableDevice> _removable = Array.Empty<RemovableDevice>();
+
+    public IReadOnlyList<RemovableDevice> Removable
+    {
+        get => _removable;
+        private set
+        {
+            if (!Set(ref _removable, value)) return;
+            OnChanged(nameof(HasRemovable));
+            OnChanged(nameof(RemovableTooltip));
+        }
+    }
+
+    /// <summary>
+    /// O ícone só existe enquanto houver o que remover.
+    ///
+    /// Foi o pedido, e é o mesmo critério dos controles de mídia: um botão que passa o dia
+    /// inteiro parado dizendo "nenhum dispositivo" ocupa lugar sem nunca responder nada —
+    /// enquanto o vizinho se deslocar quando um pen-drive entra é justamente o aviso de que
+    /// ele entrou.
+    /// </summary>
+    public bool HasRemovable => _config.PanelRemovable && _removable.Count > 0;
+
+    public string RemovableTooltip =>
+        _removable.Count switch
+        {
+            0 => "Remover dispositivo",
+            1 => $"Remover com segurança — {_removable[0].Name}",
+            var n => $"Remover com segurança — {n} dispositivos"
+        };
+
+    /// <summary>O que aconteceu na última tentativa; some quando o cartão fecha.</summary>
+    private string _removableMessage = string.Empty;
+    public string RemovableMessage
+    {
+        get => _removableMessage;
+        private set { if (Set(ref _removableMessage, value)) OnChanged(nameof(HasRemovableMessage)); }
+    }
+
+    public bool HasRemovableMessage => _removableMessage.Length > 0;
+
+    /// <summary>Enquanto o Windows decide, o cartão não aceita um segundo clique.</summary>
+    private bool _removableBusy;
+    public bool RemovableBusy
+    {
+        get => _removableBusy;
+        private set { if (Set(ref _removableBusy, value)) OnChanged(nameof(RemovableReady)); }
+    }
+
+    public bool RemovableReady => !_removableBusy;
+
+    /// <summary>Limpa o recado da última tentativa — chamado quando o cartão sai de cena.</summary>
+    public void ClearRemovableMessage() => RemovableMessage = string.Empty;
+
+    /// <summary>
+    /// Abre o aparelho no Explorer.
+    ///
+    /// <b>Uma janela por raiz montada.</b> No caso normal — um pen-drive, uma letra — é uma
+    /// janela só; num HD externo particionado em duas, são duas, porque "abrir o aparelho" ali
+    /// quer dizer os dois volumes dele. Escolher uma das letras seria escolher no lugar de quem
+    /// clicou, e não há critério: nem a primeira do alfabeto nem a maior é "a certa".
+    /// </summary>
+    public void OpenRemovable(string id)
+    {
+        var aparelho = _removable.FirstOrDefault(d => d.Id == id);
+        if (aparelho is null) return;
+
+        foreach (var raiz in aparelho.Roots) WindowService.OpenFolder(raiz);
+    }
+
+    /// <summary>
+    /// Relê a lista em segundo plano.
+    ///
+    /// <para><b>Fora da thread da interface de propósito.</b> Cada letra montada custa dois
+    /// IOCTLs e a varredura das interfaces de disco; numa máquina com muitos volumes isso é
+    /// alguns milissegundos, mas uma letra de rede fora do ar pode segurar a resposta por
+    /// bem mais que isso — e seria a barra inteira congelada no instante em que alguém
+    /// espeta um pen-drive.</para>
+    /// </summary>
+    public void RefreshRemovable()
+    {
+        if (!_config.PanelRemovable) return;
+
+        _ = Task.Run(() =>
+        {
+            var lista = RemovableService.Devices();
+
+            Log.Trace(lista.Count == 0
+                ? "externos: nenhum dispositivo removível montado"
+                : $"externos: {string.Join("; ", lista.Select(d => $"{d.Name} ({d.Letters})"))}");
+
+            _dispatcher.InvokeAsync(() => Removable = lista);
+        });
+    }
+
+    /// <summary>
+    /// Pede a remoção segura e conta o que deu.
+    ///
+    /// Em caso de sucesso a lista é relida na hora, e não pelo aviso do Windows: o
+    /// <c>WM_DEVICECHANGE</c> da saída chega, mas chega depois — e entre uma coisa e outra o
+    /// cartão continuaria oferecendo um aparelho que já saiu.
+    /// </summary>
+    public async Task EjectRemovable(string id)
+    {
+        if (RemovableBusy) return;
+
+        var aparelho = _removable.FirstOrDefault(d => d.Id == id);
+        RemovableBusy = true;
+        RemovableMessage = "Removendo…";
+
+        try
+        {
+            var erro = await RemovableService.Eject(id);
+
+            RemovableMessage = erro.Length == 0
+                ? $"{aparelho?.Name ?? "Dispositivo"} pode ser desconectado"
+                : $"Não deu para remover: {erro}";
+        }
+        finally { RemovableBusy = false; }
+
+        RefreshRemovable();
+    }
+
     // ── cota de IA ──────────────────────────────────────────
 
     private readonly AiUsageService _ai = new();
@@ -904,6 +1044,15 @@ public sealed class PanelModel : INotifyPropertyChanged, IDisposable
         // a próxima troca de faixa
         if (e.PropertyName is nameof(DockConfig.PanelMedia)) OnChanged(nameof(ShowMedia));
         if (e.PropertyName is nameof(DockConfig.PanelBrightness)) OnChanged(nameof(HasBrightness));
+
+        // ligada agora: a lista é montada na hora, senão o botão só apareceria no próximo
+        // pen-drive que entrasse — e o que já está espetado é justamente o caso de quem
+        // acabou de ligar a opção
+        if (e.PropertyName is nameof(DockConfig.PanelRemovable))
+        {
+            OnChanged(nameof(HasRemovable));
+            if (_config.PanelRemovable) RefreshRemovable();
+        }
 
         // ligada agora: o ícone aparece e o número é buscado na hora, senão o cartão nasceria
         // dizendo "Consultando…" até o primeiro tique de dez minutos

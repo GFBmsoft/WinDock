@@ -192,6 +192,27 @@ public static class WindowService
         catch (Exception ex) { Log.Write($"não deu para abrir o local de '{path}'", ex); }
     }
 
+    /// <summary>
+    /// Abre uma pasta no Explorer — sem selecionar nada dentro dela, que é a diferença para o
+    /// <see cref="ShowInFolder"/>.
+    ///
+    /// <c>UseShellExecute</c> ligado de propósito: a dock roda elevada, e sem isso a janela de
+    /// pasta nasceria com o token dela — uma janela do Explorer como administrador, que arrasta
+    /// junto todo arrastar-e-soltar dali. Pelo shell, quem abre é o <c>explorer.exe</c> que já
+    /// está de pé na sessão da pessoa, com a integridade dele.
+    /// </summary>
+    public static void OpenFolder(string path)
+    {
+        try
+        {
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(path)
+            {
+                UseShellExecute = true
+            });
+        }
+        catch (Exception ex) { Log.Write($"não deu para abrir '{path}'", ex); }
+    }
+
     public static void Activate(nint hWnd)
     {
         if (!Alive(hWnd, "ativar")) return;
