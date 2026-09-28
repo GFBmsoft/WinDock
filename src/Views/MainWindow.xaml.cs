@@ -988,5 +988,10 @@ public partial class MainWindow : Window
         _appBar?.Dispose();   // devolve a area de trabalho ao tamanho normal
         _taskbar.Dispose();   // e a barra do Windows ao estado em que estava
         _fullScreen.Dispose();
+
+        // o log fica com o arquivo aberto enquanto a dock vive; aqui ele solta o handle. Não há
+        // nada pendente para salvar (cada linha vai ao disco na hora) — isto é só boa educação
+        // com quem for ler o arquivo logo depois
+        Log.Close();
     }
 }
