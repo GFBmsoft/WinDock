@@ -642,6 +642,23 @@
               <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
             <StackPanel VerticalAlignment="Center">
+              <TextBlock Text="Atualizações esperando" Style="{StaticResource FluentTitle}" />
+              <TextBlock Text="Um ícone na barra para o que há para atualizar, do Windows Update e do winget: aceso e com o número quando há algo esperando, apagado quando está tudo em dia. A lista fica no cartão, e nada é instalado por aqui — ele leva você ao Windows Update ou abre um terminal com o comando do winget pronto. Desligue se não quiser o ícone na barra."
+                         Style="{StaticResource FluentCaption}" TextWrapping="Wrap" />
+            </StackPanel>
+            <CheckBox Grid.Column="1" Style="{StaticResource FluentToggle}"
+                      AutomationProperties.Name="Atualizações esperando"
+                      IsChecked="{Binding PanelUpdates, Mode=TwoWay}" />
+          </Grid>
+        </Border>
+
+        <Border Style="{StaticResource FluentCardBorderStyle}">
+          <Grid>
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="*" />
+              <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <StackPanel VerticalAlignment="Center">
               <TextBlock Text="Cota de IA" Style="{StaticResource FluentTitle}" />
               <TextBlock Text="Quanto da cota do Claude já foi usada, num cartão da barra: a janela de 5 horas, a da semana e quando cada uma zera. Só aparece se você usa o Claude Code nesta máquina; os números vêm da mesma fonte do /usage dele."
                          Style="{StaticResource FluentCaption}" TextWrapping="Wrap" />

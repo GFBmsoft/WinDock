@@ -153,8 +153,10 @@ a barra do Windows, se você a tinha escondido. Matar o processo à força pula 
 Da esquerda para a direita: o que está tocando, os controles de faixa, bateria, wi-fi,
 bluetooth, volume, a seta da bandeja, notificações e energia — mais o **brilho**, quando o
 monitor aceita ser controlado (veja [Brilho](#brilho)), a **cota de IA**, se você ligar
-(veja [Cota de IA](#cota-de-ia)), e o **pen-drive**, enquanto houver um espetado
-(veja [Remover dispositivo externo](#remover-dispositivo-externo)). **A ordem é sua** — veja
+(veja [Cota de IA](#cota-de-ia)), o **pen-drive**, enquanto houver um espetado
+(veja [Remover dispositivo externo](#remover-dispositivo-externo)), e as **atualizações**, enquanto
+houver alguma esperando (veja [Atualizações esperando](#atualizações-esperando)).
+**A ordem é sua** — veja
 [Ordem dos itens](#ordem-dos-itens-da-barra).
 
 | ação | como |
@@ -171,6 +173,10 @@ monitor aceita ser controlado (veja [Brilho](#brilho)), a **cota de IA**, se voc
 | Desligar, reiniciar, hibernar, bloquear, sair | o botão de energia |
 | Brilho do monitor | clique no ícone de brilho, ou role a roda do mouse sobre ele |
 | Quanto da cota do Claude já foi usada | clique no velocímetro (veja [Cota de IA](#cota-de-ia)) |
+| Ver o que há para atualizar | clique na seta com o número (veja [Atualizações esperando](#atualizações-esperando)) |
+| Corrigir o texto de uma tarefa | clique no texto dela, dentro do calendário |
+| Marcar a hora de uma tarefa | o `🕘` no balão dela, ou digite `14:30 dentista` na nova tarefa |
+| Ser avisado quando a hora chegar | o `🔔` no balão da tarefa |
 | Abrir um pen-drive ou HD externo | clique no pen-drive > **Abrir** |
 | Remover um pen-drive ou HD externo | clique no pen-drive > **Remover** (veja [Remover dispositivo externo](#remover-dispositivo-externo)) |
 | Trocar de mês no calendário | as setas do cabeçalho, ou a roda do mouse sobre o mês |
@@ -188,9 +194,29 @@ Clique na data, na barra de cima, e o mês aparece. Dentro dele:
   quarta-feira de cinzas fica de fora de propósito — é dia útil.
 - **Anotações em azul**, com um pontinho embaixo do número — que fica **verde** quando tudo do dia
   já está marcado como feito. **Clique num dia** e as tarefas dele aparecem embaixo do mês, no
-  próprio cartão, com um anel em volta do dia; clicar de novo no mesmo dia recolhe a lista. Tudo
-  acontece ali: a bolinha marca como concluído (o texto fica riscado), o `✕` remove, e o campo
-  **Nova tarefa** acrescenta com `Enter` ou com o `+`.
+  próprio cartão, com um anel em volta do dia; clicar de novo no mesmo dia recolhe a lista. Cada
+  tarefa fica num **balão**, com a bolinha que marca como concluído (o texto fica riscado), a hora
+  e o sino à esquerda, e as ações à direita. O campo **Nova tarefa** acrescenta com `Enter` ou com
+  o `+`.
+- **Clique no texto de uma tarefa para corrigi-lo.** Ele vira campo, já selecionado; `Enter` grava,
+  `Esc` desiste, e clicar em outro lugar também grava. A hora, o aviso e o "feito" ficam como
+  estavam — corrigir uma palavra não refaz o compromisso. Apagar o texto todo e dar `Enter` remove
+  a tarefa.
+- **O texto comprido é cortado com reticências**, numa linha só, e a **dica de mouse** mostra o
+  resto — só quando há resto. É o que impede uma tarefa longa de empurrar o resto da lista para
+  fora do cartão. Na dica do dia (o mouse parado sobre o número, sem abrir nada) cada tarefa também
+  sai encurtada, cortando na última palavra inteira que cabe: a dica não quebra linha, e sem isso
+  uma tarefa comprida esticava o balão pela tela até o Windows cortar o fim dela sem aviso nenhum.
+- **Hora e aviso**: o `🕘` marca a hora da tarefa (`14:30`, `14h` ou só `14`; **Tirar** devolve a
+  tarefa ao dia inteiro), e o `🔔` liga o aviso. Digitar a hora na frente do texto no campo de nova
+  tarefa também funciona: **`14:30 dentista`** cria a tarefa das 14:30. As tarefas do dia aparecem
+  em ordem de hora, e as sem hora vão para o fim.
+- **O aviso é um balão embaixo da data**, no mesmo lugar em que o cartão do calendário abre, com
+  **Adiar 10 min** e **Feito**. Ele segue a opção de relógio centralizado: com ela ligada nasce no
+  meio da barra, com ela desligada, no canto direito. Ele sai uma vez
+  por tarefa, e sai mesmo atrasado: quem ligou a máquina às 9h20 é avisado do que era das 9h — mas
+  só dentro do próprio dia. A tarefa sem hora avisa a partir da meia-noite. O balão nasce sem tirar
+  o foco de quem está trabalhando, e a dock não precisa da barra de cima ligada para avisar.
 - **O teclado só vai para o cartão quando você clica num campo.** A barra de cima normalmente não
   recebe teclado — é o que a deixa ser clicada sem tirar o foco do programa em que você está. Ao
   clicar no campo ela pega o teclado, e ao fechar o cartão devolve o foco ao programa de antes.
@@ -333,6 +359,37 @@ Três coisas que vale saber:
   seguidas não faz dez consultas: ele mostra o que já tem. Se mesmo assim a API pedir uma pausa
   (o `429`), a dock espera o tempo que ela pedir — ou dez minutos — e, enquanto isso, **continua
   mostrando os últimos números**, com um aviso em âmbar dizendo de quando eles são.
+
+#### Atualizações esperando
+
+Uma seta à esquerda do velocímetro da cota: **azul, com o número, quando há o que atualizar**;
+**cinza quando está tudo em dia**. Apagada ela ainda responde a uma pergunta — a de que a dock está
+conferindo —, que é o que se perde quando o ícone simplesmente não existe.
+
+O cartão junta duas fontes:
+
+- **Windows Update** — quantas atualizações o Windows já tem separadas para esta máquina. O botão
+  abre a página dele, que é onde elas se instalam. A pergunta é feita ao agente do próprio Windows
+  e responde do que ele já varreu, sem ir à rede: é o mesmo número que você veria abrindo o
+  Windows Update.
+- **winget** — os programas com versão nova, um por linha, com a versão de agora e a que vem. Só
+  aparece se o winget existir na máquina.
+
+**A dock não instala nada.** O botão **Atualizar tudo pelo winget** abre um terminal com o comando
+`winget upgrade --all` pronto — quem dá o `Enter` é você. É de propósito: a atualização faz
+perguntas, pede elevação e pode fechar programas abertos, e nada disso deve acontecer às escuras
+por conta de um clique numa barra.
+
+A conferência é feita **de três em três horas**, e a hora da última fica no rodapé do cartão. Abrir
+o cartão não refaz a consulta: a do winget é um processo de console que leva segundos, e o cartão
+mudaria de tamanho debaixo do mouse. Quando quiser a resposta na hora, **Conferir agora**, no
+rodapé, refaz as duas perguntas com o cartão aberto.
+
+Duas coisas explicam um ícone apagado com atualização existindo lá fora: a conferência pode ser de
+até três horas atrás (o rodapé diz de quando é), e o lado do Windows Update responde **do que o
+agente do Windows já varreu**, sem ir à rede — se ele ainda não varreu, o número é zero.
+
+Vem ligado, em **Configurações > Atualizações esperando**. Desligado, o ícone some da barra.
 
 #### Energia
 

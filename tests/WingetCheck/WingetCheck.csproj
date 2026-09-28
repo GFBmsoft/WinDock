@@ -1,0 +1,34 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Confere a leitura da tabela do `winget upgrade` sem precisar que haja atualização pendente
+    na máquina.
+
+    Existe por um motivo específico: a tabela é texto formatado para gente e **traduzido** — os
+    títulos das colunas e a linha de resumo mudam com o idioma do Windows —, e numa máquina em
+    dia o `winget upgrade` não imprime tabela nenhuma. Sem isto, a única forma de saber se o
+    parser funciona seria esperar aparecer uma atualização.
+
+    Roda com:  dotnet run  (a partir desta pasta)
+    Sai com código 1 se alguma conferência falhar.
+  -->
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <!-- -windows por causa do COM do Windows Update, que mora no mesmo arquivo; nada aqui o usa -->
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>WinDock.Tests</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!--
+      O arquivo de verdade, compilado aqui dentro — não uma cópia, pelo mesmo motivo do
+      TreeCheck: uma cópia divergiria do original no primeiro ajuste. É isto que dá acesso ao
+      `internal` do Parse sem abrir nada para o resto do mundo.
+    -->
+    <Compile Include="..\..\src\Services\UpdatesService.cs" Link="UpdatesService.cs" />
+  </ItemGroup>
+
+</Project>

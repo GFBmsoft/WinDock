@@ -27,6 +27,16 @@ public sealed record CalendarDay(
     public bool AllDone => Notes.Count > 0 && Notes.All(n => n.Done);
 
     /// <summary>
+    /// Quanto de uma tarefa cabe numa linha da dica de mouse.
+    ///
+    /// A dica não quebra linha — cada tarefa é uma linha —, então sem um limite uma tarefa
+    /// comprida esticaria o balão pela tela afora, e o Windows acabaria cortando o fim dela sem
+    /// aviso nenhum. Cortado aqui, pelo menos as reticências dizem que há mais, e o texto inteiro
+    /// continua a um clique de distância, no cartão.
+    /// </summary>
+    private const int LinhaMax = 58;
+
+    /// <summary>
     /// O que a dica de mouse mostra: o feriado e as anotações, uma por linha.
     ///
     /// O marcador de cada linha conta o estado — "✓" para o que está resolvido, "•" para o que
@@ -40,11 +50,29 @@ public sealed record CalendarDay(
             var linhas = new List<string>();
             if (Holiday is not null) linhas.Add(Holiday);
 
-            if (Notes.Count == 1 && !Notes[0].Done) linhas.Add(Notes[0].Text);
-            else linhas.AddRange(Notes.Select(n => $"{(n.Done ? "✓" : "•")} {n.Text}"));
+            // a hora, quando existe, vem antes do texto: é o que se procura numa lista de dia
+            static string Corpo(CalendarNote n) => Curto(n.HasTime ? $"{n.TimeText} {n.Text}" : n.Text);
+
+            if (Notes.Count == 1 && !Notes[0].Done) linhas.Add(Corpo(Notes[0]));
+            else linhas.AddRange(Notes.Select(n => $"{(n.Done ? "✓" : "•")} {Corpo(n)}"));
 
             return string.Join(Environment.NewLine, linhas);
         }
+    }
+
+    /// <summary>
+    /// A linha encurtada, com reticências, quando passa do limite.
+    ///
+    /// O corte é na última palavra inteira que cabe, e não no meio dela: "reunião com o forne…" é
+    /// pior de ler que "reunião com o…", e a diferença de tamanho entre os dois não vale nada. Só
+    /// quando a primeira palavra sozinha já estoura é que ela é cortada no meio.
+    /// </summary>
+    private static string Curto(string texto)
+    {
+        if (texto.Length <= LinhaMax) return texto;
+
+        var corte = texto.LastIndexOf(' ', LinhaMax - 1);
+        return corte > LinhaMax / 2 ? texto[..corte] + "…" : texto[..(LinhaMax - 1)] + "…";
     }
 
     public bool HasTooltip => Tooltip.Length > 0;
@@ -174,8 +202,12 @@ public sealed class MonthCalendar : INotifyPropertyChanged
                           {
                               Text = n.Text.Trim(),
                               Done = n.Done,
-                              DoneAt = n.Done ? n.DoneAt ?? DateTime.Now : null
+                              DoneAt = n.Done ? n.DoneAt ?? DateTime.Now : null,
+                              At = n.At,
+                              Notify = n.Notify,
+                              NotifiedAt = n.NotifiedAt
                           })
+                          .OrderBy(n => n.At ?? TimeSpan.MaxValue)
                           .ToList();
 
         if (limpos.Count == 0)
@@ -246,7 +278,11 @@ public sealed class MonthCalendar : INotifyPropertyChanged
     {
         if (_selected is not { } dia) return;
         SetNotes(dia, NotesOf(dia).Select(n => ReferenceEquals(n, nota)
-            ? new CalendarNote { Text = n.Text, Done = !n.Done, DoneAt = n.Done ? null : DateTime.Now }
+            ? new CalendarNote
+              {
+                  Text = n.Text, Done = !n.Done, DoneAt = n.Done ? null : DateTime.Now,
+                  At = n.At, Notify = n.Notify, NotifiedAt = n.NotifiedAt
+              }
             : n).ToList());
     }
 
@@ -257,11 +293,60 @@ public sealed class MonthCalendar : INotifyPropertyChanged
     }
 
     /// <summary>Acrescenta uma tarefa ao dia escolhido. Texto em branco não vira linha.</summary>
-    public void AddToSelected(string texto)
+    public void AddToSelected(string texto, TimeSpan? hora = null)
     {
         if (_selected is not { } dia || string.IsNullOrWhiteSpace(texto)) return;
-        AddNote(dia, new CalendarNote { Text = texto.Trim() });
+        AddNote(dia, new CalendarNote { Text = texto.Trim(), At = hora });
     }
+
+    /// <summary>
+    /// Troca o texto de uma tarefa — e só o texto; a hora, o "avisar" e o "feito" ficam onde
+    /// estavam, porque corrigir uma palavra não é refazer o compromisso.
+    ///
+    /// O aviso já dado é esquecido: o texto mudou, e quem foi avisado da versão anterior merece
+    /// ser avisado da nova. Texto em branco apaga a tarefa, que é o que o campo vazio quer dizer.
+    /// </summary>
+    public void EditNote(CalendarNote nota, string texto)
+    {
+        if (_selected is not { } dia) return;
+
+        var limpo = texto.Trim();
+        if (limpo == nota.Text) return;
+
+        if (limpo.Length == 0) { RemoveNote(nota); return; }
+
+        SetNotes(dia, NotesOf(dia).Select(n => ReferenceEquals(n, nota)
+            ? new CalendarNote { Text = limpo, Done = n.Done, DoneAt = n.DoneAt, At = n.At, Notify = n.Notify }
+            : n).ToList());
+    }
+
+    /// <summary>
+    /// Marca, muda ou tira a hora de uma tarefa. Sem hora, ela volta a ser do dia inteiro — e o
+    /// aviso, se estiver ligado, passa a sair no começo do dia.
+    /// </summary>
+    public void SetTime(CalendarNote nota, TimeSpan? hora)
+    {
+        if (_selected is not { } dia || nota.At == hora) return;
+
+        SetNotes(dia, NotesOf(dia).Select(n => ReferenceEquals(n, nota)
+            ? new CalendarNote { Text = n.Text, Done = n.Done, DoneAt = n.DoneAt, At = hora, Notify = n.Notify }
+            : n).ToList());
+    }
+
+    /// <summary>
+    /// Liga e desliga o aviso de uma tarefa. Ligar esquece o aviso que já tenha saído: remarcar é
+    /// a pessoa pedindo para ser avisada outra vez.
+    /// </summary>
+    public void ToggleNotify(CalendarNote nota)
+    {
+        if (_selected is not { } dia) return;
+
+        SetNotes(dia, NotesOf(dia).Select(n => ReferenceEquals(n, nota)
+            ? new CalendarNote { Text = n.Text, Done = n.Done, DoneAt = n.DoneAt, At = n.At, Notify = !n.Notify }
+            : n).ToList());
+    }
+
+
 
     /// <summary>
     /// Leva uma tarefa do dia escolhido para outro dia. Devolve falso quando não havia o que mover
@@ -274,7 +359,12 @@ public sealed class MonthCalendar : INotifyPropertyChanged
     {
         if (_selected is not { } dia || destino.Date == dia) return false;
 
-        AddNote(destino.Date, new CalendarNote { Text = nota.Text, Done = nota.Done, DoneAt = nota.DoneAt });
+        // o aviso vai junto, mas sem a marca de já ter saído: a tarefa mudou de dia, e o aviso que
+        // valia para o dia anterior não é o que ela tem para dar agora
+        AddNote(destino.Date, new CalendarNote
+        {
+            Text = nota.Text, Done = nota.Done, DoneAt = nota.DoneAt, At = nota.At, Notify = nota.Notify
+        });
         RemoveNote(nota);
         return true;
     }
@@ -348,6 +438,72 @@ public sealed class MonthCalendar : INotifyPropertyChanged
         if (dia < aberto.Date.AddMonths(-6)) dia = dia.AddYears(1);
 
         return true;
+    }
+
+    /// <summary>
+    /// Entende a hora digitada: "14:30", "14h30", "14h", "1430" ou só "14".
+    ///
+    /// À mão, e não pelo <c>DateTime.TryParse</c>, porque ele aceita coisas que aqui não são hora
+    /// ("15/09" vira um dia, "14" vira o dia 14 do mês) e recusa a forma que mais se digita neste
+    /// teclado, o "14h30".
+    /// </summary>
+    public static bool TryParseTime(string texto, out TimeSpan hora)
+    {
+        hora = default;
+
+        var limpo = texto.Trim().Replace('.', ':').Replace(',', ':');
+        limpo = limpo.Replace("h", ":", StringComparison.OrdinalIgnoreCase);
+        if (limpo.EndsWith(':')) limpo = limpo[..^1];      // "14h" chega aqui como "14:"
+        if (limpo.Length == 0) return false;
+
+        int h, m;
+        var dois = limpo.IndexOf(':');
+
+        if (dois >= 0)
+        {
+            if (!int.TryParse(limpo[..dois], out h)) return false;
+            var resto = limpo[(dois + 1)..];
+            if (!int.TryParse(resto, out m)) return false;
+            if (resto.Length == 1) m *= 10;               // "14:3" é 14:30, e não 14:03
+        }
+        else if (limpo.Length <= 2)
+        {
+            if (!int.TryParse(limpo, out h)) return false;
+            m = 0;
+        }
+        else if (limpo.Length is 3 or 4)                  // "930" e "1430"
+        {
+            if (!int.TryParse(limpo[..^2], out h) || !int.TryParse(limpo[^2..], out m)) return false;
+        }
+        else return false;
+
+        if (h is < 0 or > 23 || m is < 0 or > 59) return false;
+
+        hora = new TimeSpan(h, m, 0);
+        return true;
+    }
+
+    /// <summary>
+    /// Tira a hora do começo do texto, quando há uma, e devolve o que sobrou pelo parâmetro.
+    ///
+    /// Só entra como hora o que vem <b>seguido de mais alguma coisa</b>: "14:30 dentista" é uma
+    /// tarefa às 14:30, mas uma tarefa chamada "14:30" é uma tarefa chamada assim — e quem escreve
+    /// só isso não quer uma tarefa sem nome.
+    /// </summary>
+    public static TimeSpan? TakeLeadingTime(ref string texto)
+    {
+        var espaco = texto.IndexOf(' ');
+        if (espaco <= 0) return null;
+
+        if (!TryParseTime(texto[..espaco], out var hora)) return null;
+
+        // "1430" no começo de uma frase quase sempre é um número, não uma hora; a forma com
+        // separador é que é inequívoca
+        var cabeca = texto[..espaco];
+        if (!cabeca.Any(c => c is ':' or 'h' or 'H' or '.' or ',')) return null;
+
+        texto = texto[(espaco + 1)..].Trim();
+        return hora;
     }
 
     private void RaiseSelection()

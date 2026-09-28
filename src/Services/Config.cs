@@ -40,7 +40,80 @@ public sealed class CalendarNote : INotifyPropertyChanged
     /// </summary>
     public DateTime? DoneAt { get; set; }
 
+    /// <summary>
+    /// A hora do dia em que a tarefa acontece, ou vazio para a tarefa que é do dia e não de uma
+    /// hora marcada. É o que separa "comprar pão" de "dentista às 14h": só a segunda tem quando
+    /// avisar.
+    /// </summary>
+    private TimeSpan? _at;
+    public TimeSpan? At
+    {
+        get => _at;
+        set
+        {
+            if (_at == value) return;
+            _at = value;
+            Raise(nameof(At));
+            Raise(nameof(TimeText));
+            Raise(nameof(HasTime));
+        }
+    }
+
+    /// <summary>"14:30", ou vazio quando a tarefa não tem hora.</summary>
+    [JsonIgnore]
+    public string TimeText => _at is { } h ? h.ToString(@"hh\:mm") : string.Empty;
+
+    [JsonIgnore]
+    public bool HasTime => _at is not null;
+
+    /// <summary>
+    /// Avisar quando chegar a hora — ou o começo do dia, na tarefa que não tem hora.
+    ///
+    /// É por tarefa, e não uma chave geral: a lista de um dia tem de tudo, o que precisa
+    /// interromper e o que só precisa estar escrito.
+    /// </summary>
+    private bool _notify;
+    public bool Notify
+    {
+        get => _notify;
+        set
+        {
+            if (_notify == value) return;
+            _notify = value;
+            Raise(nameof(Notify));
+        }
+    }
+
+    /// <summary>
+    /// Quando o aviso desta tarefa já saiu. Existe para ele sair uma vez só: sem isto, o relógio
+    /// que varre a lista avisaria de novo a cada passagem, para sempre.
+    ///
+    /// Mudar o texto, a hora ou remarcar o "avisar" limpa este campo — é a pessoa dizendo que a
+    /// tarefa mudou, e o aviso da versão anterior não vale mais.
+    /// </summary>
+    public DateTime? NotifiedAt { get; set; }
+
+    /// <summary>
+    /// A tarefa está com o texto aberto para edição no cartão.
+    ///
+    /// Mora no objeto, e não no code-behind, porque quem desenha a linha é um <c>DataTemplate</c> e
+    /// ele só enxerga o item. Não vai para o arquivo: é estado de tela, e a tela fecha.
+    /// </summary>
+    private bool _editing;
+    [JsonIgnore]
+    public bool IsEditing
+    {
+        get => _editing;
+        set
+        {
+            if (_editing == value) return;
+            _editing = value;
+            Raise(nameof(IsEditing));
+        }
+    }
+
     public event PropertyChangedEventHandler? PropertyChanged;
+    private void Raise(string name) => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
 }
 
 /// <summary>
@@ -88,6 +161,9 @@ public sealed class CalendarNotesConverter : JsonConverter<Dictionary<string, Li
                             string? texto = null;
                             var feito = false;
                             DateTime? feitoEm = null;
+                            TimeSpan? hora = null;
+                            var avisar = false;
+                            DateTime? avisadoEm = null;
 
                             while (reader.Read() && reader.TokenType != JsonTokenType.EndObject)
                             {
@@ -105,11 +181,23 @@ public sealed class CalendarNotesConverter : JsonConverter<Dictionary<string, Li
                                          DateTime.TryParse(reader.GetString(), System.Globalization.CultureInfo.InvariantCulture,
                                                            System.Globalization.DateTimeStyles.RoundtripKind, out var em))
                                     feitoEm = em;
+                                else if (string.Equals(campo, "At", StringComparison.OrdinalIgnoreCase) &&
+                                         reader.TokenType == JsonTokenType.String &&
+                                         TimeSpan.TryParse(reader.GetString(), System.Globalization.CultureInfo.InvariantCulture,
+                                                           out var marcada))
+                                    hora = marcada;
+                                else if (string.Equals(campo, "Notify", StringComparison.OrdinalIgnoreCase))
+                                    avisar = reader.TokenType == JsonTokenType.True;
+                                else if (string.Equals(campo, "NotifiedAt", StringComparison.OrdinalIgnoreCase) &&
+                                         reader.TokenType == JsonTokenType.String &&
+                                         DateTime.TryParse(reader.GetString(), System.Globalization.CultureInfo.InvariantCulture,
+                                                           System.Globalization.DateTimeStyles.RoundtripKind, out var avisado))
+                                    avisadoEm = avisado;
                                 else
                                     reader.Skip();
                             }
 
-                            Add(itens, texto, feito, feitoEm);
+                            Add(itens, texto, feito, feitoEm, hora, avisar, avisadoEm);
                         }
                         else reader.Skip();
                     }
@@ -131,10 +219,19 @@ public sealed class CalendarNotesConverter : JsonConverter<Dictionary<string, Li
     /// existir — ganha a hora desta leitura. Assim o prazo de apagar conta a partir de agora, em vez
     /// de todas as tarefas já concluídas sumirem de uma vez na primeira limpeza.
     /// </summary>
-    private static void Add(List<CalendarNote> itens, string? texto, bool feito, DateTime? feitoEm = null)
+    private static void Add(List<CalendarNote> itens, string? texto, bool feito, DateTime? feitoEm = null,
+                            TimeSpan? hora = null, bool avisar = false, DateTime? avisadoEm = null)
     {
         if (string.IsNullOrWhiteSpace(texto)) return;
-        itens.Add(new CalendarNote { Text = texto.Trim(), Done = feito, DoneAt = feito ? feitoEm ?? DateTime.Now : null });
+        itens.Add(new CalendarNote
+        {
+            Text = texto.Trim(),
+            Done = feito,
+            DoneAt = feito ? feitoEm ?? DateTime.Now : null,
+            At = hora,
+            Notify = avisar,
+            NotifiedAt = avisadoEm
+        });
     }
 
     public override void Write(Utf8JsonWriter writer, Dictionary<string, List<CalendarNote>> value,
@@ -152,6 +249,15 @@ public sealed class CalendarNotesConverter : JsonConverter<Dictionary<string, Li
                 writer.WriteBoolean("Done", item.Done);
                 if (item.Done && item.DoneAt is { } feitoEm)
                     writer.WriteString("DoneAt", feitoEm.ToString("o", System.Globalization.CultureInfo.InvariantCulture));
+
+                // hora e aviso só vão ao arquivo quando existem: a tarefa comum continua com as
+                // mesmas três linhas de antes, e o config não engorda por causa de um recurso que
+                // a maioria das tarefas não usa
+                if (item.At is { } hora)
+                    writer.WriteString("At", hora.ToString(@"hh\:mm", System.Globalization.CultureInfo.InvariantCulture));
+                if (item.Notify) writer.WriteBoolean("Notify", true);
+                if (item.NotifiedAt is { } avisadoEm)
+                    writer.WriteString("NotifiedAt", avisadoEm.ToString("o", System.Globalization.CultureInfo.InvariantCulture));
                 writer.WriteEndObject();
             }
             writer.WriteEndArray();
@@ -359,6 +465,16 @@ public sealed class DockConfig : INotifyPropertyChanged
     /// deliberadamente não faz com as credenciais.
     /// </summary>
     public bool PanelAiUsage { get => _panelAiUsage; set => Set(ref _panelAiUsage, value); }
+
+    private bool _panelUpdates = true;
+    /// <summary>
+    /// O ícone de atualizações esperando — do Windows Update e do winget.
+    ///
+    /// Ligado por padrão, ao contrário da cota de IA: a cota vale para quem usa uma ferramenta
+    /// específica, e atualização pendente é de toda máquina. O ícone só aparece quando há alguma,
+    /// então ligado ele não ocupa espaço à toa.
+    /// </summary>
+    public bool PanelUpdates { get => _panelUpdates; set => Set(ref _panelUpdates, value); }
 
     /// <summary>
     /// Quais contas do Claude Code o cartão acompanha, pelo nome da pasta de cada uma
@@ -686,6 +802,7 @@ public sealed class DockConfig : INotifyPropertyChanged
         CalendarDoneRetentionDays = d.CalendarDoneRetentionDays;
         PanelTray = d.PanelTray; PanelAppVolume = d.PanelAppVolume; PanelMedia = d.PanelMedia;
         PanelBrightness = d.PanelBrightness; PanelAiUsage = d.PanelAiUsage;
+        PanelUpdates = d.PanelUpdates;
         PanelRemovable = d.PanelRemovable;
         Trace = d.Trace;
         Panel = d.Panel; PanelSize = d.PanelSize;

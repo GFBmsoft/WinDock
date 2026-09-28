@@ -146,6 +146,7 @@ public partial class PanelWindow : Window
     private bool _mediaWasOpen;
     private bool _brightnessWasOpen;
     private bool _aiUsageWasOpen;
+    private bool _updatesWasOpen;
     private bool _removableWasOpen;
 
     protected override void OnPreviewMouseDown(System.Windows.Input.MouseButtonEventArgs e)
@@ -158,6 +159,7 @@ public partial class PanelWindow : Window
         _mediaWasOpen = MediaPopup.IsOpen;
         _brightnessWasOpen = BrightnessPopup.IsOpen;
         _aiUsageWasOpen = AiUsagePopup.IsOpen;
+        _updatesWasOpen = UpdatesPopup.IsOpen;
         _removableWasOpen = RemovablePopup.IsOpen;
 
         base.OnPreviewMouseDown(e);
@@ -238,6 +240,7 @@ public partial class PanelWindow : Window
         ("volume",          "Volume"),
         ("brilho",          "Brilho"),
         ("remover",         "Remover dispositivo externo"),
+        ("atualizacoes",    "Atualizações esperando"),
         ("cotaIa",          "Cota de IA"),
         ("notificacoes",    "Notificações"),
         ("energia",         "Energia"),
@@ -469,6 +472,7 @@ public partial class PanelWindow : Window
         yield return MediaPopup;
         yield return BrightnessPopup;
         yield return AiUsagePopup;
+        yield return UpdatesPopup;
         yield return RemovablePopup;
     }
 
@@ -641,6 +645,50 @@ public partial class PanelWindow : Window
         }
 
         WatchOutsideClick();
+    }
+
+    /// <summary>
+    /// Abre o cartão das atualizações.
+    ///
+    /// Sem reler na abertura, ao contrário do cartão da cota: a releitura é um processo de console
+    /// do winget que leva segundos, e o cartão ficaria de pé mudando de tamanho debaixo do mouse.
+    /// O que ele mostra é de no máximo três horas atrás, e a hora da leitura está no rodapé.
+    /// </summary>
+    private void OnUpdates(object sender, RoutedEventArgs e)
+    {
+        CloseOpenPanels();   // um painel de cada vez
+
+        if (!_updatesWasOpen) UpdatesPopup.IsOpen = true;
+
+        WatchOutsideClick();
+    }
+
+    /// <summary>
+    /// "Conferir agora": refaz as duas perguntas sem esperar as próximas três horas.
+    ///
+    /// O cartão fica aberto, e o que ele mostra muda quando a resposta chega — a do winget leva
+    /// segundos. Por isso não é feito na abertura do cartão: ali o tamanho mudaria debaixo do
+    /// mouse de quem só queria olhar; aqui foi pedido.
+    /// </summary>
+    private void OnRefreshUpdates(object sender, RoutedEventArgs e) => _model.RefreshUpdates();
+
+    /// <summary>Leva ao Windows Update, que é onde essas atualizações se instalam.</summary>
+    private void OnOpenWindowsUpdate(object sender, RoutedEventArgs e)
+    {
+        CloseAllPopups();
+        UpdatesService.OpenWindowsUpdate();
+    }
+
+    /// <summary>
+    /// Abre um terminal com o <c>winget upgrade --all</c> — e para por aí.
+    ///
+    /// A dock não instala nada sozinha: a atualização faz perguntas, pede elevação e pode fechar
+    /// programas abertos. Quem dá o Enter é a pessoa, vendo o que vai acontecer.
+    /// </summary>
+    private void OnWingetUpgradeAll(object sender, RoutedEventArgs e)
+    {
+        CloseAllPopups();
+        UpdatesService.UpgradeAll();
     }
 
     /// <summary>
@@ -833,7 +881,11 @@ public partial class PanelWindow : Window
         if (((FrameworkElement)sender).DataContext is not CalendarDay dia) return;
 
         Log.Trace($"clique no dia {dia.Date:yyyy-MM-dd} do calendário");
-        CancelMove();   // mover é de uma tarefa do dia que estava aberto
+
+        // mover, marcar hora e corrigir são de uma tarefa do dia que estava aberto
+        CancelMove();
+        CancelTime();
+        CancelEdit();
 
         // clicar de novo no dia que já está aberto recolhe a lista — o mesmo gesto abre e fecha
         if (_model.Calendar.SelectedDate == dia.Date) _model.Calendar.ClearSelection();
@@ -848,6 +900,154 @@ public partial class PanelWindow : Window
     private void OnCalendarNoteRemove(object sender, RoutedEventArgs e)
     {
         if ((sender as FrameworkElement)?.DataContext is CalendarNote nota) _model.Calendar.RemoveNote(nota);
+    }
+
+    private void OnCalendarNoteNotify(object sender, RoutedEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.DataContext is not CalendarNote nota) return;
+
+        _model.Calendar.ToggleNotify(nota);
+        Log.Trace($"tarefa “{Resumo(nota.Text, 34)}”: aviso {(nota.Notify ? "desligado" : "ligado")}");
+    }
+
+    // ── calendário: corrigir o texto de uma tarefa ──────────
+
+    /// <summary>
+    /// A tarefa que está com o texto aberto para correção. Guardada aqui, e não só no
+    /// <see cref="CalendarNote.IsEditing"/>, porque é por ela que se fecha a edição anterior quando
+    /// outra começa — duas linhas em edição ao mesmo tempo dariam dois cursores na mesma lista.
+    /// </summary>
+    private CalendarNote? _editing;
+
+    /// <summary>
+    /// Clique no texto de uma tarefa: ele vira campo, com o que já estava escrito e selecionado.
+    ///
+    /// É o gesto que todo mundo tenta primeiro — clicar na palavra errada —, e sem ele corrigir uma
+    /// letra era apagar a tarefa e escrevê-la de novo, perdendo a hora e o aviso junto.
+    /// </summary>
+    private void OnCalendarNoteEdit(object sender, MouseButtonEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.DataContext is not CalendarNote nota) return;
+
+        CancelEdit();
+        CancelTime();
+        CancelMove();
+
+        _editing = nota;
+        nota.IsEditing = true;
+        e.Handled = true;
+    }
+
+    /// <summary>
+    /// O campo acabou de aparecer no lugar do texto: é aqui que ele pede o teclado.
+    ///
+    /// Não dá para fazer isso no clique: nesse instante o campo ainda está <c>Collapsed</c> — quem
+    /// o mostra é o gatilho do <c>IsEditing</c>, depois —, e um elemento escondido não aceita foco.
+    /// </summary>
+    private void OnNoteEditorShown(object sender, DependencyPropertyChangedEventArgs e)
+    {
+        if (sender is TextBox campo && campo.IsVisible) TakeKeyboard(campo, selecionar: true);
+    }
+
+    private void OnNoteEditKeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Enter) { CommitEdit((TextBox)sender); e.Handled = true; }
+        else if (e.Key == Key.Escape) { CancelEdit(); e.Handled = true; }
+    }
+
+    /// <summary>
+    /// O campo perdeu o teclado — clicar noutra tarefa, noutro campo ou fora do cartão. Grava, que é
+    /// o que se espera de quem clicou em outro lugar depois de escrever.
+    /// </summary>
+    private void OnNoteEditFinish(object sender, KeyboardFocusChangedEventArgs e) => CommitEdit((TextBox)sender);
+
+    /// <summary>
+    /// Passa o texto do campo para a tarefa.
+    ///
+    /// Fecha a edição <b>antes</b> de gravar: gravar reconstrói a lista do dia, o campo sai da tela e
+    /// dispara o <c>LostKeyboardFocus</c>, que cairia aqui de novo. Com a edição já fechada, a
+    /// segunda passagem não tem o que fazer.
+    /// </summary>
+    private void CommitEdit(TextBox campo)
+    {
+        if (_editing is not { } nota) return;
+
+        _editing = null;
+        nota.IsEditing = false;
+        _model.Calendar.EditNote(nota, campo.Text);
+    }
+
+    private void CancelEdit()
+    {
+        if (_editing is not { } nota) return;
+
+        _editing = null;
+        nota.IsEditing = false;
+    }
+
+    // ── calendário: a hora de uma tarefa ────────────────────
+
+    /// <summary>A tarefa cuja hora está sendo marcada, enquanto o campo está aberto.</summary>
+    private CalendarNote? _timing;
+
+    /// <summary>
+    /// "🕘" numa tarefa: abre o campo de hora, já com a hora que ela tem — ou com a próxima hora
+    /// cheia, para a tarefa que ainda não tem nenhuma.
+    /// </summary>
+    private void OnCalendarNoteTime(object sender, RoutedEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.DataContext is not CalendarNote nota) return;
+
+        CancelEdit();
+        CancelMove();
+
+        _timing = nota;
+        TimeHeading.Text = $"Hora de “{Resumo(nota.Text, 34)}”:";
+        TimeHint.Text = "14:30, ou 14h, ou só 14. Enter marca.";
+        TimeHint.Foreground = MoveHintBrush;
+        TimeBox.Text = nota.HasTime ? nota.TimeText : DateTime.Now.AddHours(1).ToString("HH:00");
+        TimePanel.Visibility = Visibility.Visible;
+
+        TakeKeyboard(TimeBox, selecionar: true);
+    }
+
+    private void OnTimeKeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key != Key.Enter) return;
+        ConfirmTime();
+        e.Handled = true;
+    }
+
+    private void OnTimeConfirm(object sender, RoutedEventArgs e) => ConfirmTime();
+
+    /// <summary>"Tirar": a tarefa volta a ser do dia inteiro.</summary>
+    private void OnTimeClear(object sender, RoutedEventArgs e)
+    {
+        if (_timing is { } nota) _model.Calendar.SetTime(nota, null);
+        CancelTime();
+    }
+
+    private void CancelTime()
+    {
+        _timing = null;
+        TimePanel.Visibility = Visibility.Collapsed;
+    }
+
+    private void ConfirmTime()
+    {
+        if (_timing is not { } nota) { CancelTime(); return; }
+
+        if (!MonthCalendar.TryParseTime(TimeBox.Text, out var hora))
+        {
+            TimeHint.Text = "Não entendi essa hora. Tente 14:30, 14h ou 14.";
+            TimeHint.Foreground = Brushes.IndianRed;
+            TimeBox.SelectAll();
+            return;
+        }
+
+        _model.Calendar.SetTime(nota, hora);
+        Log.Trace($"tarefa “{Resumo(nota.Text, 34)}”: hora marcada para {hora:hh\\:mm}");
+        CancelTime();
     }
 
     // ── calendário: escrever no próprio cartão ──────────────
@@ -922,16 +1122,28 @@ public partial class PanelWindow : Window
 
     private void OnNewNoteAdd(object sender, RoutedEventArgs e) => CommitNewNote();
 
-    /// <summary>Passa o que estiver no campo para o dia escolhido — só pelo Enter ou pelo "+";
-    /// fechar o cartão descarta o texto (veja <see cref="CloseAllPopups"/>).</summary>
+    /// <summary>
+    /// Passa o que estiver no campo para o dia escolhido — só pelo Enter ou pelo "+"; fechar o
+    /// cartão descarta o texto (veja <see cref="CloseAllPopups"/>).
+    ///
+    /// A hora pode vir na frente do texto ("14:30 dentista"): quem está digitando não quer parar,
+    /// clicar num relógio e digitar de novo. O que sobra vira o texto da tarefa.
+    /// </summary>
     private void CommitNewNote()
     {
         var texto = NewNoteBox.Text.Trim();
         if (texto.Length == 0) return;
 
-        _model.Calendar.AddToSelected(texto);
+        var hora = MonthCalendar.TakeLeadingTime(ref texto);
+        if (texto.Length == 0) return;   // só a hora, sem tarefa nenhuma
+
+        _model.Calendar.AddToSelected(texto, hora);
         NewNoteBox.Clear();
     }
+
+    /// <summary>O texto encurtado para caber num cabeçalho — o resto vira reticências.</summary>
+    private static string Resumo(string texto, int limite) =>
+        texto.Length <= limite ? texto : texto[..(limite - 3)] + "...";
 
     // ── calendário: mover uma tarefa de dia ─────────────────
 
@@ -958,8 +1170,7 @@ public partial class PanelWindow : Window
         if (_model.Calendar.SelectedDate is not { } dia) return;
 
         _moving = nota;
-        var resumo = nota.Text.Length <= 34 ? nota.Text : nota.Text[..31] + "...";
-        MoveHeading.Text = $"Mover “{resumo}” para:";
+        MoveHeading.Text = $"Mover “{Resumo(nota.Text, 34)}” para:";
         MoveHint.Text = "Dia e mês bastam (15/09). Enter move.";
         MoveHint.Foreground = MoveHintBrush;
         MoveBox.Text = dia.AddDays(1).ToString("dd/MM/yyyy", System.Globalization.CultureInfo.CurrentCulture);
@@ -1272,6 +1483,8 @@ public partial class PanelWindow : Window
         {
             NewNoteBox.Clear();
             CancelMove();
+            CancelTime();
+            CancelEdit();
         }
 
         foreach (var popup in AllPopups()) popup.IsOpen = false;

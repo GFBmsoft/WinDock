@@ -51,8 +51,12 @@ os pixels reservados e a área de trabalho volta ao tamanho normal.
 - **Ícones da bandeja** dos programas rodando em segundo plano, alcançáveis com a barra do
   Windows escondida — o clique abre o programa, o botão direito abre o menu dele
 - **Volume por aplicativo**, um controle para cada programa com som
-- **Menu de energia** e **calendário do mês**, na própria barra, com **feriados nacionais** e
-  **anotações por dia**
+- **Menu de energia** e **calendário do mês**, na própria barra, com **feriados nacionais**,
+  **tarefas por dia** — cada uma num balão, com hora e **aviso na hora marcada** — e edição do
+  texto no lugar
+- **Atualizações esperando**, do Windows Update e do winget, num ícone que acende com o número
+  quando há alguma e fica apagado quando está tudo em dia; a dock mostra e leva ao lugar certo,
+  mas não instala nada
 - **Mosaico** (tiling): as janelas de cada monitor lado a lado, sem sobreposição, com atalhos para
   foco, troca de lugar, redimensionar, flutuar e prender acima das outras
 - **Apps da Store** que continuam abrindo e com o ícone certo depois de o app se atualizar
@@ -148,8 +152,20 @@ tentar imitar o que o Windows já faz bem:
   `ControlTemplate` inteiro — mais XAML do que a grade que ele desenharia. Os **feriados
   nacionais** saem em vermelho e são calculados, não listados: os móveis (Carnaval, Sexta-feira
   Santa, Corpus Christi) vêm da data da Páscoa, então qualquer ano folheado sai certo. Clicar num
-  dia abre as **anotações** dele numa janela à parte — a barra é `WS_EX_NOACTIVATE`, e um campo de
-  texto dentro do cartão nunca receberia o teclado;
+  dia abre as **tarefas** dele no próprio cartão, cada uma num balão com hora, aviso e o texto
+  editável no lugar — o texto comprido é cortado com reticências e a dica de mouse mostra o resto,
+  mas só quando há resto (não existe `IsTextTrimmed` no WPF; a largura é medida com
+  `FormattedText`). A barra é `WS_EX_NOACTIVATE`, então os campos de texto pedem o teclado para
+  ela só quando são clicados, e o devolvem ao fechar;
+- **aviso de tarefa** num balão próprio embaixo da data, onde o cartão do calendário abre, quando a
+  hora chega. Não é o toast do Windows: o
+  toast exige `AppUserModelID` registrado e atalho no Menu Iniciar, e a dock roda de uma pasta, sem
+  instalação — além de ele cair na Central de Notificações, que é onde ninguém olha. O relógio dos
+  avisos mora na dock, e não na barra de cima: quem desliga a barra continua anotando tarefas;
+- **atualizações esperando**, do Windows Update (pela automação COM do agente, respondendo do que
+  ele já varreu, sem ida à rede) e do `winget upgrade`. A tabela do winget é texto traduzido, então
+  é lida pelas posições das colunas do próprio cabeçalho, e não pelos títulos — `tests/WingetCheck`
+  confere isso sem depender de haver atualização pendente na máquina;
 - **brilho** do monitor por DDC/CI (`dxva2.dll`), com a roda do mouse sobre o ícone;
 - **remoção segura** de pen-drive, cartão e HD externo, com **Abrir** ao lado para chegar na pasta
   sem passar pelo Explorer. O ícone **só existe enquanto houver o que remover** — é o mesmo
@@ -636,7 +652,11 @@ e os testes em `tests/`.
 | `src/Services/BluetoothService.cs` | o rádio e os aparelhos pareados |
 | `src/Services/MediaService.cs` | o que está tocando, pelos controles de mídia do Windows |
 | `src/Services/PowerService.cs` | as opções do menu de energia, as mesmas que a busca usa |
-| `src/Services/MonthCalendar.cs` | o mês do calendário, com feriados e anotações |
+| `src/Services/MonthCalendar.cs` | o mês do calendário, com feriados, tarefas, hora e aviso |
+| `src/Services/ReminderService.cs` | o relógio dos avisos: procura a tarefa cuja hora chegou e põe o balão na tela |
+| `src/Views/ReminderWindow.xaml` | o balão do aviso, com adiar e feito |
+| `src/Services/UpdatesService.cs` | o que há para atualizar: Windows Update pelo COM, winget pela tabela do console |
+| `src/Ui/Ellipsis.cs` | a dica de mouse que aparece só quando o texto foi mesmo cortado |
 | `src/Services/Holidays.cs` | os feriados nacionais brasileiros, calculados a partir da Páscoa |
 | `src/Services/UserService.cs` | nome e foto da conta de quem está usando a máquina |
 | `src/Services/TrayService.cs` | lê e aciona os ícones da bandeja pelo painel de ícones ocultos do Windows |
@@ -657,6 +677,7 @@ e os testes em `tests/`.
 | `assets/windock.ico` | ícone do app: a pílula com os apps dentro; abaixo de 32 px, um desenho mais cheio |
 | `assets/windock.png` | a mesma arte em 256 px, para o cabeçalho do painel |
 | `tests/TreeCheck` | compila a `LayoutTree` real e confere o arranjo |
+| `tests/WingetCheck` | compila o `UpdatesService` real e confere a leitura da tabela do winget, em dois idiomas |
 | `tests/BrightnessCheck` | exercita o `BrightnessService` real, fora da dock |
 
 ## Ainda não faz

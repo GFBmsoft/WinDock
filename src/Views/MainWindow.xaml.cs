@@ -24,6 +24,7 @@ public partial class MainWindow : Window
     private LauncherWindow? _launcher;
     private PanelWindow? _panel;
     private TilingService? _tiling;
+    private ReminderService? _reminders;
 
     /// <summary>Id do Alt+Espaco no RegisterHotKey; so precisa ser unico dentro da janela.</summary>
     private const int LauncherHotkeyId = 1;
@@ -144,6 +145,11 @@ public partial class MainWindow : Window
 
         _tiling = new TilingService(_config, Dispatcher);
         Marcar("mosaico");
+
+        // os lembretes do calendário moram aqui, e não na barra de cima: quem desligou a barra
+        // continua anotando tarefas, e continua querendo ser avisado delas
+        _reminders = new ReminderService(_config);
+        Marcar("lembretes");
 
         ApplyHotkeys();
         Marcar("atalhos");
@@ -977,6 +983,7 @@ public partial class MainWindow : Window
         _launcher?.CloseForReal();
         _panel?.Close();      // devolve a faixa de cima antes de sair
         _tiling?.Dispose();
+        _reminders?.Dispose();
         _model?.Dispose();
         _appBar?.Dispose();   // devolve a area de trabalho ao tamanho normal
         _taskbar.Dispose();   // e a barra do Windows ao estado em que estava

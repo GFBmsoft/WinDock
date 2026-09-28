@@ -37,6 +37,7 @@
     <ui:UsageBrush x:Key="UsageBrush" />
     <ui:EmptyToCollapsed x:Key="EmptyToCollapsed" />
     <ui:ResetText x:Key="ResetText" />
+    <ui:HexBrushConverter x:Key="HexBrush" />
 
     <Style x:Key="PanelButton" TargetType="Button">
       <Setter Property="Cursor" Value="Hand" />
@@ -290,6 +291,22 @@
                 Click="OnRemovable" ToolTip="{Binding RemovableTooltip}"
                 Visibility="{Binding HasRemovable, Converter={StaticResource BoolToVisible}}">
           <ui:GlyphIcon Glyph="{Binding RemovableGlyph}" Fill="#FFF2F2F2" Size="15" VerticalAlignment="Center" />
+        </Button>
+
+        <!-- Atualizações: aceso e com o número quando há algo esperando, apagado quando está tudo
+             em dia. O número vai ao lado do ícone porque é ele que decide se vale interromper o que
+             se está fazendo — "3" e "47" pedem coisas diferentes; e sem ele, apagado, o ícone ainda
+             responde a outra pergunta, a de que a dock está conferindo. -->
+        <Button Tag="atualizacoes" x:Name="UpdatesButton" Style="{StaticResource PanelButton}"
+                Click="OnUpdates" ToolTip="{Binding UpdatesTooltip}"
+                Visibility="{Binding HasUpdates, Converter={StaticResource BoolToVisible}}">
+          <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+            <ui:GlyphIcon Glyph="{Binding UpdatesGlyph}" Size="15" VerticalAlignment="Center"
+                          Fill="{Binding UpdatesFill, Converter={StaticResource HexBrush}}" />
+            <TextBlock Text="{Binding UpdatesCount}" Foreground="#FF4CC2FF" FontSize="11"
+                       FontWeight="SemiBold" VerticalAlignment="Center" Margin="4,0,0,0"
+                       Visibility="{Binding UpdatesCount, Converter={StaticResource EmptyToCollapsed}}" />
+          </StackPanel>
         </Button>
 
         <!-- Cota de IA: só aparece com a opção ligada e credencial do Claude Code na
@@ -708,6 +725,100 @@
         </Border>
       </Popup>
 
+      <!-- O cartão das atualizações: o que o Windows Update já sabe, e o que o winget vê. Cada
+           metade leva ao lugar onde ela se resolve — nada é instalado daqui. -->
+      <Popup x:Name="UpdatesPopup" PlacementTarget="{Binding ElementName=UpdatesButton}"
+             Placement="Bottom" VerticalOffset="6" HorizontalOffset="-8"
+             StaysOpen="True" AllowsTransparency="True" PopupAnimation="Fade">
+        <Border Background="#F7242424" BorderBrush="#2EFFFFFF" BorderThickness="1"
+                CornerRadius="10" Padding="16,14" Margin="10">
+          <Border.Effect>
+            <DropShadowEffect BlurRadius="20" ShadowDepth="5" Opacity="0.55" Color="Black" />
+          </Border.Effect>
+          <StackPanel Width="300">
+            <TextBlock Text="Atualizações" Foreground="#FFF2F2F2" FontSize="13"
+                       FontWeight="SemiBold" Margin="2,0,0,10" />
+
+            <!-- tudo em dia: a frase diz de que fontes se está falando, e a hora embaixo diz que a
+                 dock olhou mesmo — sem isso, "nada para atualizar" e "ninguém conferiu" são a
+                 mesma tela -->
+            <TextBlock Text="{Binding UpdatesEmptyText}" Foreground="#FF9D9D9D" FontSize="12"
+                       TextWrapping="Wrap" Margin="2,0,2,2">
+              <TextBlock.Visibility>
+                <Binding Path="HasUpdatesPending">
+                  <Binding.Converter>
+                    <ui:InverseBoolToVisibility />
+                  </Binding.Converter>
+                </Binding>
+              </TextBlock.Visibility>
+            </TextBlock>
+
+            <!-- Windows Update: o botão leva à página dele, que é onde se instala -->
+            <Button Style="{StaticResource PanelRow}" Click="OnOpenWindowsUpdate"
+                    ToolTip="Abrir o Windows Update"
+                    Visibility="{Binding HasWindowsUpdates, Converter={StaticResource BoolToVisible}}">
+              <Grid>
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="*" />
+                  <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <TextBlock Text="{Binding WindowsUpdatesText}" Foreground="#FFE8E8EA" FontSize="12"
+                           VerticalAlignment="Center" />
+                <TextBlock Grid.Column="1" Text="Abrir" Foreground="#FF4CC2FF" FontSize="11"
+                           VerticalAlignment="Center" />
+              </Grid>
+            </Button>
+
+            <!-- winget: a lista dos pacotes, com a versão de onde para onde -->
+            <StackPanel Margin="0,4,0,0"
+                        Visibility="{Binding HasWingetUpdates, Converter={StaticResource BoolToVisible}}">
+              <Border Height="1" Background="#22FFFFFF" Margin="2,4,2,8" />
+              <TextBlock Foreground="#FF9D9D9D" FontSize="11" Margin="2,0,0,4" Text="Pelo winget" />
+
+              <ItemsControl ItemsSource="{Binding WingetUpdates}">
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate>
+                    <Grid Margin="2,2">
+                      <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                      </Grid.ColumnDefinitions>
+                      <TextBlock Text="{Binding Name}" Foreground="#FFE8E8EA" FontSize="12"
+                                 TextTrimming="CharacterEllipsis" TextWrapping="NoWrap"
+                                 ui:Ellipsis.ShowTooltip="True" VerticalAlignment="Center" />
+                      <TextBlock Grid.Column="1" Foreground="#FF8A8A8A" FontSize="11" Margin="8,0,0,0"
+                                 VerticalAlignment="Center">
+                        <Run Text="{Binding Current, Mode=OneWay}" />
+                        <Run Text="→" Foreground="#FF6A6A6A" />
+                        <Run Text="{Binding Available, Mode=OneWay}" Foreground="#FF4CC2FF" />
+                      </TextBlock>
+                    </Grid>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+
+              <Button Style="{StaticResource PanelButton}" Click="OnWingetUpgradeAll" Margin="0,8,0,0"
+                      HorizontalContentAlignment="Center"
+                      ToolTip="Abre um terminal com o comando pronto — quem dá o Enter é você">
+                <TextBlock Text="Atualizar tudo pelo winget" Foreground="#FF4CC2FF" FontSize="12" />
+              </Button>
+            </StackPanel>
+
+            <!-- "Conferir agora" faz sentido agora que o ícone fica sempre na barra: com ele
+                 apagado, a pergunta "será que isso está atualizado?" tem de ter resposta sem
+                 esperar as próximas três horas -->
+            <Grid Margin="0,10,0,0">
+              <TextBlock Text="{Binding UpdatesReadAt}" Foreground="#FF6A6A6A" FontSize="10"
+                         VerticalAlignment="Center" Margin="2,0,0,0" />
+              <Button Style="{StaticResource PanelButton}" Click="OnRefreshUpdates"
+                      HorizontalAlignment="Right" Padding="8,2" ToolTip="Perguntar de novo, agora">
+                <TextBlock Text="Conferir agora" Foreground="#FF4CC2FF" FontSize="11" />
+              </Button>
+            </Grid>
+          </StackPanel>
+        </Border>
+      </Popup>
+
       <!-- O cartão da cota de IA. O conteúdo mora no AiUsageCard, que pode ser montado
            sozinho num harness para conferir o desenho. -->
       <Popup x:Name="AiUsagePopup" PlacementTarget="{Binding ElementName=AiUsageButton}"
@@ -1101,34 +1212,84 @@
 
               <ItemsControl ItemsSource="{Binding SelectedNotes}" Margin="0,2,0,0">
                 <ItemsControl.ItemTemplate>
+                  <!--
+                    Cada tarefa num balão: fundo próprio, canto redondo e uma folga em volta. Em
+                    linhas soltas, o texto de uma tarefa e as ações da seguinte ficavam a dois
+                    pixels um do outro, e o dia com cinco tarefas virava um bloco de texto.
+
+                    O texto vem numa linha só, cortado com reticências, e a dica de mouse mostra o
+                    resto — mas só quando há resto (ui:Ellipsis.ShowTooltip). Antes ele quebrava em
+                    quantas linhas precisasse, e uma tarefa comprida sozinha empurrava o resto da
+                    lista para fora do cartão. Clicar no texto abre o campo para corrigi-lo.
+                  -->
                   <DataTemplate>
-                    <Grid Margin="0,1">
-                      <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="Auto" />
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="Auto" />
-                      </Grid.ColumnDefinitions>
-                      <Button Style="{StaticResource PanelButton}" Click="OnCalendarNoteDone" Padding="4,3"
-                              VerticalAlignment="Center" ToolTip="Marcar como feito (de novo, desmarca)">
-                        <Border x:Name="Bolinha" Width="14" Height="14" CornerRadius="7" BorderThickness="1.5"
-                                BorderBrush="#FF8A8A8A" Background="Transparent">
-                          <TextBlock x:Name="Visto" Text="✓" FontSize="9" Foreground="White" Visibility="Collapsed"
-                                     HorizontalAlignment="Center" VerticalAlignment="Center" />
-                        </Border>
-                      </Button>
-                      <TextBlock x:Name="Texto" Grid.Column="1" Text="{Binding Text}" Foreground="#FFE8E8EA"
-                                 FontSize="12" TextWrapping="Wrap" VerticalAlignment="Center" Margin="4,0" />
-                      <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
-                        <Button Style="{StaticResource PanelButton}" Click="OnCalendarNoteMove"
-                                Padding="6,3" ToolTip="Mover para outro dia">
-                          <TextBlock Text="→" Foreground="#FF8A8A8A" FontSize="12" />
+                    <Border x:Name="Balao" Background="#14FFFFFF" BorderBrush="#1AFFFFFF" BorderThickness="1"
+                            CornerRadius="8" Padding="6,5" Margin="0,2">
+                      <Grid>
+                        <Grid.ColumnDefinitions>
+                          <ColumnDefinition Width="Auto" />
+                          <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                          <RowDefinition Height="Auto" />
+                          <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+
+                        <Button Style="{StaticResource PanelButton}" Click="OnCalendarNoteDone" Padding="4,3"
+                                VerticalAlignment="Center" ToolTip="Marcar como feito (de novo, desmarca)">
+                          <Border x:Name="Bolinha" Width="14" Height="14" CornerRadius="7" BorderThickness="1.5"
+                                  BorderBrush="#FF8A8A8A" Background="Transparent">
+                            <TextBlock x:Name="Visto" Text="✓" FontSize="9" Foreground="White" Visibility="Collapsed"
+                                       HorizontalAlignment="Center" VerticalAlignment="Center" />
+                          </Border>
                         </Button>
-                        <Button Style="{StaticResource PanelButton}" Click="OnCalendarNoteRemove"
-                                Padding="6,3" ToolTip="Remover">
-                          <TextBlock Text="✕" Foreground="#FF8A8A8A" FontSize="11" />
-                        </Button>
-                      </StackPanel>
-                    </Grid>
+
+                        <!-- o texto e, no lugar dele, o campo de correção -->
+                        <Grid Grid.Column="1" Margin="4,0,0,0" VerticalAlignment="Center">
+                          <TextBlock x:Name="Texto" Text="{Binding Text}" Foreground="#FFE8E8EA" FontSize="12"
+                                     TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" Cursor="IBeam"
+                                     ui:Ellipsis.ShowTooltip="True" VerticalAlignment="Center"
+                                     MouseLeftButtonUp="OnCalendarNoteEdit" />
+                          <TextBox x:Name="Editor" Style="{StaticResource CalendarField}" MaxLength="200"
+                                   Visibility="Collapsed" Text="{Binding Text, Mode=OneTime}" Padding="4,2"
+                                   KeyDown="OnNoteEditKeyDown" LostKeyboardFocus="OnNoteEditFinish"
+                                   IsVisibleChanged="OnNoteEditorShown"
+                                   PreviewMouseLeftButtonDown="OnCalendarFieldMouseDown" />
+                        </Grid>
+
+                        <!-- a hora à esquerda, as ações à direita: numa linha só elas disputariam a
+                             largura com o texto, que é o que interessa ler -->
+                        <Grid Grid.Row="1" Grid.Column="1" Margin="4,3,0,0">
+                          <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <TextBlock x:Name="Hora" Text="{Binding TimeText}" Foreground="#FF4CC2FF" FontSize="11"
+                                       FontWeight="SemiBold" VerticalAlignment="Center"
+                                       Visibility="{Binding HasTime, Converter={StaticResource BoolToVisible}}" />
+                            <TextBlock x:Name="Sino" Text="🔔" FontSize="10" Margin="5,0,0,0" VerticalAlignment="Center"
+                                       ToolTip="Esta tarefa avisa quando chegar a hora"
+                                       Visibility="{Binding Notify, Converter={StaticResource BoolToVisible}}" />
+                          </StackPanel>
+
+                          <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                            <Button Style="{StaticResource PanelButton}" Click="OnCalendarNoteTime"
+                                    Padding="5,2" ToolTip="Marcar a hora">
+                              <TextBlock Text="🕘" FontSize="11" />
+                            </Button>
+                            <Button Style="{StaticResource PanelButton}" Click="OnCalendarNoteNotify"
+                                    Padding="5,2" ToolTip="Avisar quando chegar a hora">
+                              <TextBlock x:Name="SinoBotao" Text="🔔" FontSize="11" Opacity="0.45" />
+                            </Button>
+                            <Button Style="{StaticResource PanelButton}" Click="OnCalendarNoteMove"
+                                    Padding="5,2" ToolTip="Mover para outro dia">
+                              <TextBlock Text="→" Foreground="#FF8A8A8A" FontSize="12" />
+                            </Button>
+                            <Button Style="{StaticResource PanelButton}" Click="OnCalendarNoteRemove"
+                                    Padding="5,2" ToolTip="Remover">
+                              <TextBlock Text="✕" Foreground="#FF8A8A8A" FontSize="11" />
+                            </Button>
+                          </StackPanel>
+                        </Grid>
+                      </Grid>
+                    </Border>
                     <DataTemplate.Triggers>
                       <DataTrigger Binding="{Binding Done}" Value="True">
                         <Setter TargetName="Bolinha" Property="Background" Value="#FF6CCB5F" />
@@ -1136,6 +1297,17 @@
                         <Setter TargetName="Visto" Property="Visibility" Value="Visible" />
                         <Setter TargetName="Texto" Property="TextDecorations" Value="Strikethrough" />
                         <Setter TargetName="Texto" Property="Foreground" Value="#FF8A8A8A" />
+                        <Setter TargetName="Hora" Property="Foreground" Value="#FF8A8A8A" />
+                        <Setter TargetName="Balao" Property="Opacity" Value="0.75" />
+                      </DataTrigger>
+                      <!-- o sino aceso mostra que a tarefa avisa; apagado, que ela só está escrita -->
+                      <DataTrigger Binding="{Binding Notify}" Value="True">
+                        <Setter TargetName="SinoBotao" Property="Opacity" Value="1" />
+                      </DataTrigger>
+                      <!-- em edição o texto sai e o campo entra, no mesmo lugar -->
+                      <DataTrigger Binding="{Binding IsEditing}" Value="True">
+                        <Setter TargetName="Texto" Property="Visibility" Value="Collapsed" />
+                        <Setter TargetName="Editor" Property="Visibility" Value="Visible" />
                       </DataTrigger>
                     </DataTemplate.Triggers>
                   </DataTemplate>
@@ -1169,6 +1341,34 @@
                 </StackPanel>
               </Border>
 
+              <!-- a hora: mesmo formato do painel de mover, e pelo mesmo motivo — um campo de hora
+                   parado embaixo de cada tarefa pediria atenção o tempo todo -->
+              <Border x:Name="TimePanel" Visibility="Collapsed" Margin="0,6,0,0" Background="#FF2D2D2D"
+                      BorderBrush="#FF4CC2FF" BorderThickness="1" CornerRadius="6" Padding="8,6">
+                <StackPanel>
+                  <TextBlock x:Name="TimeHeading" Foreground="#FFC5C5C5" FontSize="11" TextWrapping="Wrap" />
+                  <Grid Margin="0,5,0,0">
+                    <Grid.ColumnDefinitions>
+                      <ColumnDefinition Width="*" />
+                      <ColumnDefinition Width="Auto" />
+                      <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <TextBox x:Name="TimeBox" Style="{StaticResource CalendarField}" MaxLength="5"
+                             KeyDown="OnTimeKeyDown" PreviewMouseLeftButtonDown="OnCalendarFieldMouseDown" />
+                    <Button Grid.Column="1" Style="{StaticResource PanelButton}" Click="OnTimeConfirm"
+                            Padding="8,3" Margin="4,0,0,0">
+                      <TextBlock Text="Marcar" Foreground="#FF4CC2FF" FontSize="12" />
+                    </Button>
+                    <Button Grid.Column="2" Style="{StaticResource PanelButton}" Click="OnTimeClear" Padding="8,3"
+                            ToolTip="Deixar a tarefa sem hora">
+                      <TextBlock Text="Tirar" Foreground="#FFC5C5C5" FontSize="12" />
+                    </Button>
+                  </Grid>
+                  <TextBlock x:Name="TimeHint" Foreground="#FF8A8A8A" FontSize="10" Margin="0,4,0,0"
+                             TextWrapping="Wrap" />
+                </StackPanel>
+              </Border>
+
               <!-- nova tarefa: o clique no campo é o que dá o teclado à barra -->
               <Grid Margin="0,6,0,0">
                 <Grid.ColumnDefinitions>
@@ -1177,7 +1377,7 @@
                 </Grid.ColumnDefinitions>
                 <TextBox x:Name="NewNoteBox" Style="{StaticResource CalendarField}" MaxLength="200"
                          KeyDown="OnNewNoteKeyDown" PreviewMouseLeftButtonDown="OnCalendarFieldMouseDown" />
-                <TextBlock Text="Nova tarefa..." Foreground="#FF6A6A6A" FontSize="12" Margin="9,0,0,0"
+                <TextBlock Text="Nova tarefa (ou “14:30 dentista”)..." Foreground="#FF6A6A6A" FontSize="12" Margin="9,0,0,0"
                            VerticalAlignment="Center" IsHitTestVisible="False">
                   <TextBlock.Style>
                     <Style TargetType="TextBlock">
@@ -1195,7 +1395,7 @@
                   <TextBlock Text="+" Foreground="#FF4CC2FF" FontSize="15" />
                 </Button>
               </Grid>
-              <TextBlock Text="Enter adiciona · bolinha marca feito · → move · ✕ remove · Esc fecha"
+              <TextBlock Text="&quot;14:30 dentista&quot; marca a hora · clique no texto para corrigir · 🕘 hora · 🔔 avisa"
                          Foreground="#FF6A6A6A" FontSize="10" Margin="4,4,0,0" TextWrapping="Wrap" />
             </StackPanel>
 

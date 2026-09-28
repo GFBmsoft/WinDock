@@ -69,6 +69,7 @@ public sealed class PanelModel : INotifyPropertyChanged, IDisposable
         }
 
         WatchAiUsage();
+        WatchUpdates();
 
         // A lista de dispositivos externos não tem relógio: quem avisa é o Windows, pelo
         // WM_DEVICECHANGE que a barra assina (veja PanelWindow.OnDeviceChange). Esta é só a
@@ -742,6 +743,131 @@ public sealed class PanelModel : INotifyPropertyChanged, IDisposable
         RefreshRemovable();
     }
 
+    // ── atualizações esperando ──────────────────────────────
+
+    private DispatcherTimer? _updatesTimer;
+
+    /// <summary>
+    /// A seta para baixo sobre a linha da Segoe Fluent Icons — o mesmo desenho que a Microsoft
+    /// Store e o Windows Update usam para "há o que baixar".
+    ///
+    /// Escrito pelo código, e não pelo caractere: veja o <c>TrayGlyph</c>.
+    /// </summary>
+    public string UpdatesGlyph => "";
+
+    private UpdateStatus _updates = UpdateStatus.Empty;
+
+    public UpdateStatus Updates
+    {
+        get => _updates;
+        private set
+        {
+            if (!Set(ref _updates, value)) return;
+            OnChanged(nameof(HasUpdatesPending));
+            OnChanged(nameof(UpdatesTooltip));
+            OnChanged(nameof(UpdatesCount));
+            OnChanged(nameof(UpdatesFill));
+            OnChanged(nameof(UpdatesEmptyText));
+            OnChanged(nameof(HasWindowsUpdates));
+            OnChanged(nameof(HasWingetUpdates));
+            OnChanged(nameof(WindowsUpdatesText));
+            OnChanged(nameof(UpdatesReadAt));
+        }
+    }
+
+    /// <summary>
+    /// O ícone fica na barra enquanto a opção estiver ligada — com ou sem atualização esperando.
+    ///
+    /// Era só com, no começo: "nada para atualizar" não parecia um estado que merecesse um ícone.
+    /// O que isso tem de ruim só aparece em uso — sem o ícone não há diferença entre "está tudo em
+    /// dia" e "a dock não está conferindo", e a resposta some junto com a pergunta. Apagado, ele
+    /// responde as duas coisas de uma vez, e quem não quiser nenhum dos dois desliga a opção.
+    /// </summary>
+    public bool HasUpdates => _config.PanelUpdates;
+
+    /// <summary>Há algo esperando — é o que acende o ícone e mostra o número.</summary>
+    public bool HasUpdatesPending => _updates.Any;
+
+    /// <summary>Azul quando há o que atualizar; o cinza dos ícones apagados quando não há.</summary>
+    public string UpdatesFill => _updates.Any ? "#FF4CC2FF" : "#FF8A8A8A";
+
+    /// <summary>O número ao lado do ícone — vazio quando não há nada, e aí ele nem aparece.</summary>
+    public string UpdatesCount => _updates.Any ? _updates.Total.ToString(CultureInfo.CurrentCulture) : string.Empty;
+
+    public bool HasWindowsUpdates => _updates.Windows > 0;
+    public bool HasWingetUpdates => _updates.Winget.Count > 0;
+
+    public string WindowsUpdatesText => _updates.Windows == 1
+        ? "1 atualização do Windows"
+        : $"{_updates.Windows} atualizações do Windows";
+
+    public IReadOnlyList<WingetPackage> WingetUpdates => _updates.Winget;
+
+    public string UpdatesReadAt => _updates.When > DateTime.MinValue
+        ? $"conferido às {_updates.When:HH:mm}"
+        : string.Empty;
+
+    public string UpdatesTooltip
+    {
+        get
+        {
+            if (!_updates.Any)
+                return _updates.When > DateTime.MinValue
+                       ? $"Nada para atualizar\n{UpdatesReadAt}"
+                       : "Atualizações — ainda conferindo";
+
+            var linhas = new List<string> { "Atualizações esperando" };
+            if (HasWindowsUpdates) linhas.Add(WindowsUpdatesText);
+            if (HasWingetUpdates) linhas.Add($"{_updates.Winget.Count} pelo winget");
+            return string.Join("\n", linhas);
+        }
+    }
+
+    /// <summary>
+    /// A frase do cartão quando não há nada esperando — e ela diz de que fontes está falando.
+    ///
+    /// "Nada para atualizar" sozinho é ambíguo: pode ser que não haja mesmo, ou que a dock não
+    /// tenha olhado. Nomear as duas fontes, com a hora da conferência embaixo, responde isso.
+    /// </summary>
+    public string UpdatesEmptyText => UpdatesService.HasWinget
+        ? "Nada esperando no Windows Update nem no winget."
+        : "Nada esperando no Windows Update. (O winget não está instalado nesta máquina.)";
+
+    /// <summary>
+    /// Começa a conferir o que há para atualizar.
+    ///
+    /// De três em três horas: atualização não chega em rajada, e a consulta do winget é um processo
+    /// de console que leva segundos. A primeira passagem espera meio minuto — o arranque da dock é o
+    /// pior momento possível para disputar disco com qualquer coisa.
+    /// </summary>
+    private void WatchUpdates()
+    {
+        if (!_config.PanelUpdates) return;
+
+        _updatesTimer = new DispatcherTimer(DispatcherPriority.Background)
+        {
+            Interval = TimeSpan.FromHours(3)
+        };
+        _updatesTimer.Tick += (_, _) => RefreshUpdates();
+        _updatesTimer.Start();
+
+        var primeira = new DispatcherTimer(DispatcherPriority.Background) { Interval = TimeSpan.FromSeconds(30) };
+        primeira.Tick += (s, _) => { ((DispatcherTimer)s!).Stop(); RefreshUpdates(); };
+        primeira.Start();
+    }
+
+    /// <summary>Relê em segundo plano; nada na barra espera pela resposta.</summary>
+    public void RefreshUpdates()
+    {
+        if (!_config.PanelUpdates) return;
+
+        _ = Task.Run(async () =>
+        {
+            var status = await UpdatesService.ReadAsync().ConfigureAwait(false);
+            await _dispatcher.InvokeAsync(() => Updates = status);
+        });
+    }
+
     // ── cota de IA ──────────────────────────────────────────
 
     private readonly AiUsageService _ai = new();
@@ -1063,6 +1189,13 @@ public sealed class PanelModel : INotifyPropertyChanged, IDisposable
             else _aiTimer?.Stop();
         }
 
+        if (e.PropertyName is nameof(DockConfig.PanelUpdates))
+        {
+            OnChanged(nameof(HasUpdates));
+            if (_config.PanelUpdates) { if (_updatesTimer is null) WatchUpdates(); else RefreshUpdates(); }
+            else _updatesTimer?.Stop();
+        }
+
         if (e.PropertyName is nameof(DockConfig.AiUsageExpanded))
         {
             OnChanged(nameof(AiExpanded));
@@ -1240,6 +1373,8 @@ public sealed class PanelModel : INotifyPropertyChanged, IDisposable
     public void Dispose()
     {
         _timer.Stop();
+        _aiTimer?.Stop();
+        _updatesTimer?.Stop();
 
         // as sessoes de audio seguram COM: soltar aqui evita deixar o servico de audio
         // com referencias de uma barra que ja nao existe

@@ -1,8 +1,9 @@
 name: build
 
-# Todo push na main compila, roda o TreeCheck e deixa os dois executáveis como
-# artefato da execução (somem depois de 30 dias). Um push de tag no formato
-# 1.0.0.N faz o mesmo e ainda cria a Release com os dois .exe, que não expira.
+# Todo push na main compila, roda as conferências (TreeCheck, WingetCheck) e deixa
+# os dois executáveis como artefato da execução (somem depois de 30 dias). Um
+# push de tag no formato 1.0.0.N faz o mesmo e ainda cria a Release com os dois
+# .exe, que não expira.
 on:
   push:
     branches: [main]
@@ -44,6 +45,9 @@ jobs:
 
       - name: Testes do mosaico (TreeCheck)
         run: dotnet run --project tests/TreeCheck/TreeCheck.csproj -c Release
+
+      - name: Testes da tabela do winget (WingetCheck)
+        run: dotnet run --project tests/WingetCheck/WingetCheck.csproj -c Release
 
       # A versão vem das tags. No build da tag ela é a própria tag. Fora dela é
       # a última tag mais "dev.N", N sendo os commits desde então: o arquivo
