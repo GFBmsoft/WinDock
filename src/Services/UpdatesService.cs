@@ -49,12 +49,26 @@ public static class UpdatesService
     public static bool HasWinget => _winget ??= Find("winget.exe") is not null;
     private static bool? _winget;
 
-    public static async Task<UpdateStatus> ReadAsync()
+    /// <summary>
+    /// Pergunta às duas fontes.
+    ///
+    /// O <paramref name="online"/> escolhe qual pergunta se faz ao Windows Update: a rápida, que
+    /// responde do cache do agente em ~2,7 s, ou a de verdade, que vai à rede em ~11,8 s. As duas
+    /// existem porque servem a momentos diferentes — veja <see cref="ReadWindows"/>.
+    ///
+    /// O <paramref name="winget"/> evita repetir a consulta do winget quando ela já foi feita há
+    /// segundos: é um processo de console, e a lista dele não muda entre as duas fases de uma
+    /// mesma conferência.
+    /// </summary>
+    public static async Task<UpdateStatus> ReadAsync(bool online = true,
+                                                     IReadOnlyList<WingetPackage>? winget = null)
     {
-        var (windows, erroWindows) = await Task.Run(ReadWindows).ConfigureAwait(false);
-        var (pacotes, erroWinget) = await Task.Run(ReadWinget).ConfigureAwait(false);
+        var (windows, erroWindows) = await Task.Run(() => ReadWindows(online)).ConfigureAwait(false);
 
-        return new UpdateStatus(windows, pacotes, DateTime.Now, erroWindows, erroWinget);
+        string? erroWinget = null;
+        if (winget is null) (winget, erroWinget) = await Task.Run(ReadWinget).ConfigureAwait(false);
+
+        return new UpdateStatus(windows, winget, DateTime.Now, erroWindows, erroWinget);
     }
 
     // ── Windows Update ──────────────────────────────────────
@@ -65,20 +79,23 @@ public static class UpdatesService
     /// Pela automação COM do próprio agente (<c>Microsoft.Update.Session</c>), com
     /// <c>Online = true</c> — **a busca de verdade, a mesma que a tela de configurações faz**.
     ///
-    /// Começou com <c>false</c>, que responde só do que o agente já varreu, e o argumento parecia
+    /// Começou só com <c>false</c>, que responde do que o agente já varreu, e o argumento parecia
     /// bom: milissegundos, sem tocar na rede, e "o que o Windows já sabe é o que ele vai
     /// instalar". Em 28/09/2026 isso falhou exatamente como tinha de falhar — o cartão disse
     /// "nada esperando", a tela do Windows Update encontrou atualização de segurança, e a mesma
     /// consulta local passou a achá-la **depois**, porque a busca da tela é que encheu o cache. Um
     /// ícone que só sabe o que outra tela já descobriu não poupa a outra tela: ele depende dela.
     ///
-    /// O preço medido é 11,8 s contra 2,7 s — e não custa nada a quem usa a dock, porque isto roda
-    /// numa thread de fundo, de três em três horas, e ninguém espera pela resposta.
+    /// O preço medido é 11,8 s contra 2,7 s. As duas continuam existindo porque servem a momentos
+    /// diferentes: **depois de instalar**, o agente já sabe o que sumiu, e a pergunta rápida
+    /// responde certo — é o que faz o ícone apagar em três segundos em vez de doze. A pergunta
+    /// lenta é a que descobre o que ainda não se sabe, e essa ninguém espera: roda em thread de
+    /// fundo.
     ///
     /// A ligação é por <c>dynamic</c> porque não há interop referenciado: o projeto não carrega
     /// dependência externa, e uma DLL de interop para três chamadas seria mais peso do que vale.
     /// </summary>
-    private static (IReadOnlyList<string> Titles, string? Error) ReadWindows()
+    private static (IReadOnlyList<string> Titles, string? Error) ReadWindows(bool online)
     {
         try
         {
@@ -89,7 +106,7 @@ public static class UpdatesService
             if (sessao is null) return (Array.Empty<string>(), "o agente do Windows Update não respondeu");
 
             dynamic busca = sessao.CreateUpdateSearcher();
-            busca.Online = true;
+            busca.Online = online;
 
             dynamic resultado = busca.Search("IsInstalled=0 and Type='Software' and IsHidden=0");
 
@@ -99,7 +116,7 @@ public static class UpdatesService
             var titulos = new List<string>();
             foreach (dynamic u in resultado.Updates) titulos.Add((string)u.Title);
 
-            Log.Trace($"atualizações: Windows Update tem {titulos.Count}");
+            Log.Trace($"atualizações: Windows Update tem {titulos.Count} ({(online ? "busca online" : "cache do agente")})");
             return (titulos, null);
         }
         catch (Exception ex)

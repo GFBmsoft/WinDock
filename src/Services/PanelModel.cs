@@ -907,13 +907,66 @@ public sealed class PanelModel : INotifyPropertyChanged, IDisposable
 
         _ = Task.Run(async () =>
         {
-            var status = await UpdatesService.ReadAsync().ConfigureAwait(false);
+            // Primeiro a pergunta rápida, do cache do agente: em ~3 s a tela já mostra algo. Ela é
+            // a resposta **certa** no caso que mais incomoda — logo depois de instalar, quando o
+            // agente já sabe o que sumiu e o ícone precisa apagar sem esperar doze segundos.
+            var rapido = await UpdatesService.ReadAsync(online: false).ConfigureAwait(false);
+            await _dispatcher.InvokeAsync(() => Updates = rapido);
+
+            // Depois a busca de verdade, que é a única capaz de descobrir o que ainda não se sabe.
+            // O winget não é perguntado de novo: é um processo de console, e a lista dele não muda
+            // nos doze segundos entre as duas fases.
+            var completo = await UpdatesService.ReadAsync(online: true, rapido.Winget).ConfigureAwait(false);
             await _dispatcher.InvokeAsync(() =>
             {
                 UpdatesChecking = false;
-                Updates = status;
+                Updates = completo;
+                SchedulePace();
             });
         });
+    }
+
+    /// <summary>
+    /// Ajusta de quanto em quanto tempo se pergunta, conforme haja ou não o que atualizar.
+    ///
+    /// Três horas é a cadência de quem está em dia — atualização não chega em rajada. Mas "tem
+    /// coisa esperando" é um estado que muda pelas mãos da pessoa, e logo depois: ela instala e
+    /// quer ver o ícone apagar. Nesse estado a pergunta passa a ser de vinte em vinte minutos, o
+    /// que custa uma ida à rede a mais por hora e só enquanto há assunto.
+    /// </summary>
+    private void SchedulePace()
+    {
+        if (_updatesTimer is null) return;
+
+        var novo = _updates.Any ? TimeSpan.FromMinutes(20) : TimeSpan.FromHours(3);
+        if (_updatesTimer.Interval == novo) return;
+
+        _updatesTimer.Interval = novo;
+        Log.Trace($"atualizações: conferindo a cada {novo.TotalMinutes:0} min");
+    }
+
+    /// <summary>
+    /// A pessoa foi mexer nas atualizações — abriu o Windows Update ou o terminal do winget.
+    ///
+    /// Esse clique é a melhor pista que a dock tem de que o estado vai mudar, e mudar por fora
+    /// dela. Em vez de esperar a próxima volta do relógio, ela reconfere duas vezes: dois minutos
+    /// depois (o tempo de uma definição do Defender se instalar) e dez minutos depois (o tempo de
+    /// um cumulativo baixar). Sem isto, instalar tudo e ver o ícone continuar aceso é o que
+    /// acontece — foi o primeiro incômodo relatado depois que o cartão passou a funcionar.
+    /// </summary>
+    public void RecheckUpdatesSoon()
+    {
+        foreach (var minutos in new[] { 2, 10 })
+        {
+            var t = new DispatcherTimer(DispatcherPriority.Background)
+            {
+                Interval = TimeSpan.FromMinutes(minutos)
+            };
+            t.Tick += (s, _) => { ((DispatcherTimer)s!).Stop(); RefreshUpdates(); };
+            t.Start();
+        }
+
+        Log.Trace("atualizações: reconferência agendada para daqui a 2 e 10 min");
     }
 
     // ── cota de IA ──────────────────────────────────────────

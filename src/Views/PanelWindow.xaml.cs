@@ -677,6 +677,7 @@ public partial class PanelWindow : Window
     {
         CloseAllPopups();
         UpdatesService.OpenWindowsUpdate();
+        _model.RecheckUpdatesSoon();
     }
 
     /// <summary>
@@ -689,6 +690,7 @@ public partial class PanelWindow : Window
     {
         CloseAllPopups();
         UpdatesService.UpgradeAll();
+        _model.RecheckUpdatesSoon();
     }
 
     /// <summary>

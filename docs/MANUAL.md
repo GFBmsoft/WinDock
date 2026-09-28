@@ -388,10 +388,18 @@ O cartão junta duas fontes:
 perguntas, pede elevação e pode fechar programas abertos, e nada disso deve acontecer às escuras
 por conta de um clique numa barra.
 
-A conferência é feita **de três em três horas**, e a hora da última fica no rodapé do cartão. Abrir
-o cartão não refaz a consulta: as duas juntas levam uns treze segundos, e o cartão mudaria de
-tamanho debaixo do mouse. Quando quiser a resposta na hora, **Conferir agora**, no rodapé, refaz as
-duas perguntas com o cartão aberto — ele mostra "conferindo…" enquanto isso.
+A conferência é feita **de três em três horas** quando está tudo em dia, e **de vinte em vinte
+minutos enquanto há algo esperando** — porque esse é o estado que muda pelas suas mãos, e logo
+depois. Além disso, clicar em **Abrir** ou em **Atualizar tudo pelo winget** agenda duas
+reconferências, dois e dez minutos depois: é a dock aproveitando a melhor pista que ela tem de que
+você foi mexer nisso.
+
+A hora da última fica no rodapé do cartão. Abrir o cartão não refaz a consulta — ela mudaria de
+tamanho debaixo do mouse. Quando quiser a resposta na hora, **Conferir agora** refaz as duas
+perguntas com o cartão aberto, mostrando "conferindo…" enquanto isso. Ele responde **em duas
+etapas**: em uns três segundos vem o que o agente do Windows já sabe — que é a resposta certa logo
+depois de você instalar algo, e o que faz o ícone apagar rápido —, e a busca completa chega atrás,
+corrigindo se houver novidade.
 
 Um ícone apagado com atualização existindo lá fora quer dizer que a conferência é de até três horas
 atrás; o rodapé diz de quando ela é, e **Conferir agora** resolve. E quando alguma das duas
