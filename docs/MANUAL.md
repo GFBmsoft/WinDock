@@ -185,8 +185,10 @@ houver alguma esperando (veja [Atualizações esperando](#atualizações-esperan
 #### Calendário
 
 ![O calendário](img/card-calendario.png)
+![As tarefas do dia escolhido](img/card-tarefas.png)
 
-Clique na data, na barra de cima, e o mês aparece. Dentro dele:
+Clique na data, na barra de cima, e o mês aparece; clique num dia e as tarefas dele aparecem
+embaixo, no próprio cartão. Dentro dele:
 
 - **Feriados nacionais em vermelho**, com o nome na dica de mouse. São calculados, não uma lista
   fixa: os móveis (Carnaval, Sexta-feira Santa, Corpus Christi) saem da data da Páscoa, então
@@ -230,6 +232,8 @@ Clique na data, na barra de cima, e o mês aparece. Dentro dele:
   **Mover**) leva a tarefa; **Cancelar** desiste. Dia e mês bastam (`15/09`); sem o ano vale o do
   dia aberto, e uma data que cairia muito para trás (digitar `05/01` com um dia de dezembro aberto)
   é entendida como o ano que vem.
+
+![O balão do lembrete](img/lembrete.png)
 
 As anotações ficam em `CalendarNotes`, no `config.json`.
 
@@ -316,6 +320,8 @@ externo**.
 
 #### Cota de IA
 
+![O cartão da cota](img/card-cota.png)
+
 Quanto da sua cota do Claude já foi usada — a janela de **5 horas**, a de **7 dias** e as que
 houver por modelo —, cada uma com o quanto falta para zerar. É o mesmo número que o `/usage` do
 Claude Code mostra.
@@ -361,6 +367,8 @@ Três coisas que vale saber:
   mostrando os últimos números**, com um aviso em âmbar dizendo de quando eles são.
 
 #### Atualizações esperando
+
+![O cartão das atualizações](img/card-atualizacoes.png)
 
 Uma seta à esquerda do velocímetro da cota: **azul, com o número, quando há o que atualizar**;
 **cinza quando está tudo em dia**. Apagada ela ainda responde a uma pergunta — a de que a dock está
