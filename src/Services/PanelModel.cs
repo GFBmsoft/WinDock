@@ -768,6 +768,9 @@ public sealed class PanelModel : INotifyPropertyChanged, IDisposable
             OnChanged(nameof(UpdatesCount));
             OnChanged(nameof(UpdatesFill));
             OnChanged(nameof(UpdatesEmptyText));
+            OnChanged(nameof(WindowsUpdates));
+            OnChanged(nameof(UpdatesError));
+            OnChanged(nameof(HasUpdatesError));
             OnChanged(nameof(HasWindowsUpdates));
             OnChanged(nameof(HasWingetUpdates));
             OnChanged(nameof(WindowsUpdatesText));
@@ -794,18 +797,49 @@ public sealed class PanelModel : INotifyPropertyChanged, IDisposable
     /// <summary>O número ao lado do ícone — vazio quando não há nada, e aí ele nem aparece.</summary>
     public string UpdatesCount => _updates.Any ? _updates.Total.ToString(CultureInfo.CurrentCulture) : string.Empty;
 
-    public bool HasWindowsUpdates => _updates.Windows > 0;
+    public bool HasWindowsUpdates => _updates.Windows.Count > 0;
     public bool HasWingetUpdates => _updates.Winget.Count > 0;
 
-    public string WindowsUpdatesText => _updates.Windows == 1
+    public string WindowsUpdatesText => _updates.Windows.Count == 1
         ? "1 atualização do Windows"
-        : $"{_updates.Windows} atualizações do Windows";
+        : $"{_updates.Windows.Count} atualizações do Windows";
+
+    /// <summary>Os títulos, como o Windows Update os escreve — é o que faz o cartão bater com a tela dele.</summary>
+    public IReadOnlyList<string> WindowsUpdates => _updates.Windows;
 
     public IReadOnlyList<WingetPackage> WingetUpdates => _updates.Winget;
 
-    public string UpdatesReadAt => _updates.When > DateTime.MinValue
-        ? $"conferido às {_updates.When:HH:mm}"
-        : string.Empty;
+    /// <summary>
+    /// Uma consulta está em curso.
+    ///
+    /// Existe por causa do "Conferir agora": a busca do Windows Update leva uns doze segundos, e um
+    /// botão que não responde nesse tempo parece quebrado — foi assim que o defeito de 28/09
+    /// apareceu para quem usava.
+    /// </summary>
+    private bool _updatesChecking;
+    public bool UpdatesChecking
+    {
+        get => _updatesChecking;
+        private set
+        {
+            if (!Set(ref _updatesChecking, value)) return;
+            OnChanged(nameof(UpdatesReadAt));
+            OnChanged(nameof(UpdatesEmptyText));
+        }
+    }
+
+    /// <summary>
+    /// O erro da última conferência, quando houve um.
+    ///
+    /// Mostrá-lo é o que separa "não há nada para atualizar" de "não consegui perguntar" — duas
+    /// frases que o cartão dizia do mesmo jeito, e essa é metade do defeito de 28/09.
+    /// </summary>
+    public string UpdatesError => _updates.Error ?? string.Empty;
+    public bool HasUpdatesError => _updates.Failed;
+
+    public string UpdatesReadAt => _updatesChecking
+        ? "conferindo…"
+        : _updates.When > DateTime.MinValue ? $"conferido às {_updates.When:HH:mm}" : string.Empty;
 
     public string UpdatesTooltip
     {
@@ -829,16 +863,17 @@ public sealed class PanelModel : INotifyPropertyChanged, IDisposable
     /// "Nada para atualizar" sozinho é ambíguo: pode ser que não haja mesmo, ou que a dock não
     /// tenha olhado. Nomear as duas fontes, com a hora da conferência embaixo, responde isso.
     /// </summary>
-    public string UpdatesEmptyText => UpdatesService.HasWinget
-        ? "Nada esperando no Windows Update nem no winget."
-        : "Nada esperando no Windows Update. (O winget não está instalado nesta máquina.)";
+    public string UpdatesEmptyText => _updatesChecking
+        ? "Perguntando ao Windows Update e ao winget…"
+        : UpdatesService.HasWinget
+          ? "Nada esperando no Windows Update nem no winget."
+          : "Nada esperando no Windows Update. (O winget não está instalado nesta máquina.)";
 
     /// <summary>
     /// Começa a conferir o que há para atualizar.
     ///
-    /// De três em três horas: atualização não chega em rajada, e a consulta do winget é um processo
-    /// de console que leva segundos. A primeira passagem espera meio minuto — o arranque da dock é o
-    /// pior momento possível para disputar disco com qualquer coisa.
+    /// De três em três horas: atualização não chega em rajada, e as duas consultas custam caro — a
+    /// do Windows Update vai à rede (uns doze segundos) e a do winget é um processo de console.
     /// </summary>
     private void WatchUpdates()
     {
@@ -851,20 +886,33 @@ public sealed class PanelModel : INotifyPropertyChanged, IDisposable
         _updatesTimer.Tick += (_, _) => RefreshUpdates();
         _updatesTimer.Start();
 
-        var primeira = new DispatcherTimer(DispatcherPriority.Background) { Interval = TimeSpan.FromSeconds(30) };
+        // dois minutos para a primeira: a busca do Windows Update vai à rede e leva uns doze
+        // segundos, e o pior momento para isso é o logon, com o Windows ainda subindo o resto
+        var primeira = new DispatcherTimer(DispatcherPriority.Background) { Interval = TimeSpan.FromMinutes(2) };
         primeira.Tick += (s, _) => { ((DispatcherTimer)s!).Stop(); RefreshUpdates(); };
         primeira.Start();
     }
 
-    /// <summary>Relê em segundo plano; nada na barra espera pela resposta.</summary>
+    /// <summary>
+    /// Relê em segundo plano; nada na barra espera pela resposta.
+    ///
+    /// Duas consultas ao mesmo tempo não acontecem: a do Windows Update leva uns doze segundos, e
+    /// clicar duas vezes em "Conferir agora" poria duas buscas na rede para o mesmo resultado.
+    /// </summary>
     public void RefreshUpdates()
     {
-        if (!_config.PanelUpdates) return;
+        if (!_config.PanelUpdates || _updatesChecking) return;
+
+        UpdatesChecking = true;
 
         _ = Task.Run(async () =>
         {
             var status = await UpdatesService.ReadAsync().ConfigureAwait(false);
-            await _dispatcher.InvokeAsync(() => Updates = status);
+            await _dispatcher.InvokeAsync(() =>
+            {
+                UpdatesChecking = false;
+                Updates = status;
+            });
         });
     }
 

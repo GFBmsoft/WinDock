@@ -14,17 +14,25 @@ public sealed record WingetPackage(string Name, string Id, string Current, strin
 /// separados porque as respostas se resolvem em lugares diferentes.
 /// </summary>
 public sealed record UpdateStatus(
-    int Windows,
+    IReadOnlyList<string> Windows,
     IReadOnlyList<WingetPackage> Winget,
     DateTime When,
     string? WindowsError = null,
     string? WingetError = null)
 {
     public static readonly UpdateStatus Empty =
-        new(0, Array.Empty<WingetPackage>(), DateTime.MinValue);
+        new(Array.Empty<string>(), Array.Empty<WingetPackage>(), DateTime.MinValue);
 
-    public int Total => Windows + Winget.Count;
+    public int Total => Windows.Count + Winget.Count;
     public bool Any => Total > 0;
+
+    /// <summary>Alguma das duas perguntas não pôde ser feita — o que é diferente de não haver nada.</summary>
+    public bool Failed => WindowsError is not null || WingetError is not null;
+
+    /// <summary>O que deu errado, numa frase só, para o rodapé do cartão.</summary>
+    public string? Error => WindowsError is not null && WingetError is not null
+        ? $"{WindowsError}; {WingetError}"
+        : WindowsError ?? WingetError;
 }
 
 /// <summary>
@@ -52,43 +60,54 @@ public static class UpdatesService
     // ── Windows Update ──────────────────────────────────────
 
     /// <summary>
-    /// Quantas atualizações o agente do Windows Update tem para esta máquina.
+    /// O que o Windows Update tem para esta máquina, pelo título de cada atualização.
     ///
-    /// Pela automação COM do próprio agente (<c>Microsoft.Update.Session</c>), e com
-    /// <c>Online = false</c>: assim a busca responde do que o Windows já varreu, em milissegundos e
-    /// sem tocar na rede. Com <c>true</c> a mesma chamada sai para os servidores da Microsoft e
-    /// pode levar minutos — tempo demais para um ícone de barra, e uma ida à rede que a pessoa não
-    /// pediu. O que o Windows sabe é o que ele vai instalar: é essa a informação que o ícone
-    /// precisa dar.
+    /// Pela automação COM do próprio agente (<c>Microsoft.Update.Session</c>), com
+    /// <c>Online = true</c> — **a busca de verdade, a mesma que a tela de configurações faz**.
+    ///
+    /// Começou com <c>false</c>, que responde só do que o agente já varreu, e o argumento parecia
+    /// bom: milissegundos, sem tocar na rede, e "o que o Windows já sabe é o que ele vai
+    /// instalar". Em 28/09/2026 isso falhou exatamente como tinha de falhar — o cartão disse
+    /// "nada esperando", a tela do Windows Update encontrou atualização de segurança, e a mesma
+    /// consulta local passou a achá-la **depois**, porque a busca da tela é que encheu o cache. Um
+    /// ícone que só sabe o que outra tela já descobriu não poupa a outra tela: ele depende dela.
+    ///
+    /// O preço medido é 11,8 s contra 2,7 s — e não custa nada a quem usa a dock, porque isto roda
+    /// numa thread de fundo, de três em três horas, e ninguém espera pela resposta.
     ///
     /// A ligação é por <c>dynamic</c> porque não há interop referenciado: o projeto não carrega
     /// dependência externa, e uma DLL de interop para três chamadas seria mais peso do que vale.
     /// </summary>
-    private static (int Count, string? Error) ReadWindows()
+    private static (IReadOnlyList<string> Titles, string? Error) ReadWindows()
     {
         try
         {
             var tipo = Type.GetTypeFromProgID("Microsoft.Update.Session");
-            if (tipo is null) return (0, "o agente do Windows Update não respondeu");
+            if (tipo is null) return (Array.Empty<string>(), "o agente do Windows Update não respondeu");
 
             dynamic? sessao = Activator.CreateInstance(tipo);
-            if (sessao is null) return (0, "o agente do Windows Update não respondeu");
+            if (sessao is null) return (Array.Empty<string>(), "o agente do Windows Update não respondeu");
 
             dynamic busca = sessao.CreateUpdateSearcher();
-            busca.Online = false;
+            busca.Online = true;
 
             dynamic resultado = busca.Search("IsInstalled=0 and Type='Software' and IsHidden=0");
-            int quantas = resultado.Updates.Count;
 
-            Log.Trace($"atualizações: Windows Update tem {quantas}");
-            return (quantas, null);
+            // os títulos, e não só a contagem: é o que faz o cartão bater com a tela do Windows.
+            // Sem eles, "3 atualizações do Windows" não diz se é o cumulativo do mês ou a definição
+            // do Defender que se instala sozinha em dois minutos
+            var titulos = new List<string>();
+            foreach (dynamic u in resultado.Updates) titulos.Add((string)u.Title);
+
+            Log.Trace($"atualizações: Windows Update tem {titulos.Count}");
+            return (titulos, null);
         }
         catch (Exception ex)
         {
             // acontece de verdade: políticas de empresa desligam o agente, e em máquina sem
             // atualização configurada o COM responde com erro em vez de zero
             Log.Trace("atualizações: Windows Update não respondeu — " + ex.Message);
-            return (0, "não deu para perguntar ao Windows Update");
+            return (Array.Empty<string>(), "não deu para perguntar ao Windows Update");
         }
     }
 

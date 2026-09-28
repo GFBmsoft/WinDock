@@ -162,8 +162,8 @@ tentar imitar o que o Windows já faz bem:
   toast exige `AppUserModelID` registrado e atalho no Menu Iniciar, e a dock roda de uma pasta, sem
   instalação — além de ele cair na Central de Notificações, que é onde ninguém olha. O relógio dos
   avisos mora na dock, e não na barra de cima: quem desliga a barra continua anotando tarefas;
-- **atualizações esperando**, do Windows Update (pela automação COM do agente, respondendo do que
-  ele já varreu, sem ida à rede) e do `winget upgrade`. A tabela do winget é texto traduzido, então
+- **atualizações esperando**, do Windows Update (pela automação COM do agente, com a busca online —
+  a mesma da tela de configurações) e do `winget upgrade`. A tabela do winget é texto traduzido, então
   é lida pelas posições das colunas do próprio cabeçalho, e não pelos títulos — `tests/WingetCheck`
   confere isso sem depender de haver atualização pendente na máquina;
 - **brilho** do monitor por DDC/CI (`dxva2.dll`), com a roda do mouse sobre o ícone;

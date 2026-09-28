@@ -376,10 +376,10 @@ conferindo —, que é o que se perde quando o ícone simplesmente não existe.
 
 O cartão junta duas fontes:
 
-- **Windows Update** — quantas atualizações o Windows já tem separadas para esta máquina. O botão
-  abre a página dele, que é onde elas se instalam. A pergunta é feita ao agente do próprio Windows
-  e responde do que ele já varreu, sem ir à rede: é o mesmo número que você veria abrindo o
-  Windows Update.
+- **Windows Update** — as atualizações que o Windows tem para esta máquina, com o título de cada
+  uma, como ele mesmo as escreve. O botão abre a página dele, que é onde elas se instalam. **É a
+  busca de verdade**, a mesma que a tela de configurações faz — leva uns doze segundos, em segundo
+  plano, e por isso o número bate com o que você vê lá.
 - **winget** — os programas com versão nova, um por linha, com a versão de agora e a que vem. Só
   aparece se o winget existir na máquina.
 
@@ -389,13 +389,14 @@ perguntas, pede elevação e pode fechar programas abertos, e nada disso deve ac
 por conta de um clique numa barra.
 
 A conferência é feita **de três em três horas**, e a hora da última fica no rodapé do cartão. Abrir
-o cartão não refaz a consulta: a do winget é um processo de console que leva segundos, e o cartão
-mudaria de tamanho debaixo do mouse. Quando quiser a resposta na hora, **Conferir agora**, no
-rodapé, refaz as duas perguntas com o cartão aberto.
+o cartão não refaz a consulta: as duas juntas levam uns treze segundos, e o cartão mudaria de
+tamanho debaixo do mouse. Quando quiser a resposta na hora, **Conferir agora**, no rodapé, refaz as
+duas perguntas com o cartão aberto — ele mostra "conferindo…" enquanto isso.
 
-Duas coisas explicam um ícone apagado com atualização existindo lá fora: a conferência pode ser de
-até três horas atrás (o rodapé diz de quando é), e o lado do Windows Update responde **do que o
-agente do Windows já varreu**, sem ir à rede — se ele ainda não varreu, o número é zero.
+Um ícone apagado com atualização existindo lá fora quer dizer que a conferência é de até três horas
+atrás; o rodapé diz de quando ela é, e **Conferir agora** resolve. E quando alguma das duas
+perguntas **falha** — o agente do Windows desligado por política, por exemplo —, o cartão diz isso
+em âmbar, em vez de dizer que não há nada: são coisas diferentes.
 
 Vem ligado, em **Configurações > Atualizações esperando**. Desligado, o ícone some da barra.
 

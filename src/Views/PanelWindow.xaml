@@ -753,21 +753,34 @@
               </TextBlock.Visibility>
             </TextBlock>
 
-            <!-- Windows Update: o botão leva à página dele, que é onde se instala -->
-            <Button Style="{StaticResource PanelRow}" Click="OnOpenWindowsUpdate"
-                    ToolTip="Abrir o Windows Update"
-                    Visibility="{Binding HasWindowsUpdates, Converter={StaticResource BoolToVisible}}">
-              <Grid>
-                <Grid.ColumnDefinitions>
-                  <ColumnDefinition Width="*" />
-                  <ColumnDefinition Width="Auto" />
-                </Grid.ColumnDefinitions>
-                <TextBlock Text="{Binding WindowsUpdatesText}" Foreground="#FFE8E8EA" FontSize="12"
-                           VerticalAlignment="Center" />
-                <TextBlock Grid.Column="1" Text="Abrir" Foreground="#FF4CC2FF" FontSize="11"
-                           VerticalAlignment="Center" />
-              </Grid>
-            </Button>
+            <!-- Windows Update: o botão leva à página dele, que é onde se instala. Os títulos vêm
+                 abaixo, como o Windows os escreve — sem eles, "1 atualização do Windows" não diz se
+                 é o cumulativo do mês ou a definição do Defender, que se instala sozinha -->
+            <StackPanel Visibility="{Binding HasWindowsUpdates, Converter={StaticResource BoolToVisible}}">
+              <Button Style="{StaticResource PanelRow}" Click="OnOpenWindowsUpdate"
+                      ToolTip="Abrir o Windows Update">
+                <Grid>
+                  <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                  </Grid.ColumnDefinitions>
+                  <TextBlock Text="{Binding WindowsUpdatesText}" Foreground="#FFE8E8EA" FontSize="12"
+                             VerticalAlignment="Center" />
+                  <TextBlock Grid.Column="1" Text="Abrir" Foreground="#FF4CC2FF" FontSize="11"
+                             VerticalAlignment="Center" />
+                </Grid>
+              </Button>
+
+              <ItemsControl ItemsSource="{Binding WindowsUpdates}" Margin="10,2,2,0">
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate>
+                    <TextBlock Text="{Binding}" Foreground="#FF8A8A8A" FontSize="11" Margin="0,1"
+                               TextTrimming="CharacterEllipsis" TextWrapping="NoWrap"
+                               ui:Ellipsis.ShowTooltip="True" />
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+            </StackPanel>
 
             <!-- winget: a lista dos pacotes, com a versão de onde para onde -->
             <StackPanel Margin="0,4,0,0"
@@ -807,6 +820,12 @@
             <!-- "Conferir agora" faz sentido agora que o ícone fica sempre na barra: com ele
                  apagado, a pergunta "será que isso está atualizado?" tem de ter resposta sem
                  esperar as próximas três horas -->
+            <!-- "não consegui perguntar" não pode parecer "não há nada": é metade do defeito de
+                 28/09, e a outra metade era perguntar só ao cache do Windows -->
+            <TextBlock Text="{Binding UpdatesError}" Foreground="#FFE8A33D" FontSize="11"
+                       TextWrapping="Wrap" Margin="2,8,2,0"
+                       Visibility="{Binding HasUpdatesError, Converter={StaticResource BoolToVisible}}" />
+
             <Grid Margin="0,10,0,0">
               <TextBlock Text="{Binding UpdatesReadAt}" Foreground="#FF6A6A6A" FontSize="10"
                          VerticalAlignment="Center" Margin="2,0,0,0" />
