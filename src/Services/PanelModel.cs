@@ -1206,6 +1206,7 @@ public sealed class PanelModel : INotifyPropertyChanged, IDisposable
             OnChanged(nameof(AiTooltip));
             OnChanged(nameof(HasAiReading));
             OnChanged(nameof(AiBrush));
+            OnChanged(nameof(AiReadAt));
         }
     }
 
@@ -1278,6 +1279,38 @@ public sealed class PanelModel : INotifyPropertyChanged, IDisposable
     /// "Consultando…" acima já tivesse sido respondido.
     /// </summary>
     public bool HasAiReading => _aiUsage.Quando > DateTime.MinValue;
+
+    /// <summary>
+    /// Uma leitura está em curso.
+    ///
+    /// Existe pelo mesmo motivo do "Conferir agora" das atualizações: a consulta vai à rede,
+    /// uma vez por conta, e um botão que não responde nesse tempo parece quebrado. Enquanto
+    /// dura, o rodapé diz "consultando…" e o botão fica desabilitado — clicar de novo não
+    /// adiantaria nada, e a cota é a mesma.
+    /// </summary>
+    private bool _aiChecking;
+    public bool AiChecking
+    {
+        get => _aiChecking;
+        private set
+        {
+            if (!Set(ref _aiChecking, value)) return;
+            OnChanged(nameof(AiReadAt));
+            OnChanged(nameof(AiCanRefresh));
+        }
+    }
+
+    /// <summary>O botão de reler só aceita clique quando não há leitura em curso.</summary>
+    public bool AiCanRefresh => !_aiChecking;
+
+    /// <summary>
+    /// O que o rodapé do cartão diz à esquerda: "consultando…" enquanto a resposta não vem,
+    /// a hora da última leitura depois dela, e nada antes da primeira — que é quando a hora
+    /// seria a de abrir o cartão, como se o "Consultando…" de cima já tivesse sido respondido.
+    /// </summary>
+    public string AiReadAt => _aiChecking
+        ? "consultando…"
+        : HasAiReading ? $"atualizado às {_aiUsage.Quando:HH:mm}" : string.Empty;
 
     /// <summary>
     /// O cartão está detalhado ou compacto? Mora na configuração porque é preferência de
@@ -1381,10 +1414,16 @@ public sealed class PanelModel : INotifyPropertyChanged, IDisposable
         // configuração, e ela muda por clique de quem está olhando o painel
         var escolhidas = _config.AiUsageAccounts.ToList();
 
+        AiChecking = true;
+
         _ = Task.Run(async () =>
         {
             var uso = await _ai.ReadAsync(escolhidas).ConfigureAwait(false);
-            await _dispatcher.InvokeAsync(() => AiUsage = uso);
+
+            // o "consultando…" apaga junto com a chegada dos números, e não antes: apagá-lo
+            // primeiro deixaria o rodapé mostrando a hora antiga por um quadro, como se a
+            // leitura tivesse voltado com o valor de dez minutos atrás
+            await _dispatcher.InvokeAsync(() => { AiUsage = uso; AiChecking = false; });
         });
     }
 

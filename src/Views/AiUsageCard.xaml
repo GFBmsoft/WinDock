@@ -198,17 +198,32 @@
         </ItemsControl.Style>
       </ItemsControl>
 
-      <!-- o rodapé: a hora da leitura à esquerda, a seta de abrir/fechar à direita -->
-      <Grid Margin="0,6,0,0">
-        <TextBlock Foreground="#FF6E6E6E" FontSize="10" VerticalAlignment="Center"
-                   Text="{Binding AiUsage.Quando, StringFormat='atualizado às {0:HH:mm}'}"
-                   Visibility="{Binding HasAiReading, Converter={StaticResource BoolToVisible}}" />
+      <!-- o rodapé: a hora da leitura (ou o "consultando…") à esquerda, e à direita os dois
+           botões — reler agora e abrir/fechar os detalhes.
 
-        <Button HorizontalAlignment="Right" Style="{StaticResource ExpandButton}"
-                Click="OnToggleExpand" ToolTip="{Binding AiExpandTooltip}"
-                AutomationProperties.Name="{Binding AiExpandTooltip}">
-          <ui:GlyphIcon Glyph="{Binding AiExpandGlyph}" Fill="#FF9D9D9D" Size="11" />
-        </Button>
+           O "consultando…" ocupa o lugar da hora em vez de vir ao lado dela: são a mesma
+           informação em dois tempos — quando foi a última leitura, e que há outra a caminho. -->
+      <Grid Margin="0,6,0,0">
+        <TextBlock Text="{Binding AiReadAt}" Foreground="#FF6E6E6E" FontSize="10"
+                   VerticalAlignment="Center" />
+
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+          <!-- A cota muda do lado do servidor, e o cartão só pergunta de dez em dez minutos:
+               sem isto, quem acabou de usar o Claude Code tinha de fechar e reabrir o cartão
+               (que relê ao abrir) para ver o número novo — e não havia nada na tela dizendo
+               que era isso o que faltava fazer. -->
+          <Button Style="{StaticResource ExpandButton}" Click="OnRefresh"
+                  IsEnabled="{Binding AiCanRefresh}" ToolTip="Consultar de novo, agora"
+                  AutomationProperties.Name="Consultar de novo, agora">
+            <ui:GlyphIcon Glyph="&#xE72C;" Fill="#FF9D9D9D" Size="11" />
+          </Button>
+
+          <Button Style="{StaticResource ExpandButton}"
+                  Click="OnToggleExpand" ToolTip="{Binding AiExpandTooltip}"
+                  AutomationProperties.Name="{Binding AiExpandTooltip}">
+            <ui:GlyphIcon Glyph="{Binding AiExpandGlyph}" Fill="#FF9D9D9D" Size="11" />
+          </Button>
+        </StackPanel>
       </Grid>
     </StackPanel>
   </Border>

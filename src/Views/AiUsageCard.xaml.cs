@@ -32,6 +32,14 @@ public partial class AiUsageCard : UserControl
     private void OnToggleExpand(object sender, RoutedEventArgs e) =>
         DataContext?.GetType().GetMethod("ToggleAiExpanded")?.Invoke(DataContext, null);
 
+    /// <summary>
+    /// O botão de reler: pergunta a cota de novo, agora. Pelo mesmo caminho por reflection
+    /// da seta acima, e pelo mesmo motivo — o harness monta este controle com um objeto de
+    /// mentira.
+    /// </summary>
+    private void OnRefresh(object sender, RoutedEventArgs e) =>
+        DataContext?.GetType().GetMethod("RefreshAiUsage")?.Invoke(DataContext, null);
+
     private void OnGaugeSizeChanged(object sender, SizeChangedEventArgs e)
     {
         if (sender is not Border trilho || trilho.Child is not Border preenchimento) return;

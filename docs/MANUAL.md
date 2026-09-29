@@ -174,7 +174,8 @@ houver alguma esperando (veja [Atualizações esperando](#atualizações-esperan
 | Desligar, reiniciar, hibernar, bloquear, sair | o botão de energia |
 | Brilho do monitor | clique no ícone de brilho, ou role a roda do mouse sobre ele |
 | Ver o último minuto de processador, memória e rede | clique no CPU (veja [CPU, memória e rede](#cpu-memória-e-rede)) |
-| Quanto da cota do Claude já foi usada | clique no velocímetro (veja [Cota de IA](#cota-de-ia)) |
+| Quanto da cota do Claude já foi usada | clique no robô (veja [Cota de IA](#cota-de-ia)) |
+| Perguntar a cota de novo, agora | o `↻` no rodapé do cartão de cota |
 | Ver o que há para atualizar | clique na seta com o número (veja [Atualizações esperando](#atualizações-esperando)) |
 | Corrigir o texto de uma tarefa | clique no texto dela, dentro do calendário |
 | Marcar a hora de uma tarefa | o `🕘` no balão dela, ou digite `14:30 dentista` na nova tarefa |
@@ -373,6 +374,12 @@ Havendo mais de uma, aparece em **Configurações > Contas no cartão de cota** 
 escolher quais acompanhar. Sem nenhuma marcada, o cartão mostra todas — inclusive as que
 passarem a existir depois. Com uma conta só, esse cartão de configuração nem aparece: não há o
 que escolher.
+
+**Quando o número é lido.** Ao abrir o cartão, e de dez em dez minutos enquanto a dock roda —
+cada volta é uma ida à rede, uma por conta. O **`↻` do rodapé pergunta de novo, na hora**: é
+para quando você acabou de usar o Claude Code e quer ver o número novo sem esperar. Enquanto a
+resposta não chega, o rodapé diz "consultando…" e o botão fica desabilitado; a hora da última
+leitura fica ali ao lado.
 
 **Compacto ou detalhado.** A seta no rodapé do cartão alterna entre os dois, e o que você
 escolher fica. O compacto — que é como ele começa — põe cada janela de cota numa linha só, com a
