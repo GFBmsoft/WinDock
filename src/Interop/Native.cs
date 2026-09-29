@@ -596,6 +596,35 @@ internal static class Native
     [DllImport("kernel32.dll")]
     public static extern bool GetSystemPowerStatus(out SYSTEM_POWER_STATUS status);
 
+    // ── uso de CPU e de memória ─────────────────────────────
+    //
+    // Pelo kernel, e não por PerformanceCounter: abrir um contador de performance custa
+    // centenas de milissegundos na primeira leitura e sobe um thread de coleta por
+    // categoria. Estas duas chamadas custam microssegundos e não guardam estado nenhum —
+    // quem faz a conta da diferença entre duas leituras é o SystemStatsService.
+
+    /// <summary>
+    /// Tempo total da máquina desde o arranque, em unidades de 100 ns: parado, no kernel e
+    /// em modo usuário. O <c>kernel</c> <b>já inclui</b> o <c>idle</c> — quem esquece isso
+    /// mede uma máquina ocupada o tempo inteiro.
+    /// </summary>
+    [DllImport("kernel32.dll", SetLastError = true)]
+    public static extern bool GetSystemTimes(out long idle, out long kernel, out long user);
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct MEMORYSTATUSEX
+    {
+        public uint dwLength;
+        public uint dwMemoryLoad;          // a porcentagem em uso, pronta
+        public ulong ullTotalPhys, ullAvailPhys;
+        public ulong ullTotalPageFile, ullAvailPageFile;
+        public ulong ullTotalVirtual, ullAvailVirtual;
+        public ulong ullAvailExtendedVirtual;
+    }
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    public static extern bool GlobalMemoryStatusEx(ref MEMORYSTATUSEX buffer);
+
     // ── energia ─────────────────────────────────────────────
     [DllImport("user32.dll", SetLastError = true)]
     public static extern bool LockWorkStation();

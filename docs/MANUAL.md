@@ -155,7 +155,8 @@ bluetooth, volume, a seta da bandeja, notificações e energia — mais o **bril
 monitor aceita ser controlado (veja [Brilho](#brilho)), a **cota de IA**, se você ligar
 (veja [Cota de IA](#cota-de-ia)), o **pen-drive**, enquanto houver um espetado
 (veja [Remover dispositivo externo](#remover-dispositivo-externo)), e as **atualizações**, enquanto
-houver alguma esperando (veja [Atualizações esperando](#atualizações-esperando)).
+houver alguma esperando (veja [Atualizações esperando](#atualizações-esperando)) — mais o
+**CPU e memória**, se você ligar (veja [CPU, memória e rede](#cpu-memória-e-rede)).
 **A ordem é sua** — veja
 [Ordem dos itens](#ordem-dos-itens-da-barra).
 
@@ -172,6 +173,7 @@ houver alguma esperando (veja [Atualizações esperando](#atualizações-esperan
 | Ver a faixa inteira, com capa | clique no nome da música |
 | Desligar, reiniciar, hibernar, bloquear, sair | o botão de energia |
 | Brilho do monitor | clique no ícone de brilho, ou role a roda do mouse sobre ele |
+| Ver o último minuto de processador, memória e rede | clique no CPU (veja [CPU, memória e rede](#cpu-memória-e-rede)) |
 | Quanto da cota do Claude já foi usada | clique no velocímetro (veja [Cota de IA](#cota-de-ia)) |
 | Ver o que há para atualizar | clique na seta com o número (veja [Atualizações esperando](#atualizações-esperando)) |
 | Corrigir o texto de uma tarefa | clique no texto dela, dentro do calendário |
@@ -252,6 +254,11 @@ Se você quiser a barra só para um programa (o Spotify, por exemplo, sem que um
 navegador tome o lugar dele), marque-o em **Configurações > Programas na barra de mídia**. Sem
 nenhum marcado, vale para todos.
 
+Nome comprido demais para o espaço da barra **passa rolando**, em vez de terminar em
+reticências: ele fica parado o tempo de ser lido, anda até o fim, espera e volta. Rola só o que
+não cabe, e **só enquanto está tocando** — em pausa, para. Para não ter o movimento, desligue
+**Configurações > Rolar o nome da faixa**.
+
 Pelo teclado, de qualquer programa: `Alt+Shift+←` volta a faixa, `Alt+Shift+→` passa e
 `Alt+Shift+↑` pausa ou retoma. Os atalhos seguem o mesmo filtro de programas, trocam-se em
 **Configurações > Mosaico > Atalhos** (linha **Música**) e só existem com a barra superior ligada.
@@ -263,6 +270,26 @@ Pelo teclado, de qualquer programa: `Alt+Shift+←` volta a faixa, `Alt+Shift+�
 A barra muda de cor conforme o nível: verde abaixo de 30%, amarelo até 70%, vermelho acima —
 e cinza quando está mudo. Cada programa com som ganha o próprio controle; um programa aparece
 uma vez só, mesmo abrindo vários fluxos de áudio (o Discord abre dois).
+
+#### CPU, memória e rede
+
+![O cartão de sistema](img/card-sistema.png)
+
+**Desligado de fábrica**, em **Configurações > CPU e memória**: é um item que fica aceso o dia
+inteiro mexendo, e a barra já carrega bastante coisa — quem o quer, pede.
+
+Na barra ficam só dois números, apertados: o **processador** e a **memória**, em porcentagem,
+com o desenho de um chip e de um pente de memória no lugar das palavras. A **rede** é medida
+junto, mas não ocupa lugar na barra: ela aparece na dica do mouse e no cartão.
+
+O clique abre o cartão com o **último minuto** de cada medida em gráfico — processador, memória,
+o que está **entrando** e o que está **saindo**. A rede soma todas as conexões de pé (cabo e
+wi-fi ligados ao mesmo tempo contam juntos) e deixa de fora o tráfego que não sai da máquina.
+Processador e memória têm escala fixa de 0 a 100%; a da rede acompanha o maior valor do próprio
+minuto, porque não existe teto conhecido para ela.
+
+As medidas custam duas chamadas ao kernel por segundo, e não contadores de performance do
+Windows: ligar o item não pesa na máquina que ele mede.
 
 #### Bandeja
 

@@ -476,6 +476,21 @@ public sealed class DockConfig : INotifyPropertyChanged
     /// </summary>
     public bool PanelUpdates { get => _panelUpdates; set => Set(ref _panelUpdates, value); }
 
+    private bool _panelSystem;
+    /// <summary>
+    /// CPU e memória na barra, em porcentagem, e o cartão com processador, memória e rede.
+    ///
+    /// Desligada por padrão: é um item que fica aceso o dia inteiro e mexe o tempo todo, e a
+    /// barra já tem gente demais para ligá-lo na conta de quem nunca pediu. A medida é barata
+    /// — duas chamadas do kernel por segundo, sem <c>PerformanceCounter</c> —, então ligá-la
+    /// não pesa na máquina que ela mede; veja <c>SystemStatsService</c>.
+    ///
+    /// <para>A rede é medida junto e só aparece no cartão. Ela já teve item próprio na barra:
+    /// dois números de velocidade mudando a cada segundo ocupavam mais espaço que qualquer
+    /// outro item, para uma informação que só se olha quando se está procurando por ela.</para>
+    /// </summary>
+    public bool PanelSystem { get => _panelSystem; set => Set(ref _panelSystem, value); }
+
     /// <summary>
     /// Pacotes do winget que a pessoa mandou calar, pelo id (o nome, quando o pacote não tem id).
     ///
@@ -553,6 +568,17 @@ public sealed class DockConfig : INotifyPropertyChanged
     /// quando há.
     /// </summary>
     public bool PanelMedia { get => _panelMedia; set => Set(ref _panelMedia, value); }
+
+    private bool _panelMediaTicker = true;
+    /// <summary>
+    /// O nome da faixa rolando quando não cabe no espaço da barra.
+    ///
+    /// Ligado por padrão: sem isto, "Sinfonia nº 9 em Ré menor, Op. 125 — IV. Presto" vira
+    /// "Sinfonia nº 9 em Ré me…" e a informação que interessa é justamente a que some. A
+    /// rolagem só acontece com o texto grande demais <b>e</b> com alguma coisa tocando — em
+    /// pausa ela para, para não haver movimento na tela por nada.
+    /// </summary>
+    public bool PanelMediaTicker { get => _panelMediaTicker; set => Set(ref _panelMediaTicker, value); }
 
     /// <summary>
     /// Quais programas podem ocupar a barra de mídia. <b>Lista vazia quer dizer todos.</b>
@@ -818,6 +844,8 @@ public sealed class DockConfig : INotifyPropertyChanged
         PanelTray = d.PanelTray; PanelAppVolume = d.PanelAppVolume; PanelMedia = d.PanelMedia;
         PanelBrightness = d.PanelBrightness; PanelAiUsage = d.PanelAiUsage;
         PanelUpdates = d.PanelUpdates;
+        PanelSystem = d.PanelSystem;
+        PanelMediaTicker = d.PanelMediaTicker;
         PanelRemovable = d.PanelRemovable;
         Trace = d.Trace;
         Panel = d.Panel; PanelSize = d.PanelSize;

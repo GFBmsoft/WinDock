@@ -51,6 +51,10 @@ os pixels reservados e a área de trabalho volta ao tamanho normal.
 - **Ícones da bandeja** dos programas rodando em segundo plano, alcançáveis com a barra do
   Windows escondida — o clique abre o programa, o botão direito abre o menu dele
 - **Volume por aplicativo**, um controle para cada programa com som
+- **CPU e memória** na barra, em dois ícones apertados, e um cartão com o gráfico do último
+  minuto de **processador, memória e rede** — as medidas vêm do kernel uma vez por segundo, sem
+  contador de performance
+- **O nome da faixa rola** quando não cabe na barra, em vez de terminar em reticências
 - **Menu de energia** e **calendário do mês**, na própria barra, com **feriados nacionais**,
   **tarefas por dia** — cada uma num balão, com hora e **aviso na hora marcada** — e edição do
   texto no lugar
@@ -89,6 +93,8 @@ Cada controle vale na hora; o arquivo é salvo ao fechar o painel.
 | Altura da barra superior | `30` | em pixels físicos |
 | Cor / opacidade da barra | `#202124` / `95` | independentes da dock |
 | Relógio no centro | `false` | em vez do canto direito |
+| CPU e memória | `false` | na barra, em porcentagem; o cartão traz também a rede |
+| Rolar o nome da faixa | `true` | nome comprido passa rolando, em vez de reticências |
 
 O arquivo fica em `%APPDATA%\WinDock\config.json` e também pode ser editado à mão
 (nesse caso vale na próxima abertura).

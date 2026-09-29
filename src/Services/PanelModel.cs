@@ -274,6 +274,67 @@ public sealed class PanelModel : INotifyPropertyChanged, IDisposable
     public void NudgeBrightness(int direction) =>
         Brightness = _brightnessLevel + (direction > 0 ? 5 : -5);
 
+    // ── rede e sistema ──────────────────────────────────────
+
+    private readonly SystemStatsService _stats = new();
+
+    /// <summary>
+    /// O item de sistema na barra — e, com ele, a medição.
+    ///
+    /// A rede não tem item próprio: ela é medida junto e aparece no cartão. Desligar este
+    /// item desliga as três medidas, que é o que faz a opção não custar nada a quem não a quer.
+    /// </summary>
+    public bool HasSystemInfo => _config.PanelSystem;
+
+    private string _netDown = "0 B/s";
+    public string NetDown { get => _netDown; private set => Set(ref _netDown, value); }
+
+    private string _netUp = "0 B/s";
+    public string NetUp { get => _netUp; private set => Set(ref _netUp, value); }
+
+    private string _cpuText = "0%";
+    public string CpuText { get => _cpuText; private set => Set(ref _cpuText, value); }
+
+    private string _ramText = "0%";
+    public string RamText { get => _ramText; private set => Set(ref _ramText, value); }
+
+    private string _systemTooltip = "CPU e memória";
+    public string SystemTooltip { get => _systemTooltip; private set => Set(ref _systemTooltip, value); }
+
+    /// <summary>Os últimos 60 segundos de cada medida — é o que os gráficos do cartão desenham.</summary>
+    public IReadOnlyList<double> CpuHistory => _stats.CpuHistory;
+    public IReadOnlyList<double> RamHistory => _stats.RamHistory;
+    public IReadOnlyList<double> DownHistory => _stats.DownHistory;
+    public IReadOnlyList<double> UpHistory => _stats.UpHistory;
+
+    /// <summary>
+    /// Mede tudo uma vez por segundo, e só com o item ligado: somar os contadores de todos
+    /// os adaptadores é barato, mas não é de graça, e quem deixou o item desligado não deve
+    /// pagar por isso.
+    /// </summary>
+    private void UpdateStats()
+    {
+        if (!HasSystemInfo) return;
+
+        _stats.Sample();
+
+        NetDown = SystemStatsService.Rate(_stats.Down);
+        NetUp = SystemStatsService.Rate(_stats.Up);
+        CpuText = _stats.Cpu.ToString("0") + "%";
+        RamText = _stats.Ram.ToString("0") + "%";
+
+        // a rede entra na dica do item, e não na barra: quem quer o número de passagem lê
+        // aqui, e quem quer acompanhar abre o cartão
+        SystemTooltip = $"CPU {CpuText} · memória {RamText} · rede {NetDown} ↓ {NetUp} ↑";
+
+        // os gráficos só existem enquanto o cartão está aberto; avisar sempre não custa
+        // nada e evita o cartão abrir com o desenho de um minuto atrás
+        OnChanged(nameof(CpuHistory));
+        OnChanged(nameof(RamHistory));
+        OnChanged(nameof(DownHistory));
+        OnChanged(nameof(UpHistory));
+    }
+
     // ── mídia ───────────────────────────────────────────────
     private readonly MediaService _media = new();
 
@@ -1416,6 +1477,10 @@ public sealed class PanelModel : INotifyPropertyChanged, IDisposable
         if (e.PropertyName is nameof(DockConfig.PanelMedia)) OnChanged(nameof(ShowMedia));
         if (e.PropertyName is nameof(DockConfig.PanelBrightness)) OnChanged(nameof(HasBrightness));
 
+        // ligar o sistema vale na hora; a primeira medida sai zerada (toda conta aqui é a
+        // diferença entre duas leituras) e o segundo tique já traz o valor de verdade
+        if (e.PropertyName is nameof(DockConfig.PanelSystem)) OnChanged(nameof(HasSystemInfo));
+
         // ligada agora: a lista é montada na hora, senão o botão só apareceria no próximo
         // pen-drive que entrasse — e o que já está espetado é justamente o caso de quem
         // acabou de ligar a opção
@@ -1477,6 +1542,7 @@ public sealed class PanelModel : INotifyPropertyChanged, IDisposable
 
         UpdateBattery();
         UpdateVolume();
+        UpdateStats();
 
         // o bluetooth muda devagar e a consulta e mais cara que as outras: de cinco em
         // cinco segundos basta. A bandeja fica de fora de proposito — ler a bandeja pisca a

@@ -56,6 +56,10 @@ public partial class PanelWindow : Window
         // reordenar nas Configurações vale na hora, sem fechar e abrir a barra
         _config.PropertyChanged += OnPanelConfigChanged;
 
+        // a faixa que troca refaz a conta do ticker: quem sabe quanto o texto mede é o
+        // layout, e o modelo não tem como saber se ele cabe na barra
+        _model.PropertyChanged += OnModelChanged;
+
         SourceInitialized += OnSourceInitialized;
         Closed += (_, _) =>
         {
@@ -64,6 +68,8 @@ public partial class PanelWindow : Window
             _deviceSettle.Stop();
             RemovableService.Unwatch(_deviceNotify);
             _config.PropertyChanged -= OnPanelConfigChanged;
+            _model.PropertyChanged -= OnModelChanged;
+            MediaSlide.BeginAnimation(TranslateTransform.XProperty, null);
             _model.Dispose();
             _appBar?.Dispose();
         };
@@ -148,6 +154,7 @@ public partial class PanelWindow : Window
     private bool _aiUsageWasOpen;
     private bool _updatesWasOpen;
     private bool _removableWasOpen;
+    private bool _systemWasOpen;
 
     protected override void OnPreviewMouseDown(System.Windows.Input.MouseButtonEventArgs e)
     {
@@ -161,6 +168,7 @@ public partial class PanelWindow : Window
         _aiUsageWasOpen = AiUsagePopup.IsOpen;
         _updatesWasOpen = UpdatesPopup.IsOpen;
         _removableWasOpen = RemovablePopup.IsOpen;
+        _systemWasOpen = SystemPopup.IsOpen;
 
         base.OnPreviewMouseDown(e);
     }
@@ -234,6 +242,7 @@ public partial class PanelWindow : Window
         ("bandeja",         "Ícones da bandeja"),
         ("midia",           "Música — o que está tocando"),
         ("midia-controles", "Música — controles"),
+        ("sistema",         "CPU e memória"),
         ("bateria",         "Bateria"),
         ("wifi",            "Wi-Fi"),
         ("bluetooth",       "Bluetooth"),
@@ -306,6 +315,114 @@ public partial class PanelWindow : Window
     private void OnPanelConfigChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
         if (e.PropertyName is nameof(DockConfig.PanelOrder)) ApplyPanelOrder();
+
+        // ligar ou desligar a rolagem vale na hora, com a música que já está tocando
+        if (e.PropertyName is nameof(DockConfig.PanelMediaTicker)) UpdateMediaTicker();
+    }
+
+    private void OnModelChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName is nameof(PanelModel.Media)) UpdateMediaTicker();
+    }
+
+    // ── o nome da faixa rolando ──────────────────────────────
+
+    /// <summary>O texto e o estado da última vez — para não recomeçar a rolagem à toa.</summary>
+    private string _tickerText = "";
+    private bool _tickerPlaying;
+
+    /// <summary>
+    /// Faz o nome da faixa rolar quando ele não cabe no espaço da barra.
+    ///
+    /// A conta não pode sair do XAML. Um <c>TextBlock</c> com <c>MaxWidth</c> é arranjado no
+    /// tamanho da moldura e trunca ali dentro — para o texto poder andar, ele precisa ser
+    /// arranjado no tamanho inteiro e ser a <b>moldura</b> quem recorta. Daí a largura
+    /// explícita: sem ela, o texto rolaria mostrando sempre as mesmas reticências.
+    ///
+    /// <para>A medida vem de um <c>FormattedText</c>, e não de um <c>Measure</c> na marra: medir
+    /// um elemento que já está na árvore, fora da passada de layout do WPF, é pedir para o
+    /// próximo arranjo usar um tamanho que ninguém pediu.</para>
+    ///
+    /// <para>Rola só o que precisa e só enquanto toca: texto que cabe fica parado, e em pausa
+    /// a animação para — movimento na barra o tempo todo, sem nada acontecendo, é o tipo de
+    /// coisa que cansa quem está trabalhando ao lado dela.</para>
+    /// </summary>
+    private void UpdateMediaTicker()
+    {
+        var texto = _model.Media.Summary ?? "";
+        var tocando = _model.Media.IsPlaying;
+
+        // o mesmo texto no mesmo estado não recomeça a rolagem: a mídia avisa mudança
+        // também quando só a posição da faixa andou, e sem isto o nome voltaria ao começo
+        // a cada aviso, sem nunca chegar ao fim
+        if (texto == _tickerText && tocando == _tickerPlaying) return;
+
+        _tickerText = texto;
+        _tickerPlaying = tocando;
+
+        MediaSlide.BeginAnimation(TranslateTransform.XProperty, null);
+        MediaSlide.X = 0;
+        MediaText.Width = double.NaN;   // de volta ao automático: as reticências do WPF voltam a valer
+
+        if (!_config.PanelMediaTicker || texto.Length == 0) return;
+
+        var cabe = MediaClip.MaxWidth;
+        var inteiro = TextWidth(texto);
+        if (inteiro <= cabe + 0.5) return;
+
+        MediaText.Width = inteiro;
+        if (!tocando) return;
+
+        // Dois segundos parado em cada ponta, e a volta rápida. Ler o começo é o mais
+        // importante — é o nome da faixa —, então ele fica parado tempo de ser lido antes de
+        // qualquer movimento, e o fim também espera antes de voltar.
+        var sobra = inteiro - cabe;
+        var rolagem = sobra / 28.0;   // 28 px/s: acompanha a leitura sem virar letreiro de loja
+
+        var anda = new System.Windows.Media.Animation.DoubleAnimationUsingKeyFrames
+        {
+            RepeatBehavior = System.Windows.Media.Animation.RepeatBehavior.Forever
+        };
+
+        void Quadro(double valor, double quando) =>
+            anda.KeyFrames.Add(new System.Windows.Media.Animation.LinearDoubleKeyFrame(
+                valor, System.Windows.Media.Animation.KeyTime.FromTimeSpan(TimeSpan.FromSeconds(quando))));
+
+        Quadro(0, 0);
+        Quadro(0, 2);
+        Quadro(-sobra, 2 + rolagem);
+        Quadro(-sobra, 4 + rolagem);
+        Quadro(0, 4.45 + rolagem);
+
+        MediaSlide.BeginAnimation(TranslateTransform.XProperty, anda);
+    }
+
+    /// <summary>Quanto o texto da faixa mede, na fonte em que ele é desenhado.</summary>
+    private double TextWidth(string texto)
+    {
+        var tipo = new Typeface(MediaText.FontFamily, MediaText.FontStyle, MediaText.FontWeight,
+                                MediaText.FontStretch);
+
+        return new FormattedText(texto, System.Globalization.CultureInfo.CurrentCulture,
+                                 FlowDirection.LeftToRight, tipo, MediaText.FontSize,
+                                 Brushes.White, VisualTreeHelper.GetDpi(MediaText).PixelsPerDip).Width;
+    }
+
+    // ── rede e sistema ───────────────────────────────────────
+
+    /// <summary>
+    /// Abre (ou fecha) o cartão de sistema: processador, memória e rede, cada um com o
+    /// último minuto em gráfico.
+    /// </summary>
+    private void OnSystemStats(object sender, RoutedEventArgs e)
+    {
+        var estavaAberto = _systemWasOpen;
+        CloseOpenPanels();
+
+        if (estavaAberto) { WatchOutsideClick(); return; }
+
+        SystemPopup.IsOpen = true;
+        WatchOutsideClick();
     }
 
     // ── brilho ───────────────────────────────────────────────
@@ -474,6 +591,7 @@ public partial class PanelWindow : Window
         yield return AiUsagePopup;
         yield return UpdatesPopup;
         yield return RemovablePopup;
+        yield return SystemPopup;
     }
 
     private bool AnyPopupOpen => AllPopups().Any(p => p.IsOpen);

@@ -217,8 +217,20 @@
             <TextBlock Text="&#x276E;" Foreground="#FF8A8A8A" FontSize="12"
                        VerticalAlignment="Center" Margin="0,0,5,0" />
 
-            <TextBlock Text="{Binding Media.Summary}" Foreground="#FFE8E8EA" FontSize="12"
-                       VerticalAlignment="Center" MaxWidth="220" TextTrimming="CharacterEllipsis" />
+            <!-- O nome da faixa rolando quando nÃ£o cabe: a moldura recorta e quem anda Ã© o
+                 texto dentro dela. A largura e a animaÃ§Ã£o sÃ£o calculadas no cÃ³digo â sÃ³ lÃ¡
+                 se sabe quanto o texto mede de verdade. Veja `UpdateMediaTicker`.
+
+                 Com a opÃ§Ã£o desligada (ou com o texto cabendo), nada disso entra em cena e o
+                 TextBlock volta a ser o de sempre, com as reticÃªncias do WPF. -->
+            <Border x:Name="MediaClip" MaxWidth="220" ClipToBounds="True" VerticalAlignment="Center">
+              <TextBlock x:Name="MediaText" Text="{Binding Media.Summary}" Foreground="#FFE8E8EA"
+                         FontSize="12" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis">
+                <TextBlock.RenderTransform>
+                  <TranslateTransform x:Name="MediaSlide" />
+                </TextBlock.RenderTransform>
+              </TextBlock>
+            </Border>
 
             <TextBlock Text="&#x276F;" Foreground="#FF8A8A8A" FontSize="12"
                        VerticalAlignment="Center" Margin="5,0,0,0" />
@@ -247,6 +259,33 @@
           </Button>
         </StackPanel>
 
+
+        <!-- Sistema: o processador e o pente de memória, com a porcentagem ao lado de cada
+             um. As palavras "CPU" e "RAM" custariam o dobro da largura numa barra que já é
+             disputada, e estes dois desenhos da Segoe são reconhecíveis em 12 px.
+
+             A rede **não** tem item próprio: ela vive no cartão, junto com estes dois. Dois
+             números de velocidade, mudando a cada segundo, ocupavam mais espaço na barra do
+             que qualquer outro item — e são justamente os que só se olha quando se está
+             procurando por eles.
+
+             As larguras são fixas de propósito. O número muda todo segundo, e com largura
+             automática o item — e todos os vizinhos à esquerda dele — pulava de lugar a cada
+             tique. Encostados à direita, os dígitos crescem para dentro do espaço que já
+             estava reservado. Trinta pixels seriam folga: "100%" cabe em 26. -->
+        <Button Tag="sistema" x:Name="SystemButton" Style="{StaticResource ClockButton}"
+                Click="OnSystemStats" ToolTip="{Binding SystemTooltip}" Padding="4,2"
+                Visibility="{Binding HasSystemInfo, Converter={StaticResource BoolToVisible}}">
+          <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+            <ui:GlyphIcon Glyph="&#xE950;" Fill="#FFC8C8CC" Size="11" VerticalAlignment="Center" />
+            <TextBlock Text="{Binding CpuText}" Foreground="#FFE8E8EA" FontSize="11" Width="26"
+                       TextAlignment="Right" VerticalAlignment="Center" Margin="1,0,0,0" />
+            <ui:GlyphIcon Glyph="&#xE964;" Fill="#FFC8C8CC" Size="11" VerticalAlignment="Center"
+                          Margin="5,0,0,0" />
+            <TextBlock Text="{Binding RamText}" Foreground="#FFE8E8EA" FontSize="11" Width="26"
+                       TextAlignment="Right" VerticalAlignment="Center" Margin="1,0,0,0" />
+          </StackPanel>
+        </Button>
 
         <!-- a pilha do Windows: corpo, ponta e o miolo que enche conforme a carga.
              A porcentagem fica na dica do mouse: o desenho ja diz o quanto resta. -->
@@ -963,6 +1002,81 @@
             <!-- Sem controles aqui: eles vivem na barra, a um clique de distância, e repetidos
                  no card só engordavam a caixa. O que o card ainda faz além de informar é a
                  linha do tempo acima, que aceita clique para pular na faixa. -->
+          </StackPanel>
+        </Border>
+      </Popup>
+
+      <!-- O cartão de sistema: o último minuto de cada medida, no mesmo desenho dos outros
+           cartões da barra.
+
+           Um cartão para os dois itens, e não um para cada: rede, processador e memória são
+           a mesma pergunta — "o que esta máquina está fazendo agora" —, e quem abre por causa
+           de um pico de rede quer ver na mesma hora se a CPU acompanhou. Os dois botões da
+           barra abrem este mesmo cartão. -->
+      <Popup x:Name="SystemPopup" PlacementTarget="{Binding ElementName=SystemButton}"
+             Placement="Bottom" VerticalOffset="6" HorizontalOffset="-8"
+             StaysOpen="True" AllowsTransparency="True" PopupAnimation="Fade">
+        <Border Background="#F7242424" BorderBrush="#2EFFFFFF" BorderThickness="1"
+                CornerRadius="10" Padding="16,14" Margin="10">
+          <Border.Effect>
+            <DropShadowEffect BlurRadius="20" ShadowDepth="5" Opacity="0.55" Color="Black" />
+          </Border.Effect>
+          <StackPanel Width="280">
+
+            <Grid Margin="0,0,0,12">
+              <StackPanel Orientation="Horizontal">
+                <ui:GlyphIcon Glyph="&#xE9D2;" Fill="#FFF2F2F2" Size="16"
+                              VerticalAlignment="Center" Margin="0,0,10,0" />
+                <TextBlock Text="Sistema" Foreground="#FFF2F2F2" FontSize="14"
+                           FontWeight="SemiBold" VerticalAlignment="Center" />
+              </StackPanel>
+              <TextBlock Text="último minuto" HorizontalAlignment="Right" VerticalAlignment="Center"
+                         Foreground="#FF9D9D9D" FontSize="11" />
+            </Grid>
+
+            <!-- Quatro linhas iguais: nome à esquerda, valor à direita, gráfico embaixo.
+                 CPU e memória têm o teto fixo em 100 — sem isso, uma máquina parada
+                 desenharia o ruído de 2% como se fosse uma montanha. A rede não tem teto
+                 conhecido, então a escala dela é o maior valor do próprio minuto. -->
+            <Grid Margin="0,0,0,10">
+              <TextBlock Text="Processador" Foreground="#FFD8D8DA" FontSize="12" />
+              <TextBlock Text="{Binding CpuText}" HorizontalAlignment="Right"
+                         Foreground="#FF9D9D9D" FontSize="12" />
+            </Grid>
+            <ui:Sparkline Values="{Binding CpuHistory}" Maximum="100" Height="34"
+                          Stroke="#FF6CB6FF" Margin="0,0,0,14" />
+
+            <Grid Margin="0,0,0,10">
+              <TextBlock Text="Memória" Foreground="#FFD8D8DA" FontSize="12" />
+              <TextBlock Text="{Binding RamText}" HorizontalAlignment="Right"
+                         Foreground="#FF9D9D9D" FontSize="12" />
+            </Grid>
+            <ui:Sparkline Values="{Binding RamHistory}" Maximum="100" Height="34"
+                          Stroke="#FFB08AE8" Margin="0,0,0,14" />
+
+            <Grid Margin="0,0,0,10">
+              <StackPanel Orientation="Horizontal">
+                <ui:GlyphIcon Glyph="&#xE896;" Fill="#FF7FD18B" Size="11" VerticalAlignment="Center"
+                              Margin="0,0,6,0" />
+                <TextBlock Text="Recebendo" Foreground="#FFD8D8DA" FontSize="12" />
+              </StackPanel>
+              <TextBlock Text="{Binding NetDown}" HorizontalAlignment="Right"
+                         Foreground="#FF9D9D9D" FontSize="12" />
+            </Grid>
+            <ui:Sparkline Values="{Binding DownHistory}" Height="34"
+                          Stroke="#FF7FD18B" Margin="0,0,0,14" />
+
+            <Grid Margin="0,0,0,10">
+              <StackPanel Orientation="Horizontal">
+                <ui:GlyphIcon Glyph="&#xE898;" Fill="#FF7FB2F0" Size="11" VerticalAlignment="Center"
+                              Margin="0,0,6,0" />
+                <TextBlock Text="Enviando" Foreground="#FFD8D8DA" FontSize="12" />
+              </StackPanel>
+              <TextBlock Text="{Binding NetUp}" HorizontalAlignment="Right"
+                         Foreground="#FF9D9D9D" FontSize="12" />
+            </Grid>
+            <ui:Sparkline Values="{Binding UpHistory}" Height="34" Stroke="#FF7FB2F0" />
+
           </StackPanel>
         </Border>
       </Popup>

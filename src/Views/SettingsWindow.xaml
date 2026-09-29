@@ -602,6 +602,25 @@
           </Grid>
         </Border>
 
+        <!-- só faz sentido com a barra de mídia ligada, e some junto com ela -->
+        <Border Style="{StaticResource FluentCardBorderStyle}"
+                Visibility="{Binding PanelMedia, Converter={StaticResource BoolToVisible}}">
+          <Grid>
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="*" />
+              <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <StackPanel VerticalAlignment="Center">
+              <TextBlock Text="Rolar o nome da faixa" Style="{StaticResource FluentTitle}" />
+              <TextBlock Text="Nome comprido demais para a barra passa rolando, em vez de terminar em reticências. Rola só o que não cabe, e só enquanto está tocando — em pausa, para."
+                         Style="{StaticResource FluentCaption}" TextWrapping="Wrap" />
+            </StackPanel>
+            <CheckBox Grid.Column="1" Style="{StaticResource FluentToggle}"
+                      AutomationProperties.Name="Rolar o nome da faixa"
+                      IsChecked="{Binding PanelMediaTicker, Mode=TwoWay}" />
+          </Grid>
+        </Border>
+
         <Border Style="{StaticResource FluentCardBorderStyle}">
           <Grid>
             <Grid.ColumnDefinitions>
@@ -615,6 +634,23 @@
             </StackPanel>
             <CheckBox Grid.Column="1" Style="{StaticResource FluentToggle}"
                       IsChecked="{Binding PanelBrightness, Mode=TwoWay}" />
+          </Grid>
+        </Border>
+
+        <Border Style="{StaticResource FluentCardBorderStyle}">
+          <Grid>
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="*" />
+              <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <StackPanel VerticalAlignment="Center">
+              <TextBlock Text="CPU e memória" Style="{StaticResource FluentTitle}" />
+              <TextBlock Text="Quanto do processador e da memória estão em uso, em porcentagem. O clique abre o cartão com o último minuto de processador, memória e rede em gráfico. A medida vem do kernel uma vez por segundo — não pesa na máquina que ela mede."
+                         Style="{StaticResource FluentCaption}" TextWrapping="Wrap" />
+            </StackPanel>
+            <CheckBox Grid.Column="1" Style="{StaticResource FluentToggle}"
+                      AutomationProperties.Name="CPU e memória"
+                      IsChecked="{Binding PanelSystem, Mode=TwoWay}" />
           </Grid>
         </Border>
 
