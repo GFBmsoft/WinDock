@@ -198,9 +198,11 @@ tentar imitar o que o Windows já faz bem:
   saber que ele continua lá;
 - **cota de IA** (desligada por padrão): quanto da cota do Claude já foi usada, em cápsulas por
   janela — a de 5 horas, a semanal e as que houver por modelo —, com quem está logado no topo
-  (nome, conta, organização e plano, lidos do `.claude.json`). **Uma conta por bloco,
-  empilhadas**: o Claude Code usa uma conta por vez, mas o `CLAUDE_CONFIG_DIR` permite dar a cada
-  uma a sua pasta, e quem tem a conta pessoal e a da empresa quer ver as duas. O serviço acha as
+  (nome, conta, organização e plano, lidos do `.claude.json`). **O robô na barra muda de cor**
+  pelo medidor mais cheio de todas as contas: âmbar a partir de 60%, vermelho a partir de 90%.
+  **Uma conta por bloco, empilhadas**: o Claude Code usa uma conta por vez, mas o
+  `CLAUDE_CONFIG_DIR` permite dar a cada uma a sua pasta, e quem tem a conta pessoal e a da
+  empresa quer ver as duas. O serviço acha as
   pastas sozinho (`%USERPROFILE%\.claude*` com credencial dentro, mais a que a variável apontar) e
   lê todas em paralelo — enfileirá-las faria o cartão de duas contas demorar o dobro do de uma.
   Qual acompanhar é escolhido nas Configurações; lista vazia quer dizer **todas**, que é o que faz

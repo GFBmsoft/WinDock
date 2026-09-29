@@ -353,6 +353,12 @@ Quanto da sua cota do Claude já foi usada — a janela de **5 horas**, a de **7
 houver por modelo —, cada uma com o quanto falta para zerar. É o mesmo número que o `/usage` do
 Claude Code mostra.
 
+**O robô na barra muda de cor** conforme o medidor mais cheio de todas as contas: branco
+enquanto sobra, **âmbar a partir de 60%** e **vermelho a partir de 90%**. Vale o mais cheio, e
+não a janela de 5 horas que a dica do mouse mostra — qualquer uma que estoure interrompe o
+trabalho do mesmo jeito. Sem leitura nenhuma ele fica branco: "não sei" não é motivo para
+alarme, e o cartão, a um clique, diz o que houve.
+
 No topo de cada bloco fica **de quem é essa cota**: o nome, a conta, a organização e o papel nela
 quando houver, e o plano na cápsula à direita. Nome, e-mail e organização saem do `.claude.json`,
 o arquivo onde o Claude Code guarda quem está logado; o plano vem da credencial.

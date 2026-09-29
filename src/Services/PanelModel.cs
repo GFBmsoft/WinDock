@@ -1205,6 +1205,7 @@ public sealed class PanelModel : INotifyPropertyChanged, IDisposable
             OnChanged(nameof(AiCards));
             OnChanged(nameof(AiTooltip));
             OnChanged(nameof(HasAiReading));
+            OnChanged(nameof(AiBrush));
         }
     }
 
@@ -1228,6 +1229,47 @@ public sealed class PanelModel : INotifyPropertyChanged, IDisposable
 
             return leituras.Select((c, i) => new AiCard(c, i == 0)).ToList();
         }
+    }
+
+    /// <summary>
+    /// A cor do robô na barra: branco enquanto sobra, âmbar a partir de 60%, vermelho a
+    /// partir de 90%.
+    ///
+    /// Vale <b>o medidor mais cheio de todas as contas</b>, e não o de cinco horas que a dica
+    /// do mouse mostra: qualquer janela que estourar interrompe o trabalho do mesmo jeito, e
+    /// um ícone branco com a semana em 95% seria um aviso que chega quando não dá mais para
+    /// fazer nada com ele.
+    ///
+    /// Sem leitura nenhuma o robô fica branco — "não sei" não é "está tudo bem", mas pintar
+    /// de vermelho o que não se sabe é pior: o cartão, a um clique, é quem diz o que houve.
+    /// </summary>
+    public Brush AiBrush
+    {
+        get
+        {
+            var cheio = AiCards.SelectMany(c => c.Gauges)
+                               .Select(g => g.Percent)
+                               .DefaultIfEmpty(0)
+                               .Max();
+
+            return cheio >= 90 ? AiFim : cheio >= 60 ? AiAtencao : AiCalmo;
+        }
+    }
+
+    /// <summary>
+    /// As cores do medidor de cota — as mesmas do <c>UsageBrush</c>, que pinta as barras do
+    /// cartão —, menos o azul: na barra, "normal" é a cor dos outros ícones, senão o robô
+    /// viveria destacado do resto como se sempre houvesse algo a dizer.
+    /// </summary>
+    private static readonly Brush AiCalmo = Congelado(0xF2, 0xF2, 0xF2);
+    private static readonly Brush AiAtencao = Congelado(0xFF, 0xB9, 0x00);
+    private static readonly Brush AiFim = Congelado(0xFF, 0x60, 0x5C);
+
+    private static Brush Congelado(byte r, byte g, byte b)
+    {
+        var brush = new SolidColorBrush(Color.FromRgb(r, g, b));
+        brush.Freeze();
+        return brush;
     }
 
     /// <summary>

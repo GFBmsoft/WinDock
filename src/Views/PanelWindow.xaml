@@ -353,7 +353,10 @@
         <Button Tag="cotaIa" x:Name="AiUsageButton" Style="{StaticResource PanelButton}"
                 Click="OnAiUsage" ToolTip="{Binding AiTooltip}"
                 Visibility="{Binding HasAiUsage, Converter={StaticResource BoolToVisible}}">
-          <ui:GlyphIcon Glyph="{Binding AiGlyph}" Fill="#FFF2F2F2" Size="15" VerticalAlignment="Center" />
+          <!-- a cor segue o medidor mais cheio: branco enquanto sobra, âmbar a partir de 60%,
+               vermelho a partir de 90% — veja `PanelModel.AiBrush` -->
+          <ui:GlyphIcon Glyph="{Binding AiGlyph}" Fill="{Binding AiBrush}" Size="15"
+                        VerticalAlignment="Center" />
         </Button>
 
         <!-- a roda do mouse sobe e desce o volume, como na barra do Windows -->
