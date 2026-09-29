@@ -681,17 +681,41 @@ public partial class PanelWindow : Window
     }
 
     /// <summary>
-    /// Abre um terminal com o <c>winget upgrade --all</c> — e para por aí.
+    /// Atualiza tudo pelo winget, sem janela, com o cartão aberto mostrando o andamento.
     ///
-    /// A dock não instala nada sozinha: a atualização faz perguntas, pede elevação e pode fechar
-    /// programas abertos. Quem dá o Enter é a pessoa, vendo o que vai acontecer.
+    /// O cartão **não** se fecha aqui, ao contrário do botão do Windows Update: agora é ele que
+    /// conta como está indo e o que deu errado — era o terminal que fazia isso antes.
     /// </summary>
-    private void OnWingetUpgradeAll(object sender, RoutedEventArgs e)
+    private void OnWingetUpgradeAll(object sender, RoutedEventArgs e) => _model.UpgradeWinget();
+
+    /// <summary>
+    /// Atualiza um pacote só — os que o <c>--all</c> pula, por exigirem alvo explícito.
+    /// </summary>
+    private void OnWingetUpgradeOne(object sender, RoutedEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.Tag is string id) _model.UpgradeWinget(id);
+    }
+
+    /// <summary>
+    /// A saída para quando a atualização silenciosa falha: o terminal, com o processo à vista.
+    /// </summary>
+    private void OnWingetTerminal(object sender, RoutedEventArgs e)
     {
         CloseAllPopups();
-        UpdatesService.UpgradeAll();
+        UpdatesService.UpgradeAllInTerminal();
         _model.RecheckUpdatesSoon();
     }
+
+    /// <summary>
+    /// Para de avisar sobre um pacote do winget. O cartão fica aberto de propósito: a linha some
+    /// dali na mesma hora, e ver isso acontecer é o que diz que o clique fez alguma coisa.
+    /// </summary>
+    private void OnSilenceWinget(object sender, RoutedEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.Tag is string key) _model.SilenceWinget(key);
+    }
+
+    private void OnUnsilenceWinget(object sender, RoutedEventArgs e) => _model.UnsilenceWingetAll();
 
     /// <summary>
     /// Abre o cartão da cota e manda reler.

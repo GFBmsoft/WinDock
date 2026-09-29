@@ -775,6 +775,12 @@ public sealed class PanelModel : INotifyPropertyChanged, IDisposable
             OnChanged(nameof(HasWingetUpdates));
             OnChanged(nameof(WindowsUpdatesText));
             OnChanged(nameof(UpdatesReadAt));
+            OnChanged(nameof(WingetUpdates));
+            OnChanged(nameof(WingetSilenced));
+            OnChanged(nameof(HasWingetSilenced));
+            OnChanged(nameof(WingetSilencedCount));
+            OnChanged(nameof(WingetSilencedText));
+            OnChanged(nameof(HasWingetUpgradeAll));
         }
     }
 
@@ -810,6 +816,53 @@ public sealed class PanelModel : INotifyPropertyChanged, IDisposable
     public IReadOnlyList<WingetPackage> WingetUpdates => _updates.Winget;
 
     /// <summary>
+    /// Se o botão "Atualizar tudo pelo winget" tem o que fazer.
+    ///
+    /// Some quando tudo o que está na lista exige alvo explícito — caso real desta máquina, com o
+    /// Discord sozinho ali. O botão continuaria clicável, o terminal abriria, o winget diria que
+    /// não há nada a fazer, e a promessa do cartão teria sido falsa. Cada pacote desses tem o seu
+    /// próprio "Atualizar" na linha.
+    /// </summary>
+    public bool HasWingetUpgradeAll => _updates.Winget.Any(p => !p.Explicit);
+
+    /// <summary>Os que a pessoa mandou calar e continuam sendo oferecidos — fora da conta do ícone.</summary>
+    public IReadOnlyList<WingetPackage> WingetSilenced => _updates.Silenced;
+    public bool HasWingetSilenced => _updates.Silenced.Count > 0;
+    public int WingetSilencedCount => _updates.Silenced.Count;
+
+    /// <summary>
+    /// Para de avisar sobre um pacote do winget.
+    ///
+    /// Vale para o pacote, não para a versão: o que incomoda é a oferta que nunca se resolve, e ela
+    /// volta com número novo a cada semana. A lista some do cartão na hora, sem nova consulta — a
+    /// resposta já está na mão, e o que mudou foi só de que lado da linha o pacote está.
+    /// </summary>
+    public void SilenceWinget(string key)
+    {
+        if (key.Length == 0) return;
+
+        if (!_config.UpdatesSilenced.Contains(key, StringComparer.OrdinalIgnoreCase))
+            _config.UpdatesSilenced.Add(key);
+
+        _config.Save();
+        Log.Write($"atualizações: {key} silenciado no winget");
+        Updates = _updates.WithSilenced(_config.UpdatesSilenced);
+        SchedulePace();
+    }
+
+    /// <summary>Volta a avisar sobre todos — o desfazer do "✕", no mesmo cartão.</summary>
+    public void UnsilenceWingetAll()
+    {
+        if (_config.UpdatesSilenced.Count == 0) return;
+
+        _config.UpdatesSilenced.Clear();
+        _config.Save();
+        Log.Write("atualizações: nenhum pacote do winget silenciado");
+        Updates = _updates.WithSilenced(_config.UpdatesSilenced);
+        SchedulePace();
+    }
+
+    /// <summary>
     /// Uma consulta está em curso.
     ///
     /// Existe por causa do "Conferir agora": a busca do Windows Update leva uns doze segundos, e um
@@ -837,14 +890,18 @@ public sealed class PanelModel : INotifyPropertyChanged, IDisposable
     public string UpdatesError => _updates.Error ?? string.Empty;
     public bool HasUpdatesError => _updates.Failed;
 
-    public string UpdatesReadAt => _updatesChecking
-        ? "conferindo…"
-        : _updates.When > DateTime.MinValue ? $"conferido às {_updates.When:HH:mm}" : string.Empty;
+    public string UpdatesReadAt => _updatesUpgrading
+        ? "atualizando…"
+        : _updatesChecking
+          ? "conferindo…"
+          : _updates.When > DateTime.MinValue ? $"conferido às {_updates.When:HH:mm}" : string.Empty;
 
     public string UpdatesTooltip
     {
         get
         {
+            if (_updatesUpgrading) return "Atualizando pelo winget…";
+
             if (!_updates.Any)
                 return _updates.When > DateTime.MinValue
                        ? $"Nada para atualizar\n{UpdatesReadAt}"
@@ -863,11 +920,23 @@ public sealed class PanelModel : INotifyPropertyChanged, IDisposable
     /// "Nada para atualizar" sozinho é ambíguo: pode ser que não haja mesmo, ou que a dock não
     /// tenha olhado. Nomear as duas fontes, com a hora da conferência embaixo, responde isso.
     /// </summary>
-    public string UpdatesEmptyText => _updatesChecking
+    public string UpdatesEmptyText => _updatesUpgrading
+        ? "Atualizando pelo winget — isto pode levar alguns minutos."
+        : _updatesChecking
         ? "Perguntando ao Windows Update e ao winget…"
         : UpdatesService.HasWinget
           ? "Nada esperando no Windows Update nem no winget."
           : "Nada esperando no Windows Update. (O winget não está instalado nesta máquina.)";
+
+    /// <summary>
+    /// O rodapé que conta quantos pacotes estão calados.
+    ///
+    /// Aparece mesmo quando não há mais nada esperando, e é de propósito: silêncio que não se vê
+    /// vira esquecimento, e a pessoa fica sem saber que a dock está deixando de contar alguma coisa.
+    /// </summary>
+    public string WingetSilencedText => WingetSilencedCount == 1
+        ? "1 pacote silenciado — voltar a avisar"
+        : $"{WingetSilencedCount} pacotes silenciados — voltar a avisar";
 
     /// <summary>
     /// Começa a conferir o que há para atualizar.
@@ -910,13 +979,21 @@ public sealed class PanelModel : INotifyPropertyChanged, IDisposable
             // Primeiro a pergunta rápida, do cache do agente: em ~3 s a tela já mostra algo. Ela é
             // a resposta **certa** no caso que mais incomoda — logo depois de instalar, quando o
             // agente já sabe o que sumiu e o ícone precisa apagar sem esperar doze segundos.
-            var rapido = await UpdatesService.ReadAsync(online: false).ConfigureAwait(false);
+            var calados = _config.UpdatesSilenced.ToList();
+
+            var rapido = await UpdatesService.ReadAsync(online: false, silenced: calados)
+                                             .ConfigureAwait(false);
             await _dispatcher.InvokeAsync(() => Updates = rapido);
 
             // Depois a busca de verdade, que é a única capaz de descobrir o que ainda não se sabe.
             // O winget não é perguntado de novo: é um processo de console, e a lista dele não muda
             // nos doze segundos entre as duas fases.
-            var completo = await UpdatesService.ReadAsync(online: true, rapido.Winget).ConfigureAwait(false);
+            // a lista inteira, e não só a visível: quem está calado continua sendo contado do outro
+            // lado da linha, e some do cartão se a pessoa mandar avisar de novo
+            var doWinget = rapido.Winget.Concat(rapido.Silenced).ToList();
+
+            var completo = await UpdatesService.ReadAsync(online: true, doWinget, calados)
+                                               .ConfigureAwait(false);
             await _dispatcher.InvokeAsync(() =>
             {
                 UpdatesChecking = false;
@@ -967,6 +1044,73 @@ public sealed class PanelModel : INotifyPropertyChanged, IDisposable
         }
 
         Log.Trace("atualizações: reconferência agendada para daqui a 2 e 10 min");
+    }
+
+    private bool _updatesUpgrading;
+    /// <summary>
+    /// O winget está instalando agora, chamado pela dock.
+    /// </summary>
+    public bool UpdatesUpgrading
+    {
+        get => _updatesUpgrading;
+        private set
+        {
+            if (!Set(ref _updatesUpgrading, value)) return;
+            OnChanged(nameof(UpdatesIdle));
+            OnChanged(nameof(UpdatesTooltip));
+            OnChanged(nameof(UpdatesEmptyText));
+            OnChanged(nameof(UpdatesReadAt));
+        }
+    }
+
+    /// <summary>Nada em curso: é o que habilita os botões que mexem na máquina.</summary>
+    public bool UpdatesIdle => !_updatesUpgrading;
+
+    private string _upgradeError = string.Empty;
+    /// <summary>
+    /// O que o winget disse quando a atualização não deu certo.
+    ///
+    /// Sem terminal, esta linha é **a única** notícia do fracasso — antes ela ficava na janela que
+    /// a pessoa fechava. Vem com o botão de abrir o terminal ao lado, que é onde um instalador
+    /// teimoso pode ser respondido.
+    /// </summary>
+    public string UpgradeError
+    {
+        get => _upgradeError;
+        private set { if (Set(ref _upgradeError, value)) OnChanged(nameof(HasUpgradeError)); }
+    }
+
+    public bool HasUpgradeError => _upgradeError.Length > 0;
+
+    /// <summary>
+    /// Manda o winget atualizar — tudo, ou um pacote só — sem abrir janela, e confere ao terminar.
+    ///
+    /// O "ao terminar" é o motivo de existir: com o terminal, a dock não tinha como saber que a
+    /// atualização acabou, e o ícone ficava aceso até a reconferência de dois minutos. Quem usava
+    /// clicava em "Conferir agora" para limpá-lo — ou seja, fazia à mão o que a dock devia saber
+    /// sozinha. Rodando aqui dentro, o fim do processo **é** o aviso.
+    /// </summary>
+    public void UpgradeWinget(string? id = null)
+    {
+        if (_updatesUpgrading) return;
+
+        UpdatesUpgrading = true;
+        UpgradeError = string.Empty;
+
+        _ = Task.Run(async () =>
+        {
+            var erro = await UpdatesService.UpgradeAsync(id).ConfigureAwait(false);
+
+            await _dispatcher.InvokeAsync(() =>
+            {
+                UpdatesUpgrading = false;
+                UpgradeError = erro ?? string.Empty;
+
+                // a conferência sai agora, e não daqui a dois minutos: o winget acabou de devolver
+                // o controle, e o cache do agente já sabe o que sumiu
+                RefreshUpdates();
+            });
+        });
     }
 
     // ── cota de IA ──────────────────────────────────────────

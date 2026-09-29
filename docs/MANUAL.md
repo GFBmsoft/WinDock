@@ -383,16 +383,36 @@ O cartão junta duas fontes:
 - **winget** — os programas com versão nova, um por linha, com a versão de agora e a que vem. Só
   aparece se o winget existir na máquina.
 
-**A dock não instala nada.** O botão **Atualizar tudo pelo winget** abre um terminal com o comando
-`winget upgrade --all` pronto — quem dá o `Enter` é você. É de propósito: a atualização faz
-perguntas, pede elevação e pode fechar programas abertos, e nada disso deve acontecer às escuras
-por conta de um clique numa barra.
+**O pacote que nunca atualiza.** Há programa que o winget oferece e que nenhuma atualização
+resolve: o Discord é o caso desta máquina — ele se atualiza sozinho, por fora, e o número que fica
+registrado não é o que o winget espera. A oferta volta todo dia, e um ícone que acende sempre
+deixa de avisar. Duas coisas tratam isso:
+
+- o **✕** que aparece ao passar o mouse na linha **para de avisar sobre aquele pacote** — ele sai
+  da conta do ícone e passa a figurar no rodapé, em "*1 pacote silenciado — voltar a avisar*", que
+  é o desfazer, no mesmo lugar. O silêncio é do pacote, e não da versão: senão o barulho voltaria a
+  cada número novo, que é justamente o que se está calando;
+- o botão **Atualizar** ao lado da versão aparece nos pacotes que o winget lista numa segunda
+  tabela, sob "*exigem uma segmentação explícita para atualização*" — esses o **Atualizar tudo**
+  não toca, e por isso ganham comando próprio. Quando só restam desses, o **Atualizar tudo** some:
+  ele não teria o que fazer.
+
+**Atualizar não abre janela.** **Atualizar tudo pelo winget** — e o **Atualizar** de cada linha —
+roda o winget em segundo plano, sem terminal: o rodapé do cartão passa a dizer "*atualizando…*",
+os botões ficam desabilitados enquanto isso, e **quando termina a conferência sai na hora**, com o
+ícone apagando sozinho. Era esse o motivo da mudança: com o terminal, a dock não tinha como saber
+que a atualização acabou, e sobrava para você clicar em "Conferir agora" para limpar o ícone.
+
+Se alguma coisa falhar, a frase do winget aparece no cartão, em âmbar, com **Tentar num terminal**
+ao lado — é a saída para o instalador teimoso, que insiste em abrir o assistente dele ou em
+perguntar algo. A dock continua sem instalar nada por conta própria: ela só faz o que um clique
+seu mandou fazer.
 
 A conferência é feita **de três em três horas** quando está tudo em dia, e **de vinte em vinte
 minutos enquanto há algo esperando** — porque esse é o estado que muda pelas suas mãos, e logo
-depois. Além disso, clicar em **Abrir** ou em **Atualizar tudo pelo winget** agenda duas
-reconferências, dois e dez minutos depois: é a dock aproveitando a melhor pista que ela tem de que
-você foi mexer nisso.
+depois. Clicar em **Abrir**, no Windows Update, agenda duas reconferências, dois e dez minutos
+depois: ali a instalação acontece numa tela que não é da dock, e essas duas voltas são a melhor
+pista que ela tem de que você foi mexer nisso.
 
 A hora da última fica no rodapé do cartão. Abrir o cartão não refaz a consulta — ela mudaria de
 tamanho debaixo do mouse. Quando quiser a resposta na hora, **Conferir agora** refaz as duas

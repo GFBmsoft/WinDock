@@ -55,8 +55,9 @@ os pixels reservados e a área de trabalho volta ao tamanho normal.
   **tarefas por dia** — cada uma num balão, com hora e **aviso na hora marcada** — e edição do
   texto no lugar
 - **Atualizações esperando**, do Windows Update e do winget, num ícone que acende com o número
-  quando há alguma e fica apagado quando está tudo em dia; a dock mostra e leva ao lugar certo,
-  mas não instala nada
+  quando há alguma e fica apagado quando está tudo em dia. O winget é atualizado pela própria dock,
+  sem terminal, e o ícone apaga assim que ele termina; o Windows Update abre na tela dele, que é
+  onde essas se instalam
 - **Mosaico** (tiling): as janelas de cada monitor lado a lado, sem sobreposição, com atalhos para
   foco, troca de lugar, redimensionar, flutuar e prender acima das outras
 - **Apps da Store** que continuam abrindo e com o ícone certo depois de o app se atualizar
@@ -165,7 +166,11 @@ tentar imitar o que o Windows já faz bem:
 - **atualizações esperando**, do Windows Update (pela automação COM do agente, com a busca online —
   a mesma da tela de configurações) e do `winget upgrade`. A tabela do winget é texto traduzido, então
   é lida pelas posições das colunas do próprio cabeçalho, e não pelos títulos — `tests/WingetCheck`
-  confere isso sem depender de haver atualização pendente na máquina;
+  confere isso sem depender de haver atualização pendente na máquina. São **duas** tabelas: a
+  segunda, sob a frase terminada em dois-pontos, é a dos pacotes que o `upgrade --all` não toca, e
+  vem marcada — eles ganham um **Atualizar** próprio na linha. E qualquer pacote pode ser
+  **silenciado** pelo ✕ da linha, porque há programa que o winget oferece e nunca atualiza (o
+  Discord, que se atualiza sozinho por fora);
 - **brilho** do monitor por DDC/CI (`dxva2.dll`), com a roda do mouse sobre o ícone;
 - **remoção segura** de pen-drive, cartão e HD externo, com **Abrir** ao lado para chegar na pasta
   sem passar pelo Explorer. O ícone **só existe enquanto houver o que remover** — é o mesmo

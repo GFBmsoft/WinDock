@@ -83,6 +83,81 @@ var curta = UpdatesService.Parse(string.Join("\r\n",
     ""));
 Check("linha sem a coluna 'disponível' é descartada", curta.Count == 0, $"vieram {curta.Count}");
 
+// ── os que exigem alvo explícito ────────────────────────────
+//
+// O winget imprime uma segunda tabela, sob uma frase terminada em dois-pontos, com os pacotes que
+// o "upgrade --all" não atualiza. Esta é a saída de verdade desta máquina em 29/09/2026: sem
+// tabela normal nenhuma, só a segunda — o Discord, que se atualiza sozinho por fora e por isso
+// nunca sai dali. Lido como tabela normal, ele virava uma oferta que o botão "Atualizar tudo"
+// prometia resolver e nunca resolvia.
+
+var soTeimoso = UpdatesService.Parse(string.Join("\r\n",
+    "Nenhum pacote instalado foi encontrado que corresponda aos critérios de entrada.",
+    "",
+    "Os pacotes a seguir têm uma atualização disponível, mas exigem uma segmentação explícita para atualização:",
+    "Nome    ID              Versão   Disponível Origem",
+    "--------------------------------------------------",
+    "Discord Discord.Discord 1.0.9259 1.0.9260   winget",
+    ""));
+Check("a tabela dos que exigem alvo explícito é lida", soTeimoso.Count == 1, $"vieram {soTeimoso.Count}");
+Check("e vem marcada como tal", soTeimoso.Count == 1 && soTeimoso[0].Explicit,
+      soTeimoso.Count == 1 ? "veio como pacote comum" : "");
+
+// ── as duas tabelas juntas ──────────────────────────────────
+//
+// O caso completo: a lista normal primeiro, o resumo, e depois a dos teimosos. Antes a leitura
+// parava na primeira linha em branco, e os de baixo nem apareciam no cartão.
+
+var duas = UpdatesService.Parse(string.Join("\r\n",
+    "Nome                 ID                        Versão      Disponível   Origem",
+    "----------------------------------------------------------------------------------",
+    "Git                  Git.Git                   2.45.1      2.47.0       winget",
+    "",
+    "1 atualizações disponíveis.",
+    "Os pacotes a seguir têm uma atualização disponível, mas exigem uma segmentação explícita para atualização:",
+    "Nome    ID              Versão   Disponível Origem",
+    "--------------------------------------------------",
+    "Discord Discord.Discord 1.0.9259 1.0.9260   winget",
+    ""));
+Check("as duas tabelas entram na lista", duas.Count == 2, $"vieram {duas.Count}");
+Check("a de cima não é marcada e a de baixo é",
+      duas.Count == 2 && !duas[0].Explicit && duas[1].Explicit);
+
+// ── o silêncio ──────────────────────────────────────────────
+//
+// Calar é pelo pacote, e não pela versão: o que incomoda é a oferta que nunca se resolve, e ela
+// volta com número novo toda semana. O que fica calado sai da conta do ícone sem sair da vista.
+
+var status = new UpdateStatus(Array.Empty<string>(), duas, DateTime.Now)
+                 .WithSilenced(new[] { "discord.discord" });
+
+Check("o calado sai da conta", status.Total == 1 && !status.Winget.Any(p => p.Id == "Discord.Discord"),
+      $"total {status.Total}");
+Check("mas continua à vista, para poder voltar", status.Silenced.Count == 1);
+Check("e volta inteiro quando se desfaz",
+      status.WithSilenced(Array.Empty<string>()).Total == 2);
+
+// ── a atualização silenciosa, de verdade ────────────────────
+//
+// Só com `dotnet run -- vivo`, porque chama o winget desta máquina. Usa um id que não existe: o
+// winget responde com código diferente de zero e uma frase explicando, que é exatamente o caminho
+// que o cartão precisa mostrar quando uma atualização falha — e nada é instalado nem removido.
+//
+// Este é o caminho que **não** dá para exercitar numa máquina em dia: sem pacote pendente, o botão
+// "Atualizar tudo" nem aparece. Aqui pelo menos o motor é percorrido inteiro: processo iniciado,
+// as duas saídas lidas por evento, código conferido e a última linha virando a frase do cartão.
+
+if (args.Contains("vivo"))
+{
+    Console.WriteLine();
+    Console.WriteLine("── winget de verdade ──");
+
+    var erro = await UpdatesService.UpgradeAsync("Pacote.Que.Nao.Existe");
+    Check("um pacote inexistente volta como erro, e não como sucesso", erro is not null,
+          "voltou nulo, como se tivesse dado certo");
+    Console.WriteLine("    frase do cartão: " + erro);
+}
+
 Console.WriteLine();
 Console.WriteLine(falhas == 0 ? "tudo certo" : $"{falhas} conferência(s) falharam");
 return falhas == 0 ? 0 : 1;

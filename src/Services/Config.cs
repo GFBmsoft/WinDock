@@ -477,6 +477,21 @@ public sealed class DockConfig : INotifyPropertyChanged
     public bool PanelUpdates { get => _panelUpdates; set => Set(ref _panelUpdates, value); }
 
     /// <summary>
+    /// Pacotes do winget que a pessoa mandou calar, pelo id (o nome, quando o pacote não tem id).
+    ///
+    /// Há pacote que o winget oferece e nunca atualiza — o Discord é o exemplo: ele se atualiza
+    /// sozinho, por fora, e a versão que fica registrada não é a que o winget espera encontrar;
+    /// a oferta reaparece na consulta seguinte, e na outra, e o ícone da barra acende todo dia
+    /// por algo que nenhum comando resolve. Um ícone que avisa sempre deixa de avisar.
+    ///
+    /// Silenciar é decisão de quem usa, tomada pacote a pacote no cartão, e reversível ali mesmo.
+    /// Guarda o id, e não a versão, de propósito: calar o Discord é calar o Discord, e não "esta
+    /// versão do Discord" — se fosse por versão, o barulho voltaria a cada número novo, que é
+    /// exatamente o que se está calando.
+    /// </summary>
+    public List<string> UpdatesSilenced { get; set; } = new();
+
+    /// <summary>
     /// Quais contas do Claude Code o cartão acompanha, pelo nome da pasta de cada uma
     /// (".claude", ".claude-bm").
     ///

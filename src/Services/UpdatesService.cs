@@ -4,8 +4,25 @@ using System.Text;
 
 namespace WinDock.Services;
 
-/// <summary>Um pacote do winget com versão nova esperando.</summary>
-public sealed record WingetPackage(string Name, string Id, string Current, string Available);
+/// <summary>
+/// Um pacote do winget com versão nova esperando.
+///
+/// O <see cref="Explicit"/> marca os que o winget lista numa segunda tabela, sob a frase "exigem
+/// uma segmentação explícita para atualização". Esses **não são tocados pelo <c>upgrade --all</c>**
+/// — e é por isso que eles importam: sem essa marca, o cartão prometia resolver com um botão algo
+/// que aquele botão não resolve, e o pacote reaparecia na lista seguinte, para sempre.
+/// </summary>
+public sealed record WingetPackage(string Name, string Id, string Current, string Available,
+                                   bool Explicit = false)
+{
+    /// <summary>Como este pacote é identificado no silêncio. O id quando existe; o nome, se não.</summary>
+    public string Key => Id.Length > 0 ? Id : Name;
+
+    /// <summary>O que o "Atualizar tudo" faz com ele — ou não faz.</summary>
+    public string Hint => Explicit
+        ? "O winget não atualiza este no \"Atualizar tudo\" — precisa de comando próprio"
+        : $"{Name} {Current} → {Available}";
+}
 
 /// <summary>
 /// O que há para atualizar nesta máquina: o que o Windows Update já sabe e o que o winget vê.
@@ -23,8 +40,39 @@ public sealed record UpdateStatus(
     public static readonly UpdateStatus Empty =
         new(Array.Empty<string>(), Array.Empty<WingetPackage>(), DateTime.MinValue);
 
+    /// <summary>
+    /// Os pacotes que a pessoa mandou calar — encontrados, mas fora da conta.
+    ///
+    /// Existem porque há pacote que o winget oferece e nunca atualiza: o Discord anuncia uma versão
+    /// nova, o instalador dele se atualiza sozinho por fora, e o número que fica registrado não é o
+    /// que o winget espera. O ícone então acende todo dia por algo que nenhum comando resolve. Ficam
+    /// guardados aqui, e não jogados fora, para o cartão poder dizer quantos são e devolvê-los.
+    /// </summary>
+    public IReadOnlyList<WingetPackage> Silenced { get; init; } = Array.Empty<WingetPackage>();
+
     public int Total => Windows.Count + Winget.Count;
     public bool Any => Total > 0;
+
+    /// <summary>
+    /// Reparte a lista do winget conforme quem está calado, sem perguntar nada de novo.
+    ///
+    /// É o que faz o "✕" numa linha apagar o ícone no mesmo instante: a consulta custa segundos, a
+    /// resposta já está na mão, e o que mudou foi só de que lado da linha cada pacote está.
+    /// </summary>
+    public UpdateStatus WithSilenced(IReadOnlyCollection<string> keys)
+    {
+        var todos = Winget.Concat(Silenced)
+                          .OrderBy(p => p.Name, StringComparer.CurrentCulture)
+                          .ToList();
+
+        bool Calado(WingetPackage p) => keys.Contains(p.Key, StringComparer.OrdinalIgnoreCase);
+
+        return this with
+        {
+            Winget = todos.Where(p => !Calado(p)).ToList(),
+            Silenced = todos.Where(Calado).ToList()
+        };
+    }
 
     /// <summary>Alguma das duas perguntas não pôde ser feita — o que é diferente de não haver nada.</summary>
     public bool Failed => WindowsError is not null || WingetError is not null;
@@ -61,14 +109,16 @@ public static class UpdatesService
     /// mesma conferência.
     /// </summary>
     public static async Task<UpdateStatus> ReadAsync(bool online = true,
-                                                     IReadOnlyList<WingetPackage>? winget = null)
+                                                     IReadOnlyList<WingetPackage>? winget = null,
+                                                     IReadOnlyCollection<string>? silenced = null)
     {
         var (windows, erroWindows) = await Task.Run(() => ReadWindows(online)).ConfigureAwait(false);
 
         string? erroWinget = null;
         if (winget is null) (winget, erroWinget) = await Task.Run(ReadWinget).ConfigureAwait(false);
 
-        return new UpdateStatus(windows, winget, DateTime.Now, erroWindows, erroWinget);
+        var status = new UpdateStatus(windows, winget, DateTime.Now, erroWindows, erroWinget);
+        return silenced is null || silenced.Count == 0 ? status : status.WithSilenced(silenced);
     }
 
     // ── Windows Update ──────────────────────────────────────
@@ -148,7 +198,9 @@ public static class UpdatesService
             if (saida is null) return (Array.Empty<WingetPackage>(), "o winget demorou demais");
 
             var pacotes = Parse(saida);
-            Log.Trace($"atualizações: winget tem {pacotes.Count}");
+            var teimosos = pacotes.Count(p => p.Explicit);
+            Log.Trace($"atualizações: winget tem {pacotes.Count}" +
+                      (teimosos > 0 ? $" ({teimosos} exigindo alvo explícito)" : string.Empty));
             return (pacotes, null);
         }
         catch (Exception ex)
@@ -170,6 +222,17 @@ public static class UpdatesService
     /// por brancos juntaria os dois num campo só ("Microsoft PowerShell Microsoft.PowerShell").
     /// As posições saem das palavras do próprio cabeçalho, quaisquer que sejam elas — é por isso
     /// que o idioma não entra nesta conta.
+    ///
+    /// **São duas tabelas, e não uma.** Depois da lista normal o winget imprime outra, sob uma
+    /// frase terminada em dois-pontos, com os pacotes que "exigem uma segmentação explícita para
+    /// atualização" — os que o <c>upgrade --all</c> pula. A leitura parava na primeira linha em
+    /// branco, o que dava dois erros de uma vez: quando havia a lista normal, os da segunda tabela
+    /// sumiam do cartão; quando não havia (a máquina em dia, só o Discord teimando), a segunda
+    /// tabela era lida **como se fosse a primeira**, e o cartão oferecia um botão que não ia
+    /// resolvê-la. Agora as duas são lidas, e a de baixo vem marcada.
+    ///
+    /// O que separa uma da outra é os dois-pontos no fim da frase que antecede o cabeçalho — a
+    /// forma da frase é a mesma em qualquer idioma, e o texto dela não entra na conta.
     /// </summary>
     internal static IReadOnlyList<WingetPackage> Parse(string saida)
     {
@@ -178,6 +241,8 @@ public static class UpdatesService
 
         int[]? colunas = null;
         string? cabecalho = null;
+        string? anterior = null;
+        var explicito = false;
 
         foreach (var linha in linhas)
         {
@@ -187,17 +252,28 @@ public static class UpdatesService
                 if (linha.StartsWith("---", StringComparison.Ordinal) && cabecalho is not null)
                 {
                     colunas = Columns(cabecalho);
-                    if (colunas.Length < 4) return pacotes;   // tabela que não é a de upgrade
+                    if (colunas.Length < 4) { colunas = null; cabecalho = null; continue; }
+
+                    var frase = anterior?.Trim() ?? string.Empty;
+                    explicito = frase.Length > 20 && frase.EndsWith(':');
                 }
                 else if (linha.Trim().Length > 0)
                 {
+                    anterior = cabecalho;
                     cabecalho = linha;
                 }
 
                 continue;
             }
 
-            if (linha.Trim().Length == 0) break;   // acabou a tabela; o que vem depois é o resumo
+            // acabou esta tabela. Pode vir outra depois — e é justamente a que interessa marcar
+            if (linha.Trim().Length == 0)
+            {
+                colunas = null;
+                cabecalho = null;
+                anterior = null;
+                continue;
+            }
 
             var nome = Field(linha, colunas, 0);
             var id = Field(linha, colunas, 1);
@@ -206,7 +282,7 @@ public static class UpdatesService
 
             if (nome.Length == 0 || nova.Length == 0) continue;
 
-            pacotes.Add(new WingetPackage(nome, id, atual, nova));
+            pacotes.Add(new WingetPackage(nome, id, atual, nova, explicito));
         }
 
         return pacotes;
@@ -242,17 +318,92 @@ public static class UpdatesService
         Start(new ProcessStartInfo("ms-settings:windowsupdate") { UseShellExecute = true });
 
     /// <summary>
-    /// Abre um terminal com o <c>winget upgrade --all</c> pronto para rodar.
+    /// Atualiza pelo winget sem abrir janela nenhuma, e diz o que aconteceu.
     ///
-    /// Num terminal, e não escondido: a atualização faz perguntas (aceitar um contrato, fechar um
-    /// programa que está aberto), pede elevação em alguns pacotes e pode demorar. Rodar isso sem
-    /// janela seria a dock mexendo na máquina às escuras.
+    /// **Esta classe começou com uma regra: ler, e nunca instalar.** O terminal aberto era a forma
+    /// de a pessoa ver o que ia acontecer e dar o Enter. O que o uso mostrou é que o terminal
+    /// custava mais do que protegia: ele aparece por cima do trabalho, fica aberto depois de
+    /// acabar (o <c>/k</c>), e — o pior — **a dock não sabia quando a atualização terminou**. O
+    /// ícone ficava aceso até a reconferência de dois minutos, e a pessoa acabava clicando em
+    /// "Conferir agora" para limpá-lo. Rodando a atualização aqui dentro, o fim é um evento: a
+    /// conferência sai no mesmo instante em que o winget devolve o controle.
+    ///
+    /// O que sustentava a regra continua valendo em outra forma: a dock **só instala quando alguém
+    /// clica**, o que falhou aparece no cartão em vez de sumir com a janela, e o
+    /// <see cref="UpgradeAllInTerminal"/> continua ali para quando a pessoa quiser ver o processo
+    /// inteiro.
+    ///
+    /// Os sinalizadores não são enfeite: sem <c>--accept-*-agreements</c> e
+    /// <c>--disable-interactivity</c>, o winget para esperando uma resposta que ninguém vai ver, e
+    /// o processo fica pendurado até o prazo estourar. O <c>--silent</c> pede ao instalador de
+    /// cada pacote que não abra o assistente dele — alguns ignoram, e é por isso que o código do
+    /// winget é lido no fim em vez de suposto.
     /// </summary>
-    public static void UpgradeAll()
+    /// <param name="id">Um pacote só, ou nulo para todos.</param>
+    public static async Task<string?> UpgradeAsync(string? id = null)
+    {
+        if (!HasWinget) return "o winget não está instalado nesta máquina";
+
+        if (id is not null && !IsPackageId(id))
+        {
+            Log.Write($"atualizações: id fora do formato esperado, nada foi feito — {id}");
+            return "esse pacote tem um id que não dá para passar ao winget";
+        }
+
+        var alvo = id is null ? "--all" : $"--exact --id {id}";
+        var args = $"upgrade {alvo} --silent --accept-package-agreements " +
+                   "--accept-source-agreements --disable-interactivity";
+
+        Log.Write($"atualizações: winget {args}");
+
+        var (saida, codigo) = await Task.Run(() => RunFull("winget", args, TimeSpan.FromMinutes(30)))
+                                        .ConfigureAwait(false);
+
+        if (codigo == 0)
+        {
+            Log.Write("atualizações: winget terminou sem erro");
+            return null;
+        }
+
+        var motivo = LastLine(saida) ?? $"o winget terminou com o código 0x{codigo:X8}";
+        Log.Write($"atualizações: winget falhou ({codigo}) — {motivo}");
+        return motivo;
+    }
+
+    /// <summary>
+    /// A última linha com conteúdo da saída do winget — é onde ele escreve o que deu errado.
+    ///
+    /// Vale mais do que o número: "o instalador falhou com código de saída 1602" (alguém cancelou)
+    /// e "nenhuma versão aplicável encontrada" são coisas diferentes, e o número sozinho não conta
+    /// nenhuma das duas.
+    /// </summary>
+    private static string? LastLine(string? saida)
+    {
+        if (string.IsNullOrWhiteSpace(saida)) return null;
+
+        var linha = saida.Replace("\r", "").Split('\n')
+                         .LastOrDefault(l => l.Trim().Length > 0)?.Trim();
+
+        return linha is null || linha.Length == 0 ? null
+             : linha.Length <= 160 ? linha : linha[..160] + "…";
+    }
+
+    /// <summary>
+    /// Abre um terminal com o <c>winget upgrade --all</c>, e deixa a janela aberta no fim.
+    ///
+    /// É a saída para quando a atualização silenciosa falha: um instalador que insiste em abrir o
+    /// assistente dele, um pacote que quer uma resposta. Ali a pessoa vê o processo inteiro e
+    /// responde o que for preciso.
+    /// </summary>
+    public static void UpgradeAllInTerminal()
     {
         Log.Write("atualizações: terminal aberto com winget upgrade --all");
         Start(new ProcessStartInfo("cmd.exe", "/k winget upgrade --all") { UseShellExecute = true });
     }
+
+    /// <summary>Um id de pacote do winget, e nada que uma linha de comando leia como comando.</summary>
+    private static bool IsPackageId(string id) =>
+        id.Length > 0 && id.All(c => char.IsLetterOrDigit(c) || c is '.' or '_' or '-' or '+');
 
     private static void Start(ProcessStartInfo info)
     {
@@ -285,6 +436,63 @@ public static class UpdatesService
         }
 
         return saida;
+    }
+
+    /// <summary>
+    /// Roda um programa de console e devolve a saída **e o código**, que é o que diz se deu certo.
+    ///
+    /// As duas saídas são lidas por eventos, e não por <c>ReadToEnd</c> em sequência: uma
+    /// atualização de meia hora enche o buffer de uma delas, o programa para esperando alguém ler,
+    /// e quem está esperando o fim espera para sempre. É o travamento clássico desta API, e aqui
+    /// ele seria a dock inteira dizendo "atualizando…" até o prazo estourar.
+    /// </summary>
+    private static (string Saida, int Codigo) RunFull(string exe, string args, TimeSpan prazo)
+    {
+        var texto = new StringBuilder();
+
+        using var p = new Process();
+        p.StartInfo = new ProcessStartInfo(exe, args)
+        {
+            UseShellExecute = false,
+            CreateNoWindow = true,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            StandardOutputEncoding = Encoding.UTF8,
+            StandardErrorEncoding = Encoding.UTF8
+        };
+
+        void Junta(object _, DataReceivedEventArgs e)
+        {
+            if (e.Data is null) return;
+            lock (texto) texto.AppendLine(e.Data);
+        }
+
+        p.OutputDataReceived += Junta;
+        p.ErrorDataReceived += Junta;
+
+        try
+        {
+            p.Start();
+            p.BeginOutputReadLine();
+            p.BeginErrorReadLine();
+
+            if (!p.WaitForExit((int)prazo.TotalMilliseconds))
+            {
+                try { p.Kill(entireProcessTree: true); } catch { /* já morreu */ }
+                return ("a atualização passou de trinta minutos e foi interrompida", -1);
+            }
+
+            // sem argumento, espera também o fim da leitura das saídas — as últimas linhas, que
+            // são justamente as que contam o que deu errado, chegam depois da saída do processo
+            p.WaitForExit();
+
+            lock (texto) return (texto.ToString(), p.ExitCode);
+        }
+        catch (Exception ex)
+        {
+            Log.Write("atualizações: não deu para rodar o winget", ex);
+            return ("não deu para rodar o winget nesta máquina", -1);
+        }
     }
 
     /// <summary>Acha um executável no PATH — é assim que se sabe se o winget existe aqui.</summary>
