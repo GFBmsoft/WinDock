@@ -52,10 +52,11 @@ public sealed class DockTheme : INotifyPropertyChanged
     public Orientation Orientation => Vertical ? Orientation.Vertical : Orientation.Horizontal;
 
     // ── indicador de app aberto ─────────────────────────────
-    // Um traco fino, como o da barra do Windows: curto enquanto o app esta so aberto e
-    // comprido quando ele esta em primeiro plano. Fica sempre do lado da borda onde a
-    // dock esta encostada, em faixa propria — por cima do icone ele disputava espaco com
-    // o desenho do app.
+    // Uma bolinha por janela, apagada enquanto o app esta so aberto e acesa quando ele esta
+    // em primeiro plano. Ja foi um traco, como o da barra do Windows, que esticava no app em
+    // foco; o pedido de 01/10/2026 foi a bolinha, e ela tambem conta as janelas sem precisar
+    // mudar de comprimento. Fica sempre do lado da borda onde a dock esta encostada, em faixa
+    // propria — por cima do icone ela disputava espaco com o desenho do app.
 
     /// <summary>Tracos em fila: perpendicular a fila dos icones.</summary>
     public Orientation IndicatorOrientation => Vertical ? Orientation.Vertical : Orientation.Horizontal;
@@ -69,25 +70,24 @@ public sealed class DockTheme : INotifyPropertyChanged
         _              => Dock.Bottom
     };
 
-    /// <summary>Espessura do traco.</summary>
-    public double IndicatorThickness => Math.Max(2, Math.Round(ButtonSize * 0.075));
+    /// <summary>
+    /// Diametro da bolinha: 4 px numa dock de 40, e cresce com ela. Redonda nos dois estados —
+    /// so a cor diz quem esta em foco.
+    /// </summary>
+    public double IndicatorThickness => Math.Max(4, Math.Round(ButtonSize * 0.1));
 
-    /// <summary>Comprimento com o app apenas aberto.</summary>
-    private double ShortLength => Math.Max(5, Math.Round(ButtonSize * 0.17));
-
-    /// <summary>Comprimento com o app em primeiro plano — so quando ele tem uma janela.</summary>
-    private double LongLength => Math.Max(12, Math.Round(ButtonSize * 0.42));
-
-    public double IndicatorShortWidth  => Vertical ? IndicatorThickness : ShortLength;
-    public double IndicatorShortHeight => Vertical ? ShortLength : IndicatorThickness;
-    public double IndicatorLongWidth   => Vertical ? IndicatorThickness : LongLength;
-    public double IndicatorLongHeight  => Vertical ? LongLength : IndicatorThickness;
-
-    /// <summary>Ponta arredondada, como a do Windows.</summary>
     public CornerRadius IndicatorCorner => new(IndicatorThickness / 2);
 
-    /// <summary>Espessura da faixa: o traco mais um fio de respiro.</summary>
-    public double IndicatorLane => IndicatorThickness + 4;
+    /// <summary>Espessura da faixa: a bolinha mais um fio de respiro.</summary>
+    public double IndicatorLane => IndicatorThickness + 3;
+
+    /// <summary>
+    /// A faixa tem tamanho fixo, com ou sem bolinha dentro. Vazia, ela media zero, e o icone
+    /// de um app fechado se centrava na altura inteira do botao — ficava uns pixels mais
+    /// perto da borda que o vizinho aberto, e a fila saia torta.
+    /// </summary>
+    public double IndicatorLaneWidth  => Vertical ? IndicatorLane : double.NaN;
+    public double IndicatorLaneHeight => Vertical ? double.NaN : IndicatorLane;
 
     public HorizontalAlignment IndicatorHorizontal => _config.Edge switch
     {
@@ -189,10 +189,9 @@ public sealed class DockTheme : INotifyPropertyChanged
                      nameof(PillHorizontal), nameof(PillVertical), nameof(PillBrush),
                      nameof(IndicatorOrientation), nameof(IndicatorHorizontal),
                      nameof(IndicatorVertical), nameof(IndicatorThickness),
-                     nameof(IndicatorShortWidth), nameof(IndicatorShortHeight),
-                     nameof(IndicatorLongWidth), nameof(IndicatorLongHeight),
                      nameof(IndicatorCorner), nameof(IndicatorSpacing),
                      nameof(IndicatorDock), nameof(IndicatorLane),
+                     nameof(IndicatorLaneWidth), nameof(IndicatorLaneHeight),
                      nameof(IndicatorBrush), nameof(IndicatorDimBrush),
                      nameof(DividerWidth), nameof(DividerHeight),
                      nameof(DividerMargin), nameof(DividerBrush)

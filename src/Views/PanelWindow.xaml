@@ -107,19 +107,33 @@
       </Setter>
     </Style>
 
-    <!-- data e hora na barra: 13 px em seminegrito, e nos ícones compactos a mesma fonte dos
-         números de CPU e memória (11 px, regular) — pedido junto com os ícones, para a barra
-         inteira falar a mesma língua -->
+    <!-- O texto miúdo da barra: os números de CPU e memória (o relógio segue o mesmo modo).
+
+         A janela inteira desenha texto no modo Ideal, que é o certo para os cartões — e é o que
+         deixa 11 px serrilhado aqui: sem ClearType (a barra é uma janela transparente, então o
+         WPF cai para tons de cinza), as letras ficam entre dois pixels e a borda sai picotada.
+         O modo Display encaixa cada traço na grade de pixels: em 11 px é a diferença entre
+         "13:15" nítido e borrado. Medido lado a lado em 01/10/2026. -->
+    <Style x:Key="BarText" TargetType="TextBlock">
+      <Setter Property="Foreground" Value="#FFE8E8EA" />
+      <Setter Property="FontSize" Value="11" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+      <Setter Property="TextOptions.TextFormattingMode" Value="Display" />
+    </Style>
+
+    <!-- data e hora na barra: 13 px em seminegrito, e nos ícones compactos 11 px, o tamanho dos
+         números de CPU e memória (o BarText, acima). Em 11 px o seminegrito fica: regular, no
+         modo Display, o traço ficava fino demais para ler de relance (pedido de 01/10/2026) -->
     <Style x:Key="ClockText" TargetType="TextBlock">
       <Setter Property="Foreground" Value="#FFF2F2F2" />
       <Setter Property="FontSize" Value="13" />
       <Setter Property="FontWeight" Value="SemiBold" />
       <Setter Property="VerticalAlignment" Value="Center" />
+      <Setter Property="TextOptions.TextFormattingMode" Value="Display" />
       <Style.Triggers>
         <DataTrigger Binding="{Binding DataContext.PanelCompact,
                                RelativeSource={RelativeSource AncestorType=Window}}" Value="True">
           <Setter Property="FontSize" Value="11" />
-          <Setter Property="FontWeight" Value="Normal" />
         </DataTrigger>
       </Style.Triggers>
     </Style>
@@ -174,6 +188,27 @@
         <Setter.Value>
           <ControlTemplate TargetType="Button">
             <Border x:Name="Bg" Background="Transparent" CornerRadius="6" Padding="8,7" Margin="0,1">
+              <ContentPresenter VerticalAlignment="Center" />
+            </Border>
+            <ControlTemplate.Triggers>
+              <Trigger Property="IsMouseOver" Value="True">
+                <Setter TargetName="Bg" Property="Background" Value="#14FFFFFF" />
+              </Trigger>
+              <Trigger Property="IsPressed" Value="True">
+                <Setter TargetName="Bg" Property="Background" Value="#26FFFFFF" />
+              </Trigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+
+    <!-- a mesma linha, com metade do respiro: a do cartão de ferramentas, que é lista de atalhos -->
+    <Style x:Key="PanelRowCompact" TargetType="Button" BasedOn="{StaticResource PanelRow}">
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="Button">
+            <Border x:Name="Bg" Background="Transparent" CornerRadius="5" Padding="6,3">
               <ContentPresenter VerticalAlignment="Center" />
             </Border>
             <ControlTemplate.Triggers>
@@ -303,9 +338,22 @@
         </StackPanel>
 
 
+        <!-- Ferramentas: a chave de boca, com os comandos que a pessoa mais usa para mexer no
+             Windows — limpeza de disco, gerenciador de dispositivos, área de trabalho remota.
+             A lista é dela, montada nas Configurações (DockConfig.Tools). -->
+        <Button Tag="ferramentas" x:Name="ToolsButton" Style="{StaticResource PanelButton}"
+                Click="OnTools" ToolTip="Ferramentas"
+                Visibility="{Binding HasTools, Converter={StaticResource BoolToVisible}}">
+          <ui:GlyphIcon Glyph="&#xE90F;" Fill="#FFF2F2F2" Style="{StaticResource BarGlyph}" VerticalAlignment="Center" />
+        </Button>
+
         <!-- Sistema: o processador e o pente de memória, com a porcentagem ao lado de cada
              um. As palavras "CPU" e "RAM" custariam o dobro da largura numa barra que já é
              disputada, e estes dois desenhos da Segoe são reconhecíveis em 12 px.
+
+             Cada desenho tem a cor do gráfico dele no cartão: laranja o processador, lilás a
+             memória. O processador já foi azul no gráfico, e mudou junto — azul é a cor das
+             atualizações, que moram ao lado na barra, e os dois se confundiam.
 
              A rede **não** tem item próprio: ela vive no cartão, junto com estes dois. Dois
              números de velocidade, mudando a cada segundo, ocupavam mais espaço na barra do
@@ -320,13 +368,13 @@
                 Click="OnSystemStats" ToolTip="{Binding SystemTooltip}" Padding="4,2"
                 Visibility="{Binding HasSystemInfo, Converter={StaticResource BoolToVisible}}">
           <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-            <ui:GlyphIcon Glyph="&#xE950;" Fill="#FFC8C8CC" Size="11" VerticalAlignment="Center" />
-            <TextBlock Text="{Binding CpuText}" Foreground="#FFE8E8EA" FontSize="11" Width="26"
-                       TextAlignment="Right" VerticalAlignment="Center" Margin="1,0,0,0" />
-            <ui:GlyphIcon Glyph="&#xE964;" Fill="#FFC8C8CC" Size="11" VerticalAlignment="Center"
+            <ui:GlyphIcon Glyph="&#xE950;" Fill="#FFF4A261" Size="11" VerticalAlignment="Center" />
+            <TextBlock Text="{Binding CpuText}" Style="{StaticResource BarText}" Width="26"
+                       TextAlignment="Right" Margin="1,0,0,0" />
+            <ui:GlyphIcon Glyph="&#xE964;" Fill="#FFB08AE8" Size="11" VerticalAlignment="Center"
                           Margin="5,0,0,0" />
-            <TextBlock Text="{Binding RamText}" Foreground="#FFE8E8EA" FontSize="11" Width="26"
-                       TextAlignment="Right" VerticalAlignment="Center" Margin="1,0,0,0" />
+            <TextBlock Text="{Binding RamText}" Style="{StaticResource BarText}" Width="26"
+                       TextAlignment="Right" Margin="1,0,0,0" />
           </StackPanel>
         </Button>
 
@@ -1102,6 +1150,75 @@
         </Border>
       </Popup>
 
+      <!-- O cartão de ferramentas: uma linha por comando, e o clique roda e fecha.
+
+           Apertado de propósito — 12 px e linhas de 26 px, a metade do respiro dos outros
+           cartões: é uma lista de atalhos, lida de relance, e cresce com o gosto de quem a
+           monta. Nos ícones compactos ele ainda encolhe a 90%, como o calendário. -->
+      <Popup x:Name="ToolsPopup" PlacementTarget="{Binding ElementName=ToolsButton}"
+             Placement="Bottom" VerticalOffset="6" HorizontalOffset="-8"
+             StaysOpen="True" AllowsTransparency="True" PopupAnimation="Fade">
+        <Border Background="#F7242424" BorderBrush="#2EFFFFFF" BorderThickness="1"
+                CornerRadius="10" Padding="8,10,8,8" Margin="10">
+          <Border.Effect>
+            <DropShadowEffect BlurRadius="20" ShadowDepth="5" Opacity="0.55" Color="Black" />
+          </Border.Effect>
+          <Border.Style>
+            <Style TargetType="Border">
+              <Style.Triggers>
+                <DataTrigger Binding="{Binding PanelCompact}" Value="True">
+                  <Setter Property="LayoutTransform">
+                    <Setter.Value>
+                      <ScaleTransform ScaleX="0.9" ScaleY="0.9" />
+                    </Setter.Value>
+                  </Setter>
+                </DataTrigger>
+              </Style.Triggers>
+            </Style>
+          </Border.Style>
+          <StackPanel MinWidth="220" MaxWidth="320">
+
+            <Grid Margin="6,0,2,6">
+              <StackPanel Orientation="Horizontal">
+                <ui:GlyphIcon Glyph="&#xE90F;" Fill="#FFF2F2F2" Size="13"
+                              VerticalAlignment="Center" Margin="0,0,8,0" />
+                <TextBlock Text="Ferramentas" Foreground="#FFF2F2F2" FontSize="13"
+                           FontWeight="SemiBold" VerticalAlignment="Center" />
+              </StackPanel>
+              <Button Style="{StaticResource PanelButton}" HorizontalAlignment="Right" Padding="5,2"
+                      Click="OnToolsEdit" ToolTip="Editar a lista nas Configurações">
+                <ui:GlyphIcon Glyph="&#xE70F;" Fill="#FF9D9D9D" Size="11" VerticalAlignment="Center" />
+              </Button>
+            </Grid>
+
+            <ItemsControl ItemsSource="{Binding Tools}">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate>
+                  <Button Style="{StaticResource PanelRowCompact}" Click="OnToolRun" Tag="{Binding}"
+                          ToolTip="{Binding Command}">
+                    <Grid Height="20">
+                      <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                      </Grid.ColumnDefinitions>
+                      <ui:GlyphIcon Glyph="{Binding Glyph}" Fill="{Binding Fill}" Size="13"
+                                    Width="16" VerticalAlignment="Center" />
+                      <TextBlock Grid.Column="1" Text="{Binding Name}" Foreground="#FFE8E8EA"
+                                 FontSize="12" VerticalAlignment="Center" Margin="9,0,4,0"
+                                 TextTrimming="CharacterEllipsis" />
+                    </Grid>
+                  </Button>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+
+            <TextBlock Text="Nenhum comando na lista. Use o lápis para montar a sua."
+                       Foreground="#FF9D9D9D" FontSize="11" Margin="6,2,6,4" TextWrapping="Wrap"
+                       Visibility="{Binding HasNoTools, Converter={StaticResource BoolToVisible}}" />
+          </StackPanel>
+        </Border>
+      </Popup>
+
       <!-- O cartão de sistema: o último minuto de cada medida, no mesmo desenho dos outros
            cartões da barra.
 
@@ -1140,7 +1257,7 @@
                          Foreground="#FF9D9D9D" FontSize="12" />
             </Grid>
             <ui:Sparkline Values="{Binding CpuHistory}" Maximum="100" Height="34"
-                          Stroke="#FF6CB6FF" Margin="0,0,0,14" />
+                          Stroke="#FFF4A261" Margin="0,0,0,14" />
 
             <Grid Margin="0,0,0,10">
               <TextBlock Text="Memória" Foreground="#FFD8D8DA" FontSize="12" />

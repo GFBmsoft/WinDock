@@ -172,6 +172,7 @@ public partial class PanelWindow : Window
         _removableWasOpen = RemovablePopup.IsOpen;
         _systemWasOpen = SystemPopup.IsOpen;
         _clockWasOpen = ClockPopup.IsOpen;
+        _toolsWasOpen = ToolsPopup.IsOpen;
 
         base.OnPreviewMouseDown(e);
     }
@@ -245,6 +246,7 @@ public partial class PanelWindow : Window
         ("bandeja",         "Ícones da bandeja"),
         ("midia",           "Música — o que está tocando"),
         ("midia-controles", "Música — controles"),
+        ("ferramentas",     "Ferramentas (comandos mais usados)"),
         ("sistema",         "CPU e memória"),
         ("bateria",         "Bateria"),
         ("wifi",            "Wi-Fi"),
@@ -428,6 +430,35 @@ public partial class PanelWindow : Window
         WatchOutsideClick();
     }
 
+    // ── ferramentas ──────────────────────────────────────────
+
+    private bool _toolsWasOpen;
+
+    /// <summary>Abre (ou fecha) o cartão com os comandos de <c>DockConfig.Tools</c>.</summary>
+    private void OnTools(object sender, RoutedEventArgs e)
+    {
+        var estavaAberto = _toolsWasOpen;
+        CloseOpenPanels();
+
+        if (!estavaAberto) ToolsPopup.IsOpen = true;
+        WatchOutsideClick();
+    }
+
+    /// <summary>Roda o comando da linha e fecha o cartão — quem clicou quer a ferramenta, não a lista.</summary>
+    private void OnToolRun(object sender, RoutedEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.Tag is not PanelModel.ToolRow row) return;
+        CloseAllPopups();
+        ToolsService.Run(row.Tool);
+    }
+
+    /// <summary>O lápis do cartão: as Configurações abertas já na lista de ferramentas.</summary>
+    private void OnToolsEdit(object sender, RoutedEventArgs e)
+    {
+        CloseAllPopups();
+        Application.Current.Windows.OfType<MainWindow>().FirstOrDefault()?.OpenSettingsAt("ferramentas");
+    }
+
     // ── brilho ───────────────────────────────────────────────
 
     private void OnBrightness(object sender, RoutedEventArgs e)
@@ -596,6 +627,7 @@ public partial class PanelWindow : Window
         yield return RemovablePopup;
         yield return SystemPopup;
         yield return ClockPopup;
+        yield return ToolsPopup;
     }
 
     private bool AnyPopupOpen => AllPopups().Any(p => p.IsOpen);

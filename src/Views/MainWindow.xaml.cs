@@ -940,6 +940,13 @@ public partial class MainWindow : Window
         if (dlg.ShowDialog() == true) _model?.PinShortcut(dlg.FileName);
     }
 
+    /// <summary>As Configurações abertas e roladas até uma seção — o lápis do cartão de ferramentas.</summary>
+    internal void OpenSettingsAt(string section)
+    {
+        OpenSettings();
+        _settings?.ShowSection(section);
+    }
+
     private void OpenSettings()
     {
         if (_settings is { IsVisible: true })

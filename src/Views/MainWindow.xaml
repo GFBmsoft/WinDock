@@ -99,7 +99,7 @@
               </Grid.Style>
 
               <!--
-                Quem esta em primeiro plano e dito so pelo traco: o fundo claro atras do
+                Quem esta em primeiro plano e dito so pela bolinha: o fundo claro atras do
                 icone competia com o desenho do app, ainda mais nos icones claros.
                 O realce do mouse continua, no estilo do botao.
               -->
@@ -113,12 +113,15 @@
 
               <!-- uma bolinha por janela aberta, do lado da borda da tela -->
               <ItemsControl ItemsSource="{Binding Indicators}"
+                            Width="{Binding DataContext.Theme.IndicatorLaneWidth, RelativeSource={RelativeSource AncestorType=Window}}"
+                            Height="{Binding DataContext.Theme.IndicatorLaneHeight, RelativeSource={RelativeSource AncestorType=Window}}"
                             DockPanel.Dock="{Binding DataContext.Theme.IndicatorDock, RelativeSource={RelativeSource AncestorType=Window}}"
                             VerticalAlignment="{Binding DataContext.Theme.IndicatorVertical, RelativeSource={RelativeSource AncestorType=Window}}"
                             HorizontalAlignment="{Binding DataContext.Theme.IndicatorHorizontal, RelativeSource={RelativeSource AncestorType=Window}}">
                 <ItemsControl.ItemsPanel>
                   <ItemsPanelTemplate>
-                    <StackPanel Orientation="{Binding DataContext.Theme.IndicatorOrientation, RelativeSource={RelativeSource AncestorType=Window}}" />
+                    <StackPanel Orientation="{Binding DataContext.Theme.IndicatorOrientation, RelativeSource={RelativeSource AncestorType=Window}}"
+                                HorizontalAlignment="Center" VerticalAlignment="Center" />
                   </ItemsPanelTemplate>
                 </ItemsControl.ItemsPanel>
                 <ItemsControl.ItemTemplate>
@@ -127,13 +130,13 @@
                             Margin="{Binding DataContext.Theme.IndicatorSpacing, RelativeSource={RelativeSource AncestorType=Window}}">
                       <Border.Style>
                         <Style TargetType="Border">
-                          <!-- curto e apagado: o app esta aberto, mas nao na frente -->
+                          <!-- apagada: o app esta aberto, mas nao na frente -->
                           <Setter Property="Background"
                                   Value="{Binding DataContext.Theme.IndicatorDimBrush, RelativeSource={RelativeSource AncestorType=Window}}" />
                           <Setter Property="Width"
-                                  Value="{Binding DataContext.Theme.IndicatorShortWidth, RelativeSource={RelativeSource AncestorType=Window}}" />
+                                  Value="{Binding DataContext.Theme.IndicatorThickness, RelativeSource={RelativeSource AncestorType=Window}}" />
                           <Setter Property="Height"
-                                  Value="{Binding DataContext.Theme.IndicatorShortHeight, RelativeSource={RelativeSource AncestorType=Window}}" />
+                                  Value="{Binding DataContext.Theme.IndicatorThickness, RelativeSource={RelativeSource AncestorType=Window}}" />
                           <Style.Triggers>
                             <!-- em primeiro plano: acende -->
                             <DataTrigger Binding="{Binding DataContext.IsActive, RelativeSource={RelativeSource AncestorType=Button}}"
@@ -141,24 +144,6 @@
                               <Setter Property="Background"
                                       Value="{Binding DataContext.Theme.IndicatorBrush, RelativeSource={RelativeSource AncestorType=Window}}" />
                             </DataTrigger>
-
-                            <!--
-                              e estica, como na barra do Windows — mas so com uma janela:
-                              com varias, os tracos ficam curtos para caberem lado a lado
-                              e continuarem contando quantas sao.
-                            -->
-                            <MultiDataTrigger>
-                              <MultiDataTrigger.Conditions>
-                                <Condition Binding="{Binding DataContext.IsActive, RelativeSource={RelativeSource AncestorType=Button}}"
-                                           Value="True" />
-                                <Condition Binding="{Binding DataContext.WindowCount, RelativeSource={RelativeSource AncestorType=Button}}"
-                                           Value="1" />
-                              </MultiDataTrigger.Conditions>
-                              <Setter Property="Width"
-                                      Value="{Binding DataContext.Theme.IndicatorLongWidth, RelativeSource={RelativeSource AncestorType=Window}}" />
-                              <Setter Property="Height"
-                                      Value="{Binding DataContext.Theme.IndicatorLongHeight, RelativeSource={RelativeSource AncestorType=Window}}" />
-                            </MultiDataTrigger>
                           </Style.Triggers>
                         </Style>
                       </Border.Style>

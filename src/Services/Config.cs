@@ -273,6 +273,17 @@ public sealed class FloatingSize
     public int Height { get; set; }
 }
 
+/// <summary>
+/// Um comando do botão de ferramentas da barra: o nome que aparece no cartão e a linha de
+/// comando que ele roda, como se digitada no Executar (Win+R) — "devmgmt.msc",
+/// "control inetcpl.cpl", "mstsc /v:servidor".
+/// </summary>
+public sealed class ToolCommand
+{
+    public string Name { get; set; } = string.Empty;
+    public string Command { get; set; } = string.Empty;
+}
+
 public sealed class PinnedApp
 {
     public string Id { get; set; } = string.Empty;
@@ -503,6 +514,35 @@ public sealed class DockConfig : INotifyPropertyChanged
     /// apertá-lo é escolha de quem prefere a barra curta.
     /// </summary>
     public bool PanelCompact { get => _panelCompact; set => Set(ref _panelCompact, value); }
+
+    private bool _panelTools = true;
+    /// <summary>
+    /// O botão de ferramentas (a chave de boca) na barra, com os comandos de <see cref="Tools"/>.
+    /// Ligado de fábrica: foi pedido junto com a lista, e a lista vem com exemplos que servem a
+    /// quem mexe no Windows dos outros — limpeza de disco, opções da internet, gerenciador de
+    /// dispositivos, área de trabalho remota.
+    /// </summary>
+    public bool PanelTools { get => _panelTools; set => Set(ref _panelTools, value); }
+
+    /// <summary>
+    /// Os comandos do botão de ferramentas, na ordem do cartão.
+    ///
+    /// Os exemplos de fábrica só entram para quem nunca teve a chave no config.json: uma lista
+    /// esvaziada de propósito volta vazia, e não com os exemplos de novo.
+    /// </summary>
+    public List<ToolCommand> Tools { get; set; } = DefaultTools();
+
+    public static List<ToolCommand> DefaultTools() =>
+    [
+        new() { Name = "Limpeza de disco", Command = "cleanmgr.exe" },
+        new() { Name = "Opções da Internet", Command = "control.exe inetcpl.cpl" },
+        new() { Name = "Gerenciador de dispositivos", Command = "devmgmt.msc" },
+        new() { Name = "Área de trabalho remota", Command = "mstsc.exe" },
+    ];
+
+    /// <summary>A lista mudou por dentro — o mesmo caminho do <c>PanelOrder</c>.</summary>
+    public void NotifyToolsChanged() =>
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Tools)));
 
     private bool _panelSelfUpdate = true;
     /// <summary>
@@ -873,6 +913,7 @@ public sealed class DockConfig : INotifyPropertyChanged
         PanelSystem = d.PanelSystem;
         PanelCompact = d.PanelCompact;
         PanelSelfUpdate = d.PanelSelfUpdate;
+        PanelTools = d.PanelTools;
         PanelMediaTicker = d.PanelMediaTicker;
         PanelRemovable = d.PanelRemovable;
         Trace = d.Trace;

@@ -34,6 +34,8 @@ public partial class SettingsWindow : Window
         LoadMediaApps();
         LoadPanelOrder();
         LoadAiAccounts();
+        ToolsList.ItemsSource = _tools;
+        foreach (var t in _config.Tools) _tools.Add(t);
         ExcludedAppsList.ItemsSource = _excludedApps;
 
         FloatingSizesList.ItemsSource = _floatingSizes;
@@ -135,6 +137,62 @@ public partial class SettingsWindow : Window
         _excludedApps.Remove(name);
         _config.TilingExcludedApps.Remove(name);
         _config.NotifyTilingExcludedAppsChanged();
+    }
+
+    // ── ferramentas ──────────────────────────────────────────
+
+    /// <summary>Espelha <see cref="DockConfig.Tools"/> para a tela, como a lista de exceções do mosaico.</summary>
+    private readonly ObservableCollection<ToolCommand> _tools = new();
+
+    /// <summary>
+    /// Devolve a lista da tela para a config e avisa a barra. Os campos escrevem direto no
+    /// <see cref="ToolCommand"/> enquanto se digita; o cartão da barra só é refeito quando o
+    /// campo perde o foco, e não a cada letra — cada refazer procura o ícone no disco.
+    /// </summary>
+    private void SaveTools()
+    {
+        _config.Tools = _tools.ToList();
+        _config.NotifyToolsChanged();
+    }
+
+    private void OnToolEdited(object sender, RoutedEventArgs e) => SaveTools();
+
+    private void OnToolAdd(object sender, RoutedEventArgs e)
+    {
+        _tools.Add(new ToolCommand());
+        SaveTools();
+    }
+
+    private void OnToolRemove(object sender, RoutedEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.Tag is not ToolCommand t) return;
+        _tools.Remove(t);
+        SaveTools();
+    }
+
+    private void OnToolUp(object sender, RoutedEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.Tag is not ToolCommand t) return;
+        var i = _tools.IndexOf(t);
+        if (i <= 0) return;
+        _tools.Move(i, i - 1);
+        SaveTools();
+    }
+
+    private void OnToolsDefaults(object sender, RoutedEventArgs e)
+    {
+        _tools.Clear();
+        foreach (var t in DockConfig.DefaultTools()) _tools.Add(t);
+        SaveTools();
+    }
+
+    /// <summary>Rola até uma seção — por enquanto só a das ferramentas, que o cartão da barra abre.</summary>
+    internal void ShowSection(string section)
+    {
+        if (section != "ferramentas") return;
+
+        // depois do layout: na janela recém-criada o cartão ainda não tem posição para rolar até ela
+        Dispatcher.BeginInvoke(() => ToolsCard.BringIntoView(), System.Windows.Threading.DispatcherPriority.Loaded);
     }
 
     // ── atalhos ──────────────────────────────────────────────

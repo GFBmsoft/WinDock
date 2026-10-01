@@ -139,6 +139,12 @@ com os privilégios mais altos.
 | Abrir o 1º, 2º... ícone pelo teclado | `Alt+1` a `Alt+9` (desligável em **Configurações > Abrir pela posição com Alt+número**) |
 | Configurações | botão direito > **Configurações...** |
 | Sair | botão direito > **Sair do WinDock** |
+| Escolher a cor da dock, do indicador, da barra ou da borda do mosaico | **Configurações** > clique na amostra ao lado do campo — abre a paleta; o campo continua aceitando hex |
+
+Cada janela aberta de um app ganha uma **bolinha** embaixo do ícone: apagada enquanto o app está
+só aberto, acesa quando ele está na frente. Os ícones são igualados no tamanho — a folga
+transparente que cada programa desenha em volta do próprio ícone é recortada, para nenhum parecer
+menor que o vizinho.
 
 ![O menu de um ícone](img/menu-dock.png)
 
@@ -156,10 +162,11 @@ monitor aceita ser controlado (veja [Brilho](#brilho)), a **cota de IA**, se voc
 (veja [Cota de IA](#cota-de-ia)), o **pen-drive**, enquanto houver um espetado
 (veja [Remover dispositivo externo](#remover-dispositivo-externo)), e as **atualizações**, enquanto
 houver alguma esperando (veja [Atualizações esperando](#atualizações-esperando)) — mais o
-**CPU e memória**, se você ligar (veja [CPU, memória e rede](#cpu-memória-e-rede)).
+**CPU e memória**, se você ligar (veja [CPU, memória e rede](#cpu-memória-e-rede)) — e a **chave de
+boca** das ferramentas (veja [Ferramentas](#ferramentas)).
 Se preferir a barra mais curta, **Configurações > Ícones compactos** diminui os ícones para o tamanho
 dos de CPU e memória e os junta, com metade do espaço entre eles — e a data e a hora passam para
-a mesma fonte dos números de CPU e memória. O cartão do calendário encolhe junto, a 90%.
+o tamanho dos números de CPU e memória, em seminegrito. O cartão do calendário encolhe junto, a 90%.
 **A ordem é sua** — veja
 [Ordem dos itens](#ordem-dos-itens-da-barra).
 
@@ -177,6 +184,7 @@ a mesma fonte dos números de CPU e memória. O cartão do calendário encolhe j
 | Ver a faixa inteira, com capa | clique no nome da música |
 | Desligar, reiniciar, hibernar, bloquear, sair | o botão de energia |
 | Brilho do monitor | clique no ícone de brilho, ou role a roda do mouse sobre ele |
+| Abrir a limpeza de disco, o gerenciador de dispositivos e outros comandos seus | a chave de boca (veja [Ferramentas](#ferramentas)) |
 | Ver o último minuto de processador, memória e rede | clique no CPU (veja [CPU, memória e rede](#cpu-memória-e-rede)) |
 | Quanto da cota do Claude já foi usada | clique no robô (veja [Cota de IA](#cota-de-ia)) |
 | Perguntar a cota de novo, agora | o `↻` no rodapé do cartão de cota |
@@ -277,6 +285,23 @@ A barra muda de cor conforme o nível: verde abaixo de 30%, amarelo até 70%, ve
 e cinza quando está mudo. Cada programa com som ganha o próprio controle; um programa aparece
 uma vez só, mesmo abrindo vários fluxos de áudio (o Discord abre dois).
 
+#### Ferramentas
+
+A **chave de boca** abre a sua lista de comandos — os que você usa para mexer no Windows. Um
+clique no nome roda o comando e fecha o cartão. Vem com quatro exemplos: **Limpeza de disco**
+(`cleanmgr.exe`), **Opções da Internet** (`control.exe inetcpl.cpl`), **Gerenciador de
+dispositivos** (`devmgmt.msc`) e **Área de trabalho remota** (`mstsc.exe`).
+
+A lista é montada em **Configurações > Ferramentas** (ou pelo lápis do próprio cartão): um nome e
+o comando, escrito como no Executar (`Win+R`) — `mstsc /v:servidor`, `services.msc`,
+`control.exe sysdm.cpl`. Cada linha ganha um desenho colorido pelo que o comando abre (lixeira, globo,
+dispositivos, acesso remoto, serviços, registro...); o que a dock não conhece fica com o prompt.
+A seta sobe o comando na lista, o **✕** tira, e **Repor os exemplos**
+traz os quatro de volta. A mesma opção desliga o botão.
+
+Os comandos saem com a mesma permissão da dock, que roda como administrador: o gerenciador de
+dispositivos e a limpeza de disco abrem sem pedir o UAC de novo.
+
 #### CPU, memória e rede
 
 ![O cartão de sistema](img/card-sistema.png)
@@ -285,7 +310,8 @@ uma vez só, mesmo abrindo vários fluxos de áudio (o Discord abre dois).
 inteiro mexendo, e a barra já carrega bastante coisa — quem o quer, pede.
 
 Na barra ficam só dois números, apertados: o **processador** e a **memória**, em porcentagem,
-com o desenho de um chip e de um pente de memória no lugar das palavras. A **rede** é medida
+com o desenho de um chip e de um pente de memória no lugar das palavras. O chip é **laranja** e o pente
+é **lilás**, as mesmas cores dos gráficos do cartão. A **rede** é medida
 junto, mas não ocupa lugar na barra: ela aparece na dica do mouse e no cartão.
 
 O clique abre o cartão com o **último minuto** de cada medida em gráfico — processador, memória,

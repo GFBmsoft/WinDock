@@ -25,7 +25,9 @@ public static class IconService
     ///    das Configuracoes, por exemplo) traz so o icone generico de aplicativo;
     /// 3. o executavel.
     /// </summary>
-    public static BitmapSource? ForApp(string id, string launchPath)
+    public static BitmapSource? ForApp(string id, string launchPath) => Fill(RawForApp(id, launchPath));
+
+    private static BitmapSource? RawForApp(string id, string launchPath)
     {
         if (launchPath.EndsWith(".lnk", StringComparison.OrdinalIgnoreCase)) return For(launchPath);
 
@@ -40,6 +42,78 @@ public static class IconService
             Shell($@"shell:AppsFolder\{doPacote}") is { } fromPackage) return fromPackage;
 
         return For(launchPath);
+    }
+
+    /// <summary>
+    /// O desenho do icone esticado ate as bordas do quadrado, para todos ocuparem o mesmo
+    /// espaco na dock.
+    ///
+    /// Cada fonte entrega o icone com uma folga transparente diferente em volta: o do
+    /// executavel costuma vir justo, o da pasta de aplicativos (Store, Configuracoes) vem com
+    /// um sexto de margem, e alguns programas desenham o simbolo pequeno no meio de um quadro
+    /// vazio. Lado a lado, no mesmo tamanho de botao, uns pareciam o dobro dos outros — foi o
+    /// pedido de 01/10/2026, "padronizar tamanho de icones". Recortar a folga e o que iguala;
+    /// o desenho em si nao e tocado, so o quadro em volta dele.
+    ///
+    /// So recorta quando a folga e de verdade (mais de um vigesimo de cada lado): um icone que
+    /// ja encosta nas bordas fica como veio, sem reamostragem. E o resultado e sempre
+    /// quadrado, com o desenho centrado — um icone largo e baixo nao e esticado na altura.
+    /// </summary>
+    private static BitmapSource? Fill(BitmapSource? source)
+    {
+        if (source is null) return null;
+        if (Filled.TryGetValue(source, out var pronto)) return pronto;
+
+        var result = source;
+        try { result = Trim(source) ?? source; }
+        catch { /* formato estranho: melhor o icone com folga do que icone nenhum */ }
+
+        Filled.AddOrUpdate(source, result);
+        return result;
+    }
+
+    /// <summary>Um por icone de origem: o mesmo app aparece fixado e aberto ao mesmo tempo.</summary>
+    private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<BitmapSource, BitmapSource> Filled = new();
+
+    private static BitmapSource? Trim(BitmapSource source)
+    {
+        var bgra = source.Format == PixelFormats.Pbgra32 || source.Format == PixelFormats.Bgra32
+            ? source
+            : new FormatConvertedBitmap(source, PixelFormats.Pbgra32, null, 0);
+
+        int w = bgra.PixelWidth, h = bgra.PixelHeight, stride = w * 4;
+        if (w < 8 || h < 8) return null;
+
+        var pixels = new byte[stride * h];
+        bgra.CopyPixels(pixels, stride, 0);
+
+        // a caixa do que se ve: alfa abaixo de 24 e sombra ou antisserrilhado, nao desenho
+        int left = w, top = h, right = -1, bottom = -1;
+        for (var y = 0; y < h; y++)
+            for (var x = 0; x < w; x++)
+            {
+                if (pixels[y * stride + x * 4 + 3] < 24) continue;
+                if (x < left) left = x;
+                if (x > right) right = x;
+                if (y < top) top = y;
+                if (y > bottom) bottom = y;
+            }
+        if (right < 0) return null;   // todo transparente
+
+        int cw = right - left + 1, ch = bottom - top + 1;
+        var lado = Math.Max(cw, ch);
+        if (lado >= Math.Max(w, h) * 0.9) return null;   // ja justo: nada a recortar
+
+        // quadrado do tamanho do lado maior, com o desenho no meio
+        var saida = new byte[lado * lado * 4];
+        int dx = (lado - cw) / 2, dy = (lado - ch) / 2;
+        for (var y = 0; y < ch; y++)
+            Buffer.BlockCopy(pixels, (top + y) * stride + left * 4,
+                             saida, (dy + y) * lado * 4 + dx * 4, cw * 4);
+
+        var result = BitmapSource.Create(lado, lado, 96, 96, bgra.Format, null, saida, lado * 4);
+        result.Freeze();
+        return result;
     }
 
     /// <summary>Um AppUserModelID nao tem separador de caminho; um executavel tem.</summary>

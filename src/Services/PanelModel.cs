@@ -331,6 +331,29 @@ public sealed class PanelModel : INotifyPropertyChanged, IDisposable
     /// </summary>
     public bool HasSystemInfo => _config.PanelSystem;
 
+    /// <summary>O botão de ferramentas — veja <c>DockConfig.PanelTools</c>.</summary>
+    public bool HasTools => _config.PanelTools;
+
+    /// <summary>Uma linha do cartão de ferramentas: o comando da config e o desenho do que ele abre.</summary>
+    public sealed record ToolRow(ToolCommand Tool, string Glyph, System.Windows.Media.Brush Fill)
+    {
+        public string Name => Tool.Name.Length > 0 ? Tool.Name : Tool.Command;
+        public string Command => Tool.Command;
+    }
+
+    private IReadOnlyList<ToolRow>? _tools;
+
+    /// <summary>
+    /// Os comandos do cartão, montados na primeira vez que o cartão abre e de novo quando a
+    /// lista muda nas Configurações — e não a cada letra digitada lá.
+    /// </summary>
+    public IReadOnlyList<ToolRow> Tools => _tools ??= _config.Tools
+        .Where(t => !string.IsNullOrWhiteSpace(t.Command))
+        .Select(t => { var (glifo, cor) = ToolsService.Look(t.Command); return new ToolRow(t, glifo, cor); })
+        .ToList();
+
+    public bool HasNoTools => Tools.Count == 0;
+
     /// <summary>Ícones da barra com metade do respiro — veja <c>DockConfig.PanelCompact</c>.</summary>
     public bool PanelCompact => _config.PanelCompact;
 
@@ -1852,6 +1875,13 @@ public sealed class PanelModel : INotifyPropertyChanged, IDisposable
         // diferença entre duas leituras) e o segundo tique já traz o valor de verdade
         if (e.PropertyName is nameof(DockConfig.PanelSystem)) OnChanged(nameof(HasSystemInfo));
         if (e.PropertyName is nameof(DockConfig.PanelCompact)) OnChanged(nameof(PanelCompact));
+        if (e.PropertyName is nameof(DockConfig.PanelTools)) OnChanged(nameof(HasTools));
+        if (e.PropertyName is nameof(DockConfig.Tools))
+        {
+            _tools = null;
+            OnChanged(nameof(Tools));
+            OnChanged(nameof(HasNoTools));
+        }
 
         // ligada agora: confere já, com a tag guardada se a consulta do dia já foi feita
         if (e.PropertyName is nameof(DockConfig.PanelSelfUpdate))

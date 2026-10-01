@@ -255,9 +255,8 @@
             </StackPanel>
             <TextBox Grid.Column="1" Style="{StaticResource FluentTextBox}"
                      Text="{Binding Background, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-            <Border Grid.Column="2" Width="32" Height="32" CornerRadius="4" Margin="8,0,0,0"
-                    Background="{Binding Background, Converter={StaticResource HexBrush}}"
-                    BorderBrush="{StaticResource FluentControlBorder}" BorderThickness="1" />
+            <ui:ColorPicker Grid.Column="2" Margin="8,0,0,0"
+                            Color="{Binding Background, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
           </Grid>
         </Border>
 
@@ -275,9 +274,8 @@
             </StackPanel>
             <TextBox Grid.Column="1" Style="{StaticResource FluentTextBox}"
                      Text="{Binding IndicatorColor, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-            <Border Grid.Column="2" Width="32" Height="32" CornerRadius="4" Margin="8,0,0,0"
-                    Background="{Binding IndicatorColor, Converter={StaticResource HexBrush}}"
-                    BorderBrush="{StaticResource FluentControlBorder}" BorderThickness="1" />
+            <ui:ColorPicker Grid.Column="2" Margin="8,0,0,0"
+                            Color="{Binding IndicatorColor, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
           </Grid>
         </Border>
 
@@ -462,9 +460,8 @@
             </StackPanel>
             <TextBox Grid.Column="1" Style="{StaticResource FluentTextBox}"
                      Text="{Binding PanelBackground, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-            <Border Grid.Column="2" Width="32" Height="32" CornerRadius="4" Margin="8,0,0,0"
-                    Background="{Binding PanelBackground, Converter={StaticResource HexBrush}}"
-                    BorderBrush="{StaticResource FluentControlBorder}" BorderThickness="1" />
+            <ui:ColorPicker Grid.Column="2" Margin="8,0,0,0"
+                            Color="{Binding PanelBackground, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
           </Grid>
         </Border>
 
@@ -652,6 +649,77 @@
                       AutomationProperties.Name="CPU e memória"
                       IsChecked="{Binding PanelSystem, Mode=TwoWay}" />
           </Grid>
+        </Border>
+
+        <!-- O botão de ferramentas e a lista dele. Linhas apertadas, como o próprio cartão da
+             barra: nome à esquerda, o comando como se digitado no Executar (Win+R) à direita. -->
+        <Border x:Name="ToolsCard" Style="{StaticResource FluentCardBorderStyle}">
+          <StackPanel>
+            <Grid>
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+              </Grid.ColumnDefinitions>
+              <StackPanel VerticalAlignment="Center">
+                <TextBlock Text="Ferramentas" Style="{StaticResource FluentTitle}" />
+                <TextBlock Text="Uma chave de boca na barra com os comandos que você mais usa. O comando é o mesmo que se digita no Executar (Win+R): devmgmt.msc, control inetcpl.cpl, mstsc /v:servidor."
+                           Style="{StaticResource FluentCaption}" TextWrapping="Wrap" />
+              </StackPanel>
+              <CheckBox Grid.Column="1" Style="{StaticResource FluentToggle}"
+                        AutomationProperties.Name="Ferramentas"
+                        IsChecked="{Binding PanelTools, Mode=TwoWay}" />
+            </Grid>
+
+            <StackPanel Visibility="{Binding PanelTools, Converter={StaticResource BoolToVisible}}">
+              <Grid Margin="0,12,0,4">
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="175" />
+                  <ColumnDefinition Width="*" />
+                  <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <TextBlock Text="Nome" Style="{StaticResource FluentCaption}" />
+                <TextBlock Grid.Column="1" Text="Comando" Style="{StaticResource FluentCaption}" Margin="6,0,0,0" />
+              </Grid>
+
+              <ItemsControl x:Name="ToolsList">
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate>
+                    <Grid Margin="0,0,0,4">
+                      <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="175" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                      </Grid.ColumnDefinitions>
+                      <TextBox Style="{StaticResource FluentTextBox}" FontSize="12" Height="28" TextAlignment="Left" Padding="4,0"
+                               Text="{Binding Name, UpdateSourceTrigger=PropertyChanged}"
+                               LostFocus="OnToolEdited" />
+                      <TextBox Grid.Column="1" Style="{StaticResource FluentTextBox}" FontSize="12"
+                               Height="28" Margin="6,0,0,0" Padding="4,0"
+                               FontFamily="Cascadia Mono, Consolas"
+                               Text="{Binding Command, UpdateSourceTrigger=PropertyChanged}"
+                               LostFocus="OnToolEdited" />
+                      <StackPanel Grid.Column="2" Orientation="Horizontal" Margin="6,0,0,0">
+                        <Button Style="{StaticResource FluentButton}" Padding="7,1" Height="28"
+                                Click="OnToolUp" Tag="{Binding}" ToolTip="Subir">
+                          <TextBlock Text="&#x2191;" FontSize="11" />
+                        </Button>
+                        <Button Style="{StaticResource FluentButton}" Padding="7,1" Height="28" Margin="3,0,0,0"
+                                Click="OnToolRemove" Tag="{Binding}" ToolTip="Tirar da lista">
+                          <TextBlock Text="&#x2715;" FontSize="11" />
+                        </Button>
+                      </StackPanel>
+                    </Grid>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+
+              <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
+                <Button Style="{StaticResource FluentButton}" Click="OnToolAdd" Content="Adicionar comando" />
+                <Button Style="{StaticResource FluentButton}" Click="OnToolsDefaults" Margin="8,0,0,0"
+                        Content="Repor os exemplos" />
+              </StackPanel>
+            </StackPanel>
+          </StackPanel>
         </Border>
 
         <Border Style="{StaticResource FluentCardBorderStyle}">
@@ -1105,9 +1173,8 @@
             </StackPanel>
             <TextBox Grid.Column="1" Style="{StaticResource FluentTextBox}"
                      Text="{Binding TilingBorderColor, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-            <Border Grid.Column="2" Width="32" Height="32" CornerRadius="4" Margin="8,0,0,0"
-                    Background="{Binding TilingBorderColor, Converter={StaticResource HexBrush}}"
-                    BorderBrush="{StaticResource FluentControlBorder}" BorderThickness="1" />
+            <ui:ColorPicker Grid.Column="2" Margin="8,0,0,0"
+                            Color="{Binding TilingBorderColor, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
           </Grid>
         </Border>
 
