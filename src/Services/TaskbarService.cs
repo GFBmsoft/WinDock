@@ -128,11 +128,14 @@ public sealed class TaskbarService : IDisposable
         var bar = FindWindow("Shell_TrayWnd", null);
         if (bar == 0 || !GetWindowRect(bar, out var rect)) return;
 
+        // explorer travado: nada a fazer até ele voltar, e insistir só prende quem insiste
+        if (IsHungAppWindow(bar)) return;
+
         if (_mode == TaskbarMode.Hidden)
         {
             // o shell reexibe a barra sozinho em várias ocasiões; aqui ela volta a ficar
             // apagada — e "apagada" agora é a camada, não o `SW_HIDE`
-            if (!IsTransparent(bar) || !IsWindowVisible(bar)) SetTransparent(true);
+            if (!IsTransparent(bar) || !IsWindowVisible(bar)) SetTransparentAside(true);
         }
         else
         {
@@ -145,13 +148,38 @@ public sealed class TaskbarService : IDisposable
             var inside = cursor.X >= rect.Left && cursor.X <= rect.Right &&
                          cursor.Y >= rect.Top && cursor.Y <= rect.Bottom;
 
-            if (inside == IsTransparent(bar)) SetTransparent(!inside);
+            if (inside == IsTransparent(bar)) SetTransparentAside(!inside);
         }
 
         // de tempos em tempos confere se o shell devolveu o espaco da barra para si
         if (++_ticks < 7) return;
         _ticks = 0;
         Reclaim();
+    }
+
+    private static int _applying;
+
+    /// <summary>
+    /// O <see cref="SetTransparent"/> do relógio, rodado fora da thread da interface.
+    ///
+    /// Mudar o estilo e mostrar a janela de outro processo são mensagens **síncronas** para a
+    /// thread dela — se o explorer não atende, quem chamou fica esperando junto. Em 01/10/2026 o
+    /// explorer travou três vezes seguidas logo depois do logon (o serviço de apps empacotados do
+    /// Windows tinha travado antes), e cada explorer novo nasce com a barra opaca: o relógio ia
+    /// apagá-la e prendia a dock inteira na fila de um processo que não respondia. O
+    /// <c>IsHungAppWindow</c> só denuncia depois de cinco segundos; aqui não se espera nem esses.
+    ///
+    /// Uma de cada vez: se a anterior ainda está presa, esta volta do relógio passa.
+    /// </summary>
+    private static void SetTransparentAside(bool on)
+    {
+        if (Interlocked.Exchange(ref _applying, 1) == 1) return;
+
+        ThreadPool.QueueUserWorkItem(_ =>
+        {
+            try { SetTransparent(on); }
+            finally { Volatile.Write(ref _applying, 0); }
+        });
     }
 
     private static void SetVisible(bool visible) =>
@@ -195,15 +223,19 @@ public sealed class TaskbarService : IDisposable
     private static bool IsTransparent(nint bar) =>
         ((long)GetWindowLongPtr(bar, GWL_EXSTYLE) & WS_EX_LAYERED) != 0;
 
-    /// <summary>A barra principal e as das telas secundarias.</summary>
+    /// <summary>
+    /// A barra principal e as das telas secundarias — menos as de um explorer travado, que
+    /// prenderiam quem as chamasse. Pular uma delas no <see cref="Restore"/> é inofensivo: o
+    /// Windows reinicia o explorer travado, e o novo nasce com a barra intacta.
+    /// </summary>
     private static void ForEachBar(Action<nint> action)
     {
         var main = FindWindow("Shell_TrayWnd", null);
-        if (main != 0) action(main);
+        if (main != 0 && !IsHungAppWindow(main)) action(main);
 
         nint secondary = 0;
         while ((secondary = FindWindowEx(0, secondary, "Shell_SecondaryTrayWnd", null)) != 0)
-            action(secondary);
+            if (!IsHungAppWindow(secondary)) action(secondary);
     }
 
     /// <summary>
@@ -258,6 +290,10 @@ public sealed class TaskbarService : IDisposable
     /// <summary>Barra de volta e area de trabalho recalculada pelo shell, como estava.</summary>
     private static void Restore()
     {
+        // uma volta do relógio ainda em voo apagaria a barra depois de devolvida; meio segundo
+        // de espera e não mais, que um explorer travado não segura a saída da dock
+        SpinWait.SpinUntil(() => Volatile.Read(ref _applying) == 0, 500);
+
         SetTransparent(false);
         SetVisible(true);
 

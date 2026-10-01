@@ -15,6 +15,14 @@ internal static class Native
     [DllImport("user32.dll")]
     public static extern bool IsWindowVisible(nint hWnd);
 
+    /// <summary>
+    /// O mesmo teste que o Windows usa para escrever "não está respondendo": a janela não
+    /// atende mensagens há cinco segundos. Não manda mensagem nenhuma, então não trava quem
+    /// pergunta.
+    /// </summary>
+    [DllImport("user32.dll")]
+    public static extern bool IsHungAppWindow(nint hWnd);
+
     [DllImport("user32.dll")]
     public static extern bool IsWindow(nint hWnd);
 
