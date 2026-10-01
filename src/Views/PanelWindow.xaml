@@ -69,6 +69,19 @@
       </Setter>
     </Style>
 
+    <!-- o desenho dos ícones da barra: 15 px, e 12 com os ícones compactos. Só o espaço não
+         bastava — sem mudar o tamanho, wi-fi, bluetooth e sino continuavam parecendo os mesmos
+         ao lado do processador e da memória, que têm 11 -->
+    <Style x:Key="BarGlyph" TargetType="ui:GlyphIcon">
+      <Setter Property="Size" Value="15" />
+      <Style.Triggers>
+        <DataTrigger Binding="{Binding DataContext.PanelCompact,
+                               RelativeSource={RelativeSource AncestorType=Window}}" Value="True">
+          <Setter Property="Size" Value="12" />
+        </DataTrigger>
+      </Style.Triggers>
+    </Style>
+
     <!-- o relógio e a data: mesmo realce dos outros botões, sem o respiro largo deles -->
     <Style x:Key="ClockButton" TargetType="Button" BasedOn="{StaticResource PanelButton}">
       <Setter Property="Template">
@@ -297,9 +310,26 @@
 
         <!-- a pilha do Windows: corpo, ponta e o miolo que enche conforme a carga.
              A porcentagem fica na dica do mouse: o desenho ja diz o quanto resta. -->
-        <StackPanel Tag="bateria" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,10,0"
+        <!-- nos ícones compactos a pilha encolhe inteira, na proporção dos ícones (15 → 12), e
+             o miolo vai junto — a escala é do desenho, não das medidas -->
+        <StackPanel Tag="bateria" Orientation="Horizontal" VerticalAlignment="Center"
                     ToolTip="{Binding BatteryTooltip}"
                     Visibility="{Binding HasBattery, Converter={StaticResource BoolToVisible}}">
+          <StackPanel.Style>
+            <Style TargetType="StackPanel">
+              <Setter Property="Margin" Value="0,0,10,0" />
+              <Style.Triggers>
+                <DataTrigger Binding="{Binding PanelCompact}" Value="True">
+                  <Setter Property="Margin" Value="2,0,6,0" />
+                  <Setter Property="LayoutTransform">
+                    <Setter.Value>
+                      <ScaleTransform ScaleX="0.8" ScaleY="0.8" />
+                    </Setter.Value>
+                  </Setter>
+                </DataTrigger>
+              </Style.Triggers>
+            </Style>
+          </StackPanel.Style>
           <Grid VerticalAlignment="Center">
             <Border Width="21" Height="11" CornerRadius="3"
                     BorderBrush="#FFB6B7BC" BorderThickness="1" />
@@ -312,13 +342,13 @@
         </StackPanel>
 
         <Button Tag="wifi" Style="{StaticResource PanelButton}" Click="OnQuickSettings" ToolTip="Wi-Fi">
-          <ui:GlyphIcon Glyph="{Binding WifiGlyph}" Fill="#FFF2F2F2" Size="15" VerticalAlignment="Center" />
+          <ui:GlyphIcon Glyph="{Binding WifiGlyph}" Fill="#FFF2F2F2" Style="{StaticResource BarGlyph}" VerticalAlignment="Center" />
         </Button>
 
         <!-- apagado quando o radio esta desligado; o clique abre a lista de aparelhos -->
         <Button Tag="bluetooth" x:Name="BluetoothButton" Style="{StaticResource PanelButton}" Click="OnBluetooth"
                 ToolTip="{Binding BluetoothTooltip}" Opacity="{Binding BluetoothOpacity}">
-          <ui:GlyphIcon Glyph="{Binding BluetoothGlyph}" Fill="#FFF2F2F2" Size="15" VerticalAlignment="Center" />
+          <ui:GlyphIcon Glyph="{Binding BluetoothGlyph}" Fill="#FFF2F2F2" Style="{StaticResource BarGlyph}" VerticalAlignment="Center" />
         </Button>
 
         <!-- Brilho: some sozinho num monitor que não fala DDC/CI (o painel de notebook, em
@@ -329,7 +359,7 @@
           <Button.ToolTip>
             <ToolTip x:Name="BrightnessTip" Content="Brilho — role para ajustar" />
           </Button.ToolTip>
-          <ui:GlyphIcon Glyph="{Binding BrightnessGlyph}" Fill="#FFF2F2F2" Size="15" VerticalAlignment="Center" />
+          <ui:GlyphIcon Glyph="{Binding BrightnessGlyph}" Fill="#FFF2F2F2" Style="{StaticResource BarGlyph}" VerticalAlignment="Center" />
         </Button>
         <!-- Remover dispositivo externo: só existe enquanto houver pen-drive ou HD externo
              montado. O clique abre o cartão com a lista; remover é lá dentro, e não neste
@@ -337,7 +367,7 @@
         <Button Tag="remover" x:Name="RemovableButton" Style="{StaticResource PanelButton}"
                 Click="OnRemovable" ToolTip="{Binding RemovableTooltip}"
                 Visibility="{Binding HasRemovable, Converter={StaticResource BoolToVisible}}">
-          <ui:GlyphIcon Glyph="{Binding RemovableGlyph}" Fill="#FFF2F2F2" Size="15" VerticalAlignment="Center" />
+          <ui:GlyphIcon Glyph="{Binding RemovableGlyph}" Fill="#FFF2F2F2" Style="{StaticResource BarGlyph}" VerticalAlignment="Center" />
         </Button>
 
         <!-- Atualizações: aceso e com o número quando há algo esperando, apagado quando está tudo
@@ -348,7 +378,7 @@
                 Click="OnUpdates" ToolTip="{Binding UpdatesTooltip}"
                 Visibility="{Binding HasUpdates, Converter={StaticResource BoolToVisible}}">
           <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-            <ui:GlyphIcon Glyph="{Binding UpdatesGlyph}" Size="15" VerticalAlignment="Center"
+            <ui:GlyphIcon Glyph="{Binding UpdatesGlyph}" Style="{StaticResource BarGlyph}" VerticalAlignment="Center"
                           Fill="{Binding UpdatesFill, Converter={StaticResource HexBrush}}" />
             <TextBlock Text="{Binding UpdatesCount}" Foreground="#FF4CC2FF" FontSize="11"
                        FontWeight="SemiBold" VerticalAlignment="Center" Margin="4,0,0,0"
@@ -363,7 +393,7 @@
                 Visibility="{Binding HasAiUsage, Converter={StaticResource BoolToVisible}}">
           <!-- a cor segue o medidor mais cheio: branco enquanto sobra, âmbar a partir de 60%,
                vermelho a partir de 90% — veja `PanelModel.AiBrush` -->
-          <ui:GlyphIcon Glyph="{Binding AiGlyph}" Fill="{Binding AiBrush}" Size="15"
+          <ui:GlyphIcon Glyph="{Binding AiGlyph}" Fill="{Binding AiBrush}" Style="{StaticResource BarGlyph}"
                         VerticalAlignment="Center" />
         </Button>
 
@@ -378,18 +408,18 @@
           <Button.ToolTip>
             <ToolTip x:Name="VolumeTip" Content="Volume — role para ajustar" />
           </Button.ToolTip>
-          <ui:GlyphIcon Glyph="{Binding VolumeGlyph}" Fill="#FFF2F2F2" Size="15" VerticalAlignment="Center" />
+          <ui:GlyphIcon Glyph="{Binding VolumeGlyph}" Fill="#FFF2F2F2" Style="{StaticResource BarGlyph}" VerticalAlignment="Center" />
         </Button>
 
         <Button Tag="notificacoes" Style="{StaticResource PanelButton}" Click="OnNotifications"
                 ToolTip="Notificações">
-          <ui:GlyphIcon Glyph="{Binding BellGlyph}" Fill="#FFF2F2F2" Size="15" VerticalAlignment="Center" />
+          <ui:GlyphIcon Glyph="{Binding BellGlyph}" Fill="#FFF2F2F2" Style="{StaticResource BarGlyph}" VerticalAlignment="Center" />
         </Button>
 
         <!-- energia: desligar, reiniciar, hibernar, bloquear e encerrar sessão -->
         <Button Tag="energia" x:Name="PowerButton" Style="{StaticResource PanelButton}" Click="OnPower"
                 ToolTip="Desligar, reiniciar, bloquear">
-          <ui:GlyphIcon Glyph="{Binding PowerGlyph}" Fill="#FFF2F2F2" Size="15" VerticalAlignment="Center" />
+          <ui:GlyphIcon Glyph="{Binding PowerGlyph}" Fill="#FFF2F2F2" Style="{StaticResource BarGlyph}" VerticalAlignment="Center" />
         </Button>
 
         <!-- o relogio do canto: some quando a opção o manda para o meio da barra -->

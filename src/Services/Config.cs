@@ -493,8 +493,10 @@ public sealed class DockConfig : INotifyPropertyChanged
 
     private bool _panelCompact;
     /// <summary>
-    /// Ícones da barra mais juntos: o respiro de cada botão cai pela metade, e o desenho fica o
-    /// mesmo. Pedido em 01/10/2026, quando a barra passou a ter CPU e memória — os dois números
+    /// Ícones da barra menores e mais juntos: o desenho cai de 15 para 12 px (a pilha da bateria
+    /// encolhe na mesma proporção) e o respiro de cada botão cai pela metade. Só o espaço foi a
+    /// primeira versão, e não bastou: ao lado do processador e da memória, de 11 px, wi-fi,
+    /// bluetooth e sino continuavam parecendo do mesmo tamanho. Pedido em 01/10/2026, quando a barra passou a ter CPU e memória — os dois números
     /// cabem apertados, e o resto da fila parecia folgado ao lado deles.
     ///
     /// Desligada por padrão: o espaço largo é o alvo de clique de quem usa a barra com o mouse, e

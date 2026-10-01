@@ -157,8 +157,8 @@ monitor aceita ser controlado (veja [Brilho](#brilho)), a **cota de IA**, se voc
 (veja [Remover dispositivo externo](#remover-dispositivo-externo)), e as **atualizações**, enquanto
 houver alguma esperando (veja [Atualizações esperando](#atualizações-esperando)) — mais o
 **CPU e memória**, se você ligar (veja [CPU, memória e rede](#cpu-memória-e-rede)).
-Se preferir a barra mais curta, **Configurações > Ícones compactos** junta os ícones, com metade
-do espaço entre eles — o desenho é o mesmo.
+Se preferir a barra mais curta, **Configurações > Ícones compactos** diminui os ícones para o tamanho
+dos de CPU e memória e os junta, com metade do espaço entre eles.
 **A ordem é sua** — veja
 [Ordem dos itens](#ordem-dos-itens-da-barra).
 
