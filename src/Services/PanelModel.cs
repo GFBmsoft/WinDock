@@ -70,6 +70,7 @@ public sealed class PanelModel : INotifyPropertyChanged, IDisposable
 
         WatchAiUsage();
         WatchUpdates();
+        WatchSelfUpdate();
 
         // A lista de dispositivos externos não tem relógio: quem avisa é o Windows, pelo
         // WM_DEVICECHANGE que a barra assina (veja PanelWindow.OnDeviceChange). Esta é só a
@@ -1268,6 +1269,155 @@ public sealed class PanelModel : INotifyPropertyChanged, IDisposable
         });
     }
 
+    // ── nova versão do WinDock ──────────────────────────────
+
+    private DispatcherTimer? _selfUpdateTimer;
+    private WinDockRelease? _release;
+
+    /// <summary>A caixa de presente da Segoe: "tem novidade", sem se confundir com a seta ao lado.</summary>
+    public string SelfUpdateGlyph => _selfUpdating ? "" : "";
+
+    private string _selfUpdateTag = string.Empty;
+    /// <summary>A tag da Release mais nova que esta dock, ou vazio quando ela está em dia.</summary>
+    public string SelfUpdateTag
+    {
+        get => _selfUpdateTag;
+        private set
+        {
+            if (!Set(ref _selfUpdateTag, value)) return;
+            OnChanged(nameof(HasSelfUpdate));
+            OnChanged(nameof(SelfUpdateTooltip));
+        }
+    }
+
+    /// <summary>
+    /// O ícone só existe enquanto há versão nova — ao contrário do das atualizações do Windows,
+    /// que fica sempre. Lá, "nada esperando" é uma resposta que a pessoa quer ver; aqui, um
+    /// presente apagado na barra o dia inteiro seria só um ícone a mais.
+    /// </summary>
+    public bool HasSelfUpdate => _config.PanelSelfUpdate && _selfUpdateTag.Length > 0;
+
+    private bool _selfUpdating;
+    public bool SelfUpdating
+    {
+        get => _selfUpdating;
+        private set
+        {
+            if (!Set(ref _selfUpdating, value)) return;
+            OnChanged(nameof(SelfUpdateGlyph));
+            OnChanged(nameof(SelfUpdateTooltip));
+        }
+    }
+
+    private string _selfUpdateProgress = string.Empty;
+
+    public string SelfUpdateTooltip => _selfUpdating
+        ? $"Atualizando o WinDock para a {_selfUpdateTag}… {_selfUpdateProgress}".TrimEnd()
+        : $"WinDock {_selfUpdateTag} disponível\nVocê está na {SelfUpdateService.CurrentVersion} — clique para atualizar";
+
+    /// <summary>
+    /// Começa a vigiar as Releases. A primeira olhada é três minutos depois de abrir — o logon
+    /// já é concorrido o bastante —, e depois de hora em hora; mas o GitHub só é perguntado
+    /// quando a última consulta tem mais de um dia. Nas outras voltas vale a tag guardada, e é
+    /// isso que faz o ícone aparecer logo depois de reiniciar, sem gastar consulta.
+    /// </summary>
+    private void WatchSelfUpdate()
+    {
+        _selfUpdateTimer = new DispatcherTimer(DispatcherPriority.Background) { Interval = TimeSpan.FromMinutes(3) };
+        _selfUpdateTimer.Tick += (_, _) =>
+        {
+            _selfUpdateTimer.Interval = TimeSpan.FromHours(1);
+            CheckSelfUpdate();
+        };
+        _selfUpdateTimer.Start();
+    }
+
+    public void CheckSelfUpdate(bool force = false)
+    {
+        if (!_config.PanelSelfUpdate && !force) return;
+
+        var atual = SelfUpdateService.CurrentVersion;
+        var recente = _config.SelfUpdateCheckedAt is { } quando &&
+                      DateTime.UtcNow - quando < SelfUpdateService.CheckInterval;
+
+        if (recente && !force)
+        {
+            SelfUpdateTag = SelfUpdateService.IsNewer(atual, _config.SelfUpdateTag) ? _config.SelfUpdateTag : string.Empty;
+            return;
+        }
+
+        _ = Task.Run(async () =>
+        {
+            var release = await SelfUpdateService.LatestAsync().ConfigureAwait(false);
+
+            await _dispatcher.InvokeAsync(() =>
+            {
+                // sem resposta, a consulta fica para a próxima volta — e a tag guardada continua valendo
+                if (release is null) return;
+
+                _release = release;
+                _config.SelfUpdateCheckedAt = DateTime.UtcNow;
+                _config.SelfUpdateTag = release.Tag;
+                _config.Save();
+
+                var nova = SelfUpdateService.IsNewer(atual, release.Tag);
+                Log.Trace($"nova versão: GitHub tem {release.Tag}, esta é {atual}{(nova ? " — avisando" : string.Empty)}");
+                SelfUpdateTag = nova ? release.Tag : string.Empty;
+            });
+        });
+    }
+
+    /// <summary>
+    /// Baixa a Release no mesmo sabor desta dock, troca o executável e reabre. Devolve o motivo
+    /// quando não deu certo; quando dá, quem chamou fecha esta dock para a nova assumir.
+    ///
+    /// Fora de um executável de arquivo único numa pasta gravável não há troca possível, e o
+    /// clique abre a página da Release.
+    /// </summary>
+    public async Task<(bool Swapped, string? Error)> InstallSelfUpdateAsync()
+    {
+        if (_selfUpdating) return (false, null);
+
+        SelfUpdating = true;
+        try
+        {
+            var release = _release?.Tag == _selfUpdateTag ? _release : await SelfUpdateService.LatestAsync();
+            if (release is null) return (false, "o GitHub não respondeu; tente de novo em alguns minutos");
+
+            var arquivo = SelfUpdateService.PickAsset(release);
+            if (arquivo is null || !SelfUpdateService.CanSwap(out var exe))
+            {
+                SelfUpdateService.OpenReleasePage(release.Url);
+                return (false, null);
+            }
+
+            Log.Write($"nova versão: baixando {arquivo.Name} ({arquivo.Size / 1024d / 1024d:N1} MB)");
+
+            var progresso = new Progress<double>(p =>
+            {
+                _selfUpdateProgress = p.ToString("P0", CultureInfo.CurrentCulture);
+                OnChanged(nameof(SelfUpdateTooltip));
+            });
+
+            var baixado = await SelfUpdateService.DownloadAsync(arquivo, System.IO.Path.GetDirectoryName(exe)!, progresso);
+
+            SelfUpdateService.Swap(exe, baixado);
+            Log.Write($"nova versão: {SelfUpdateService.CurrentVersion} → {release.Tag}, reabrindo");
+            SelfUpdateService.Relaunch(exe);
+            return (true, null);
+        }
+        catch (Exception ex)
+        {
+            Log.Write("nova versão: a atualização falhou", ex);
+            return (false, ex.Message);
+        }
+        finally
+        {
+            _selfUpdateProgress = string.Empty;
+            SelfUpdating = false;
+        }
+    }
+
     // ── cota de IA ──────────────────────────────────────────
 
     private readonly AiUsageService _ai = new();
@@ -1659,6 +1809,13 @@ public sealed class PanelModel : INotifyPropertyChanged, IDisposable
         if (e.PropertyName is nameof(DockConfig.PanelSystem)) OnChanged(nameof(HasSystemInfo));
         if (e.PropertyName is nameof(DockConfig.PanelCompact)) OnChanged(nameof(PanelCompact));
 
+        // ligada agora: confere já, com a tag guardada se a consulta do dia já foi feita
+        if (e.PropertyName is nameof(DockConfig.PanelSelfUpdate))
+        {
+            OnChanged(nameof(HasSelfUpdate));
+            CheckSelfUpdate();
+        }
+
         // ligada agora: a lista é montada na hora, senão o botão só apareceria no próximo
         // pen-drive que entrasse — e o que já está espetado é justamente o caso de quem
         // acabou de ligar a opção
@@ -1863,6 +2020,7 @@ public sealed class PanelModel : INotifyPropertyChanged, IDisposable
     {
         _timer.Stop();
         _aiTimer?.Stop();
+        _selfUpdateTimer?.Stop();
         _updatesTimer?.Stop();
         _updatesWatcher?.Dispose();
 

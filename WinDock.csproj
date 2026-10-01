@@ -42,4 +42,38 @@
     <Page Remove="src\App.xaml" />
   </ItemGroup>
 
+  <!--
+    A versão do build local, pela mesma regra do CI (.github/workflows/build.yml): a tag mais
+    recente no formato 1.0.0.N, e "-dev.N" quando há commits depois dela. Sem isto a dock de dist
+    saía 1.0.0.0 e não tinha como saber se a Release do GitHub é mais nova que ela — que é o que
+    acende o ícone de "nova versão do WinDock". No CI a versão já vem por parâmetro, e este passo
+    fica de fora; sem git ou sem tag, nada muda.
+
+    Roda num target, e não em propriedade: o SDK calcula Version ao avaliar o projeto, antes de
+    qualquer comando, então aqui as quatro versões são definidas direto, antes de virarem atributo.
+  -->
+  <Target Name="WinDockVersaoPeloGit" BeforeTargets="GetAssemblyAttributes"
+          Condition="'$(GITHUB_ACTIONS)' != 'true'">
+    <Exec Command="git describe --tags --abbrev=0 --match &quot;[0-9]*.[0-9]*.[0-9]*.[0-9]*&quot;"
+          ConsoleToMsBuild="true" StandardOutputImportance="low" StandardErrorImportance="low"
+          IgnoreExitCode="true" WorkingDirectory="$(MSBuildProjectDirectory)">
+      <Output TaskParameter="ConsoleOutput" PropertyName="_WdTag" />
+      <Output TaskParameter="ExitCode" PropertyName="_WdTagSaida" />
+    </Exec>
+
+    <Exec Command="git rev-list --count $(_WdTag)..HEAD" Condition="'$(_WdTagSaida)' == '0'"
+          ConsoleToMsBuild="true" StandardOutputImportance="low" StandardErrorImportance="low"
+          IgnoreExitCode="true" WorkingDirectory="$(MSBuildProjectDirectory)">
+      <Output TaskParameter="ConsoleOutput" PropertyName="_WdCommits" />
+    </Exec>
+
+    <PropertyGroup Condition="'$(_WdTagSaida)' == '0' and $([System.Text.RegularExpressions.Regex]::IsMatch('$(_WdTag)', '^\d+\.\d+\.\d+\.\d+$'))">
+      <Version>$(_WdTag)</Version>
+      <Version Condition="'$(_WdCommits)' != '' and '$(_WdCommits)' != '0'">$(_WdTag)-dev.$(_WdCommits)</Version>
+      <AssemblyVersion>$(_WdTag)</AssemblyVersion>
+      <FileVersion>$(_WdTag)</FileVersion>
+      <InformationalVersion>$(Version)</InformationalVersion>
+    </PropertyGroup>
+  </Target>
+
 </Project>

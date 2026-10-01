@@ -249,7 +249,7 @@ public partial class PanelWindow : Window
         ("volume",          "Volume"),
         ("brilho",          "Brilho"),
         ("remover",         "Remover dispositivo externo"),
-        ("atualizacoes",    "Atualizações esperando"),
+        ("atualizacoes",    "Atualizações esperando (e nova versão do WinDock)"),
         ("cotaIa",          "Cota de IA"),
         ("notificacoes",    "Notificações"),
         ("energia",         "Energia"),
@@ -789,6 +789,38 @@ public partial class PanelWindow : Window
     /// mouse de quem só queria olhar; aqui foi pedido.
     /// </summary>
     private void OnRefreshUpdates(object sender, RoutedEventArgs e) => _model.RefreshUpdates();
+
+    /// <summary>
+    /// A versão nova do WinDock: pergunta, baixa, troca o executável e reabre.
+    ///
+    /// Pergunta antes porque a dock some e volta — a barra do Windows reaparece por um instante
+    /// e as janelas maximizadas se reacomodam —, e isso não pode acontecer no meio de um clique
+    /// dado por engano. Dando certo, esta dock fecha pelo caminho normal (devolve a área de
+    /// trabalho e a barra do Windows), e a nova, que já está esperando, assume.
+    /// </summary>
+    private async void OnSelfUpdate(object sender, RoutedEventArgs e)
+    {
+        if (_model.SelfUpdating) return;
+        CloseAllPopups();
+
+        var ok = ConfirmWindow.Ask(this, $"Atualizar o WinDock para a {_model.SelfUpdateTag}?",
+            $"Você está na {SelfUpdateService.CurrentVersion}. A dock baixa a versão nova do GitHub, fecha e " +
+            "abre de novo já atualizada — leva alguns segundos.\n\n" +
+            "O executável atual fica guardado ao lado como cópia, e volta sozinho se a troca falhar.",
+            accept: "Atualizar", cancel: "Agora não");
+        if (!ok) return;
+
+        var (trocou, erro) = await _model.InstallSelfUpdateAsync();
+
+        if (trocou)
+        {
+            Application.Current.MainWindow?.Close();
+            return;
+        }
+
+        if (erro is not null)
+            ConfirmWindow.Tell(this, "Não deu para atualizar o WinDock", erro);
+    }
 
     /// <summary>Leva ao Windows Update, que é onde essas atualizações se instalam.</summary>
     private void OnOpenWindowsUpdate(object sender, RoutedEventArgs e)

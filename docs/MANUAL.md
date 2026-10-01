@@ -179,6 +179,7 @@ dos de CPU e memória e os junta, com metade do espaço entre eles.
 | Quanto da cota do Claude já foi usada | clique no robô (veja [Cota de IA](#cota-de-ia)) |
 | Perguntar a cota de novo, agora | o `↻` no rodapé do cartão de cota |
 | Ver o que há para atualizar | clique na seta com o número (veja [Atualizações esperando](#atualizações-esperando)) |
+| Atualizar o próprio WinDock | clique no presente azul, quando ele aparecer (veja [Atualizar](#atualizar)) |
 | Corrigir o texto de uma tarefa | clique no texto dela, dentro do calendário |
 | Marcar a hora de uma tarefa | o `🕘` no balão dela, ou digite `14:30 dentista` na nova tarefa |
 | Ser avisado quando a hora chegar | o `🔔` no balão da tarefa |
@@ -586,6 +587,23 @@ mover. A barra muda na hora. A música entra como **dois itens separados** (a in
 controles), então dá para afastá-los ou juntá-los.
 
 ## Atualizar
+
+**Pela própria dock.** Quando sai uma versão nova nas **Releases**, aparece um **presente azul**
+à esquerda da seta das atualizações (ele não existe enquanto a dock está em dia). O clique
+pergunta, baixa a versão nova no mesmo sabor da que está rodando (com ou sem o .NET embutido),
+troca o executável **no mesmo lugar** e reabre a dock — a tarefa de logon continua valendo. O
+executável antigo fica ao lado como `WinDock.exe.old` e é apagado na abertura seguinte; se a troca
+falhar no meio, ele volta para o lugar.
+
+O GitHub é consultado **uma vez por dia** (a API sem login tem cota por hora). Desliga em
+**Configurações > Avisar nova versão do WinDock**. A troca só acontece num executável de arquivo
+único e numa pasta onde a dock possa gravar; fora disso, o clique abre a página da Release.
+
+O build local também sabe a versão: o `dotnet publish` carimba a tag mais recente do repositório
+(`1.0.0.32`, ou `1.0.0.32-dev.3` com commits depois dela), pela mesma regra do GitHub. É isso que
+faz o presente aparecer na dock de `dist` quando sai uma tag mais nova que a dela.
+
+**À mão:**
 
 1. Saia pela dock (botão direito > **Sair do WinDock**) — com o app rodando, o arquivo fica
    travado e a publicação falha com `MSB3021`;

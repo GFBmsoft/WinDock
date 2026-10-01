@@ -504,6 +504,19 @@ public sealed class DockConfig : INotifyPropertyChanged
     /// </summary>
     public bool PanelCompact { get => _panelCompact; set => Set(ref _panelCompact, value); }
 
+    private bool _panelSelfUpdate = true;
+    /// <summary>
+    /// Avisar na barra quando sai uma Release nova do WinDock — o ícone só existe enquanto houver
+    /// uma. Ligado de fábrica: a consulta é uma por dia, e quem não quiser desliga.
+    /// </summary>
+    public bool PanelSelfUpdate { get => _panelSelfUpdate; set => Set(ref _panelSelfUpdate, value); }
+
+    /// <summary>Quando o GitHub foi consultado pela última vez — a consulta é diária.</summary>
+    public DateTime? SelfUpdateCheckedAt { get; set; }
+
+    /// <summary>A tag da Release mais recente que o GitHub respondeu naquela consulta.</summary>
+    public string SelfUpdateTag { get; set; } = string.Empty;
+
     /// <summary>
     /// Pacotes do winget que a pessoa mandou calar, pelo id (o nome, quando o pacote não tem id).
     ///
@@ -859,6 +872,7 @@ public sealed class DockConfig : INotifyPropertyChanged
         PanelUpdates = d.PanelUpdates;
         PanelSystem = d.PanelSystem;
         PanelCompact = d.PanelCompact;
+        PanelSelfUpdate = d.PanelSelfUpdate;
         PanelMediaTicker = d.PanelMediaTicker;
         PanelRemovable = d.PanelRemovable;
         Trace = d.Trace;

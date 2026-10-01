@@ -374,17 +374,29 @@
              em dia. O número vai ao lado do ícone porque é ele que decide se vale interromper o que
              se está fazendo — "3" e "47" pedem coisas diferentes; e sem ele, apagado, o ícone ainda
              responde a outra pergunta, a de que a dock está conferindo. -->
-        <Button Tag="atualizacoes" x:Name="UpdatesButton" Style="{StaticResource PanelButton}"
-                Click="OnUpdates" ToolTip="{Binding UpdatesTooltip}"
-                Visibility="{Binding HasUpdates, Converter={StaticResource BoolToVisible}}">
-          <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-            <ui:GlyphIcon Glyph="{Binding UpdatesGlyph}" Style="{StaticResource BarGlyph}" VerticalAlignment="Center"
-                          Fill="{Binding UpdatesFill, Converter={StaticResource HexBrush}}" />
-            <TextBlock Text="{Binding UpdatesCount}" Foreground="#FF4CC2FF" FontSize="11"
-                       FontWeight="SemiBold" VerticalAlignment="Center" Margin="4,0,0,0"
-                       Visibility="{Binding UpdatesCount, Converter={StaticResource EmptyToCollapsed}}" />
-          </StackPanel>
-        </Button>
+        <!-- Nova versão do WinDock e atualizações do Windows formam um item só para a ordenação
+             (a chave "atualizacoes" é do grupo): o presente fica sempre à esquerda da seta, para
+             onde quer que a pessoa leve as duas. O presente só existe enquanto há Release nova. -->
+        <StackPanel Tag="atualizacoes" Orientation="Horizontal" VerticalAlignment="Center">
+          <Button Style="{StaticResource PanelButton}" Click="OnSelfUpdate"
+                  ToolTip="{Binding SelfUpdateTooltip}" AutomationProperties.Name="Nova versão do WinDock"
+                  Visibility="{Binding HasSelfUpdate, Converter={StaticResource BoolToVisible}}">
+            <ui:GlyphIcon Glyph="{Binding SelfUpdateGlyph}" Style="{StaticResource BarGlyph}"
+                          VerticalAlignment="Center" Fill="#FF4CC2FF" />
+          </Button>
+
+          <Button x:Name="UpdatesButton" Style="{StaticResource PanelButton}"
+                  Click="OnUpdates" ToolTip="{Binding UpdatesTooltip}"
+                  Visibility="{Binding HasUpdates, Converter={StaticResource BoolToVisible}}">
+            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+              <ui:GlyphIcon Glyph="{Binding UpdatesGlyph}" Style="{StaticResource BarGlyph}" VerticalAlignment="Center"
+                            Fill="{Binding UpdatesFill, Converter={StaticResource HexBrush}}" />
+              <TextBlock Text="{Binding UpdatesCount}" Foreground="#FF4CC2FF" FontSize="11"
+                         FontWeight="SemiBold" VerticalAlignment="Center" Margin="4,0,0,0"
+                         Visibility="{Binding UpdatesCount, Converter={StaticResource EmptyToCollapsed}}" />
+            </StackPanel>
+          </Button>
+        </StackPanel>
 
         <!-- Cota de IA: só aparece com a opção ligada e credencial do Claude Code na
              máquina. O clique abre o cartão com as janelas de uso. -->

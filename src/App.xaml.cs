@@ -38,7 +38,9 @@ public partial class App : Application
         // atalhos, e esconderiam a barra do Windows cada uma por conta própria — ao fechar uma, a
         // outra ficava sem a faixa reservada. Acontece fácil: a tarefa de logon já subiu a dock e a
         // pessoa clica no atalho de novo.
-        if (!ClaimSingleInstance())
+        var depoisDeAtualizar = e.Args.Contains(SelfUpdateService.AfterUpdateArg);
+
+        if (!ClaimSingleInstance(depoisDeAtualizar))
         {
             // Sumir calada não serve: esta instância já passou pelo aviso do UAC, e a pessoa
             // ficaria sem saber se o clique pegou. Abrir as configurações da que já roda mostra que
@@ -52,6 +54,8 @@ public partial class App : Application
         }
 
         Log.Trace("processo de pé; começando a montar a interface");
+        if (depoisDeAtualizar) Log.Write($"nova versão: a dock subiu já atualizada, {SelfUpdateService.CurrentVersion}");
+        SelfUpdateService.CleanOld();
         DispatcherUnhandledException += OnDispatcherException;
         AppDomain.CurrentDomain.UnhandledException += (_, args) =>
             Log.Write("erro não tratado: " + (args.ExceptionObject as Exception)?.ToString());
@@ -65,11 +69,15 @@ public partial class App : Application
     /// Uma dock que morreu à força (Gerenciador de Tarefas, queda de energia) larga o nome
     /// "abandonado": o Windows avisa com a exceção, e a vez passa a ser desta — ninguém mais o
     /// segura.
+    ///
+    /// Aberta pela própria atualização, ela espera a dock velha sair — até trinta segundos, que é
+    /// folga para devolver a barra do Windows e a área de trabalho. Sem a espera, a nova veria a
+    /// velha ainda de pé, pediria as configurações a ela e sairia: as duas sumiriam.
     /// </summary>
-    private static bool ClaimSingleInstance()
+    private static bool ClaimSingleInstance(bool waitForOld)
     {
         _instance = new Mutex(initiallyOwned: false, InstanceName);
-        try { return _instance.WaitOne(0); }
+        try { return _instance.WaitOne(waitForOld ? TimeSpan.FromSeconds(30) : TimeSpan.Zero); }
         catch (AbandonedMutexException) { return true; }
     }
 
