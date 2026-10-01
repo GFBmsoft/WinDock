@@ -286,6 +286,9 @@ public sealed class PanelModel : INotifyPropertyChanged, IDisposable
     /// </summary>
     public bool HasSystemInfo => _config.PanelSystem;
 
+    /// <summary>Ícones da barra com metade do respiro — veja <c>DockConfig.PanelCompact</c>.</summary>
+    public bool PanelCompact => _config.PanelCompact;
+
     private string _netDown = "0 B/s";
     public string NetDown { get => _netDown; private set => Set(ref _netDown, value); }
 
@@ -813,8 +816,12 @@ public sealed class PanelModel : INotifyPropertyChanged, IDisposable
     /// Store e o Windows Update usam para "há o que baixar".
     ///
     /// Escrito pelo código, e não pelo caractere: veja o <c>TrayGlyph</c>.
+    ///
+    /// Enquanto o winget instala, vira as duas setas em círculo: a barra também precisa dizer que
+    /// o clique está andando — antes só o cartão sabia, e com ele fechado o ícone parecia ignorar
+    /// a ordem até o número mudar de repente.
     /// </summary>
-    public string UpdatesGlyph => "";
+    public string UpdatesGlyph => _updatesUpgrading ? "" : "";
 
     private UpdateStatus _updates = UpdateStatus.Empty;
 
@@ -858,8 +865,8 @@ public sealed class PanelModel : INotifyPropertyChanged, IDisposable
     /// <summary>Há algo esperando — é o que acende o ícone e mostra o número.</summary>
     public bool HasUpdatesPending => _updates.Any;
 
-    /// <summary>Azul quando há o que atualizar; o cinza dos ícones apagados quando não há.</summary>
-    public string UpdatesFill => _updates.Any ? "#FF4CC2FF" : "#FF8A8A8A";
+    /// <summary>Azul quando há o que atualizar ou o winget está instalando; o cinza dos ícones apagados quando não há.</summary>
+    public string UpdatesFill => _updates.Any || _updatesUpgrading ? "#FF4CC2FF" : "#FF8A8A8A";
 
     /// <summary>O número ao lado do ícone — vazio quando não há nada, e aí ele nem aparece.</summary>
     public string UpdatesCount => _updates.Any ? _updates.Total.ToString(CultureInfo.CurrentCulture) : string.Empty;
@@ -1021,17 +1028,89 @@ public sealed class PanelModel : INotifyPropertyChanged, IDisposable
         var primeira = new DispatcherTimer(DispatcherPriority.Background) { Interval = TimeSpan.FromMinutes(2) };
         primeira.Tick += (s, _) => { ((DispatcherTimer)s!).Stop(); RefreshUpdates(); };
         primeira.Start();
+
+        WatchWindowsInstalls();
     }
+
+    private System.Diagnostics.Eventing.Reader.EventLogWatcher? _updatesWatcher;
+    private DispatcherTimer? _installSettle;
+
+    /// <summary>
+    /// Reconfere quando o Windows Update termina de instalar alguma coisa — avisado pelo próprio
+    /// Windows, e não adivinhado por relógio.
+    ///
+    /// O relógio errava dos dois lados. Em 01/10/2026 o ícone mostrou "2" por vinte minutos depois
+    /// de o Defender se instalar sozinho, porque a próxima conferência só vinha na volta seguinte; e
+    /// as reconferências de 2 e 10 min depois de abrir o Windows Update são um palpite de quanto
+    /// a instalação demora. O evento 19 (instalou) e o 20 (falhou) do <c>WindowsUpdateClient</c>,
+    /// no log do Sistema, são escritos no instante em que cada instalação acaba — inclusive as que
+    /// ninguém pediu. Ler o log do Sistema não exige administrador.
+    ///
+    /// Os eventos vêm em rajada (quatro pacotes do mesmo app no mesmo segundo), então a conferência
+    /// espera cinco segundos de silêncio antes de sair.
+    /// </summary>
+    private void WatchWindowsInstalls()
+    {
+        _installSettle = new DispatcherTimer(DispatcherPriority.Background) { Interval = TimeSpan.FromSeconds(5) };
+        _installSettle.Tick += (_, _) => { _installSettle.Stop(); RefreshUpdates(); };
+
+        try
+        {
+            var consulta = new System.Diagnostics.Eventing.Reader.EventLogQuery("System",
+                System.Diagnostics.Eventing.Reader.PathType.LogName,
+                "*[System[Provider[@Name='Microsoft-Windows-WindowsUpdateClient'] and (EventID=19 or EventID=20)]]");
+
+            _updatesWatcher = new System.Diagnostics.Eventing.Reader.EventLogWatcher(consulta);
+            _updatesWatcher.EventRecordWritten += (_, e) =>
+            {
+                e.EventRecord?.Dispose();
+                _dispatcher.InvokeAsync(() =>
+                {
+                    Log.Trace("atualizações: o Windows Update terminou uma instalação; reconferindo");
+                    _installSettle.Stop();
+                    _installSettle.Start();
+                });
+            };
+            _updatesWatcher.Enabled = true;
+        }
+        catch (Exception ex)
+        {
+            // sem o aviso, sobram o relógio e as reconferências agendadas — o ícone só demora mais
+            Log.Write("atualizações: não deu para ouvir as instalações do Windows Update", ex);
+            _updatesWatcher?.Dispose();
+            _updatesWatcher = null;
+        }
+    }
+
+    /// <summary>
+    /// Um pedido de conferência chegou enquanto não dava para atendê-lo — com outra em curso, ou
+    /// com o winget instalando.
+    /// </summary>
+    private bool _updatesAgain;
 
     /// <summary>
     /// Relê em segundo plano; nada na barra espera pela resposta.
     ///
     /// Duas consultas ao mesmo tempo não acontecem: a do Windows Update leva uns doze segundos, e
     /// clicar duas vezes em "Conferir agora" poria duas buscas na rede para o mesmo resultado.
+    ///
+    /// Mas o pedido que chega no meio fica guardado, e não descartado — descartá-lo era o defeito
+    /// do ícone que não apagava depois de "Atualizar tudo". A conferência em curso tinha lido o
+    /// winget **antes** de ele instalar; a que o fim da instalação pedia era recusada por haver uma
+    /// em curso; e a lista velha chegava por último e acendia o ícone de novo. Durante a instalação
+    /// também não se lê: a lista sairia no meio do caminho, e o fim dela já pede a sua.
     /// </summary>
     public void RefreshUpdates()
     {
-        if (!_config.PanelUpdates || _updatesChecking) return;
+        if (!_config.PanelUpdates) return;
+
+        if (_updatesChecking || _updatesUpgrading)
+        {
+            _updatesAgain = true;
+            return;
+        }
+
+        _updatesAgain = false;
 
         UpdatesChecking = true;
 
@@ -1044,7 +1123,7 @@ public sealed class PanelModel : INotifyPropertyChanged, IDisposable
 
             var rapido = await UpdatesService.ReadAsync(online: false, silenced: calados)
                                              .ConfigureAwait(false);
-            await _dispatcher.InvokeAsync(() => Updates = rapido);
+            await _dispatcher.InvokeAsync(() => { if (!_updatesAgain) Updates = rapido; });
 
             // Depois a busca de verdade, que é a única capaz de descobrir o que ainda não se sabe.
             // O winget não é perguntado de novo: é um processo de console, e a lista dele não muda
@@ -1058,6 +1137,15 @@ public sealed class PanelModel : INotifyPropertyChanged, IDisposable
             await _dispatcher.InvokeAsync(() =>
             {
                 UpdatesChecking = false;
+
+                // o que chegou no meio pediu uma leitura mais nova que esta; ela sai agora e
+                // esta não é mostrada, para o ícone não piscar um estado que já passou
+                if (_updatesAgain && !_updatesUpgrading)
+                {
+                    RefreshUpdates();
+                    return;
+                }
+
                 Updates = completo;
                 SchedulePace();
             });
@@ -1117,6 +1205,8 @@ public sealed class PanelModel : INotifyPropertyChanged, IDisposable
         private set
         {
             if (!Set(ref _updatesUpgrading, value)) return;
+            OnChanged(nameof(UpdatesGlyph));
+            OnChanged(nameof(UpdatesFill));
             OnChanged(nameof(UpdatesIdle));
             OnChanged(nameof(UpdatesTooltip));
             OnChanged(nameof(UpdatesEmptyText));
@@ -1166,6 +1256,10 @@ public sealed class PanelModel : INotifyPropertyChanged, IDisposable
             {
                 UpdatesUpgrading = false;
                 UpgradeError = erro ?? string.Empty;
+
+                // sem erro, o que foi atualizado sai da conta já — o ícone muda junto com o fim do
+                // winget, e não segundos depois, quando a releitura volta
+                if (erro is null) Updates = _updates.WithoutUpgraded(id);
 
                 // a conferência sai agora, e não daqui a dois minutos: o winget acabou de devolver
                 // o controle, e o cache do agente já sabe o que sumiu
@@ -1561,6 +1655,7 @@ public sealed class PanelModel : INotifyPropertyChanged, IDisposable
         // ligar o sistema vale na hora; a primeira medida sai zerada (toda conta aqui é a
         // diferença entre duas leituras) e o segundo tique já traz o valor de verdade
         if (e.PropertyName is nameof(DockConfig.PanelSystem)) OnChanged(nameof(HasSystemInfo));
+        if (e.PropertyName is nameof(DockConfig.PanelCompact)) OnChanged(nameof(PanelCompact));
 
         // ligada agora: a lista é montada na hora, senão o botão só apareceria no próximo
         // pen-drive que entrasse — e o que já está espetado é justamente o caso de quem
@@ -1767,6 +1862,7 @@ public sealed class PanelModel : INotifyPropertyChanged, IDisposable
         _timer.Stop();
         _aiTimer?.Stop();
         _updatesTimer?.Stop();
+        _updatesWatcher?.Dispose();
 
         // as sessoes de audio seguram COM: soltar aqui evita deixar o servico de audio
         // com referencias de uma barra que ja nao existe

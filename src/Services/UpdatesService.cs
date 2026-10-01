@@ -74,6 +74,21 @@ public sealed record UpdateStatus(
         };
     }
 
+    /// <summary>
+    /// Tira da lista o que o winget acabou de atualizar sem erro — um pacote, ou todos os que o
+    /// <c>--all</c> alcança (os que exigem alvo explícito ficam).
+    ///
+    /// É a conta antecipada que faz o ícone mudar no instante em que o winget devolve o controle.
+    /// A releitura que vem atrás confirma, e corrige se algum pacote não tiver saído de fato.
+    /// </summary>
+    public UpdateStatus WithoutUpgraded(string? id) => this with
+    {
+        Winget = Winget.Where(p => id is null
+                                   ? p.Explicit
+                                   : !string.Equals(p.Id, id, StringComparison.OrdinalIgnoreCase))
+                       .ToList()
+    };
+
     /// <summary>Alguma das duas perguntas não pôde ser feita — o que é diferente de não haver nada.</summary>
     public bool Failed => WindowsError is not null || WingetError is not null;
 
