@@ -157,6 +157,7 @@ public partial class PanelWindow : Window
     private bool _removableWasOpen;
     private bool _systemWasOpen;
     private bool _clockWasOpen;
+    private bool _notificationsWasOpen;
 
     protected override void OnPreviewMouseDown(System.Windows.Input.MouseButtonEventArgs e)
     {
@@ -172,6 +173,7 @@ public partial class PanelWindow : Window
         _removableWasOpen = RemovablePopup.IsOpen;
         _systemWasOpen = SystemPopup.IsOpen;
         _clockWasOpen = ClockPopup.IsOpen;
+        _notificationsWasOpen = NotificationsPopup.IsOpen;
         _toolsWasOpen = ToolsPopup.IsOpen;
         _batteryWasOpen = BatteryPopup.IsOpen;
 
@@ -181,8 +183,41 @@ public partial class PanelWindow : Window
     private void OnQuickSettings(object sender, RoutedEventArgs e) =>
         Toggle(PanelModel.QuickSettings);
 
-    private void OnNotifications(object sender, RoutedEventArgs e) =>
+    /// <summary>
+    /// O sino abre o cartão das notificações, desenhado aqui. Só quando a dock consegue ler a
+    /// Central; senão ele continua sendo o atalho para a do Windows, que é melhor que um cartão
+    /// dizendo "nenhuma notificação" sem saber.
+    /// </summary>
+    private void OnNotifications(object sender, RoutedEventArgs e)
+    {
+        if (!_model.HasNotificationList) { Toggle(PanelModel.ActionCenter); return; }
+
+        CloseOpenPanels();   // um painel de cada vez
+
+        if (!_notificationsWasOpen)
+        {
+            // a lista já vem atualizada pelo relógio; isto é só a garantia de não abrir com uma
+            // que ficou cinco segundos para trás
+            _model.RefreshNotifications();
+            NotificationsPopup.IsOpen = true;
+        }
+
+        WatchOutsideClick();
+    }
+
+    /// <summary>O atalho para a Central de verdade, de dentro do cartão: lá estão os botões das notificações.</summary>
+    private void OnOpenActionCenter(object sender, RoutedEventArgs e)
+    {
+        _shellPanelWasOpen = false;
         Toggle(PanelModel.ActionCenter);
+    }
+
+    private void OnDismissNotification(object sender, RoutedEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.DataContext is NotificationItem item) _model.DismissNotification(item);
+    }
+
+    private void OnClearNotifications(object sender, RoutedEventArgs e) => _model.ClearNotifications();
 
     private void Toggle(string uri)
     {
@@ -706,6 +741,7 @@ public partial class PanelWindow : Window
         yield return ClockPopup;
         yield return ToolsPopup;
         yield return BatteryPopup;
+        yield return NotificationsPopup;
     }
 
     private bool AnyPopupOpen => AllPopups().Any(p => p.IsOpen);

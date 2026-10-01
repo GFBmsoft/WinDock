@@ -234,10 +234,13 @@ tentar imitar o que o Windows já faz bem:
 - **bluetooth**, aceso quando o rádio está ligado e apagado quando não. O clique abre a lista de
   aparelhos pareados, os conectados primeiro, e cada linha tem um **✕** para tirá-la da barra
   (fica guardado em `BluetoothHidden`, e um link devolve os ocultos);
-- **wi-fi e notificações**, que abrem os painéis do próprio Windows: `ms-availablenetworks:` e
-  `ms-actioncenter:`. Mandar as teclas `Win+A` e `Win+N` parecia mais direto e **não funciona** —
-  clicar na barra deixa o foco na barra de tarefas escondida, e nesse estado o atalho só foca a
-  barra em vez de abrir o painel; o endereço não depende de foco nenhum.
+- **notificações**: o sino conta o que está na Central do Windows (rosa quando há alguma) e abre um
+  cartão com elas, lidas pelo `UserNotificationListener` — que funciona sem pacote, apesar de a
+  documentação tratá-lo como coisa de app de loja. Sem acesso, o sino volta a abrir a Central;
+- **wi-fi**, que abre o painel do próprio Windows: `ms-availablenetworks:`. O ↗ do cartão de
+  notificações abre a Central com `ms-actioncenter:`. Mandar as teclas `Win+A` e `Win+N` parecia
+  mais direto e **não funciona** — clicar na barra deixa o foco na barra de tarefas escondida, e
+  nesse estado o atalho só foca a barra em vez de abrir o painel; o endereço não depende de foco nenhum.
 
 ### Os ícones da bandeja
 

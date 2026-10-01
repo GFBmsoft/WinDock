@@ -183,6 +183,7 @@ o tamanho dos números de CPU e memória, em seminegrito. O cartão do calendár
 | Volume de um programa só | clique no alto-falante > seção **Aplicativos** |
 | Pausar, avançar, voltar a faixa | os botões ao lado do nome da música |
 | Ver a faixa inteira, com capa | clique no nome da música |
+| Ver as notificações (WhatsApp Web, Discord, Outlook…) | clique no sino, rosa com o número quando há alguma (veja [Notificações](#notificações)) |
 | Desligar, reiniciar, hibernar, bloquear, sair | o botão de energia |
 | Brilho do monitor | clique no ícone de brilho, ou role a roda do mouse sobre ele |
 | Abrir a limpeza de disco, o gerenciador de dispositivos e outros comandos seus | a chave de boca (veja [Ferramentas](#ferramentas)) |
@@ -353,6 +354,25 @@ segundos** parado, e a contagem reinicia enquanto o mouse estiver dentro.
 Alguns programas não informam o próprio nome ao Windows e aparecem como "Ícone da bandeja 5".
 Para esses, **Configurações > Ícones sem nome** deixa você dar um apelido, com o desenho do
 ícone ao lado para você saber qual é qual.
+
+#### Notificações
+
+O sino mostra quantas notificações estão na Central do Windows, e fica **rosa** enquanto houver
+alguma. O clique abre o cartão com elas, da mais nova para a mais velha: o app, a hora, o título
+e o começo do texto (o resto aparece na dica do mouse). O `✕` dispensa uma e **Limpar** tira
+todas — das duas formas elas saem também da Central do Windows. O `↗` no topo abre a Central de
+verdade, para quando você quiser os botões da própria notificação (responder, marcar como lida).
+
+Vale para **qualquer app que avise pela Central**: os sites no Chrome e no Edge (WhatsApp Web,
+Gmail), o Discord, o Teams, o Outlook. Para um app aparecer, ele precisa estar ligado em
+**Configurações > Sistema > Notificações** — com as notificações desligadas ali, o Windows nem
+chega a criar a notificação, e o sino fica vazio. Para nada pular na tela, ligue o **Não
+incomodar** na mesma página (ou desmarque as faixas na página de cada app): as notificações
+continuam indo para a Central, e o sino continua contando. No WhatsApp Web, o site também precisa
+de permissão no navegador e a aba precisa estar aberta.
+
+Uma notificação nova aparece no sino em até 5 segundos. Clicar nela não abre a conversa: isso o
+Windows só deixa para quem a mandou.
 
 #### Bluetooth
 

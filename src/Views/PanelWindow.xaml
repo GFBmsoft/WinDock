@@ -545,9 +545,16 @@
           <ui:GlyphIcon Glyph="{Binding VolumeGlyph}" Fill="#FFF2F2F2" Style="{StaticResource BarGlyph}" VerticalAlignment="Center" />
         </Button>
 
-        <Button Tag="notificacoes" Style="{StaticResource PanelButton}" Click="OnNotifications"
-                ToolTip="Notificações">
-          <ui:GlyphIcon Glyph="{Binding BellGlyph}" Fill="#FFF2F2F2" Style="{StaticResource BarGlyph}" VerticalAlignment="Center" />
+        <!-- o número ao lado do sino é o que está na Central, no mesmo jeito do das atualizações;
+             com alguma coisa para ler, sino e número ficam rosa (PanelModel.BellBrush) -->
+        <Button Tag="notificacoes" x:Name="BellButton" Style="{StaticResource PanelButton}" Click="OnNotifications"
+                ToolTip="{Binding NotificationsTooltip}">
+          <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+            <ui:GlyphIcon Glyph="{Binding BellGlyph}" Fill="{Binding BellBrush}" Style="{StaticResource BarGlyph}" VerticalAlignment="Center" />
+            <TextBlock Text="{Binding NotificationCount}" Foreground="{Binding BellBrush}" FontSize="11"
+                       FontWeight="SemiBold" VerticalAlignment="Center" Margin="4,0,0,0"
+                       Visibility="{Binding NotificationCount, Converter={StaticResource EmptyToCollapsed}}" />
+          </StackPanel>
         </Button>
 
         <!-- energia: desligar, reiniciar, hibernar, bloquear e encerrar sessão -->
@@ -958,6 +965,96 @@
                        Typography.NumeralAlignment="Tabular" />
             <TextBlock Text="{Binding ClockLongDate}" Foreground="#FF9D9D9D" FontSize="12"
                        HorizontalAlignment="Center" Margin="0,2,0,0" />
+          </StackPanel>
+        </Border>
+      </Popup>
+
+      <!-- As notificações da Central, num cartão só delas: o sino abre isto, e o calendário fica
+           com a data. Cada uma num balão, com ✕ para dispensar e "Limpar" para todas — as duas
+           tiram também da Central do Windows -->
+      <Popup x:Name="NotificationsPopup" PlacementTarget="{Binding ElementName=BellButton}"
+             Placement="Bottom" VerticalOffset="6" HorizontalOffset="-8"
+             StaysOpen="True" AllowsTransparency="True" PopupAnimation="Fade">
+        <Border Background="#F7242424" BorderBrush="#2EFFFFFF" BorderThickness="1"
+                CornerRadius="10" Padding="14,12" Margin="10">
+          <Border.Effect>
+            <DropShadowEffect BlurRadius="20" ShadowDepth="5" Opacity="0.55" Color="Black" />
+          </Border.Effect>
+          <StackPanel Width="300">
+            <Grid Margin="0,0,0,6">
+              <TextBlock Text="Notificações" Foreground="#FFF2F2F2" FontSize="13"
+                         FontWeight="SemiBold" VerticalAlignment="Center" Margin="4,0,0,0" />
+              <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                <Button Style="{StaticResource PanelButton}" Click="OnClearNotifications" Padding="6,3"
+                        ToolTip="Limpar todas (também da Central do Windows)"
+                        Visibility="{Binding HasNotifications, Converter={StaticResource BoolToVisible}}">
+                  <TextBlock Text="Limpar" Foreground="#FF9D9D9D" FontSize="11" />
+                </Button>
+                <Button Style="{StaticResource PanelButton}" Click="OnOpenActionCenter" Padding="6,3"
+                        ToolTip="Abrir a Central de Notificações do Windows">
+                  <ui:GlyphIcon Glyph="&#xE8A7;" Fill="#FF9D9D9D" Size="12" VerticalAlignment="Center" />
+                </Button>
+              </StackPanel>
+            </Grid>
+
+            <TextBlock Text="Nenhuma notificação." Foreground="#FF8A8A8A" FontSize="11" Margin="4,0,0,0">
+              <TextBlock.Visibility>
+                <Binding Path="HasNotifications">
+                  <Binding.Converter>
+                    <ui:InverseBoolToVisibility />
+                  </Binding.Converter>
+                </Binding>
+              </TextBlock.Visibility>
+            </TextBlock>
+
+            <!-- uma conversa animada não pode empurrar o cartão para fora da tela: passou da
+                 altura, rola -->
+            <ScrollViewer MaxHeight="300" VerticalScrollBarVisibility="Auto"
+                          Visibility="{Binding HasNotifications, Converter={StaticResource BoolToVisible}}">
+              <ItemsControl ItemsSource="{Binding Notifications}">
+                <ItemsControl.ItemTemplate>
+                  <!-- cada uma num balão, como as tarefas: app e hora em cima, o título, e até
+                       três linhas do texto — o resto fica na dica do mouse -->
+                  <DataTemplate>
+                    <Border Background="#14FFFFFF" BorderBrush="#1AFFFFFF" BorderThickness="1"
+                            CornerRadius="8" Padding="8,6" Margin="0,2">
+                      <Grid>
+                        <Grid.RowDefinitions>
+                          <RowDefinition Height="Auto" />
+                          <RowDefinition Height="Auto" />
+                          <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+
+                        <Grid>
+                          <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,24,0">
+                            <Image Source="{Binding Icon}" Width="14" Height="14" Margin="0,0,6,0"
+                                   RenderOptions.BitmapScalingMode="HighQuality" VerticalAlignment="Center"
+                                   Visibility="{Binding HasIcon, Converter={StaticResource BoolToVisible}}" />
+                            <TextBlock Text="{Binding App}" Foreground="#FF9D9D9D" FontSize="11"
+                                       TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                            <TextBlock Text="{Binding When}" Foreground="#FF6A6A6A" FontSize="11"
+                                       Margin="6,0,0,0" VerticalAlignment="Center" />
+                          </StackPanel>
+                          <Button Style="{StaticResource PanelButton}" Click="OnDismissNotification"
+                                  Padding="5,1" HorizontalAlignment="Right" VerticalAlignment="Center"
+                                  ToolTip="Dispensar">
+                            <TextBlock Text="✕" Foreground="#FF8A8A8A" FontSize="10" />
+                          </Button>
+                        </Grid>
+
+                        <TextBlock Grid.Row="1" Text="{Binding Title}" Foreground="#FFF2F2F2" FontSize="12"
+                                   FontWeight="SemiBold" TextTrimming="CharacterEllipsis" Margin="0,3,0,0"
+                                   ui:Ellipsis.ShowTooltip="True" />
+                        <TextBlock Grid.Row="2" Text="{Binding Body}" Foreground="#FFC8C8C8" FontSize="11"
+                                   TextWrapping="Wrap" TextTrimming="CharacterEllipsis" MaxHeight="45"
+                                   Margin="0,1,0,0" ToolTip="{Binding Body}"
+                                   Visibility="{Binding HasBody, Converter={StaticResource BoolToVisible}}" />
+                      </Grid>
+                    </Border>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+            </ScrollViewer>
           </StackPanel>
         </Border>
       </Popup>

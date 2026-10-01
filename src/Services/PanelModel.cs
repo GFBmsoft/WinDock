@@ -71,6 +71,7 @@ public sealed class PanelModel : INotifyPropertyChanged, IDisposable
         WatchAiUsage();
         WatchUpdates();
         WatchSelfUpdate();
+        WatchNotifications();
 
         // A lista de dispositivos externos não tem relógio: quem avisa é o Windows, pelo
         // WM_DEVICECHANGE que a barra assina (veja PanelWindow.OnDeviceChange). Esta é só a
@@ -1890,6 +1891,123 @@ public sealed class PanelModel : INotifyPropertyChanged, IDisposable
     public MonthCalendar Calendar => _calendar ??= new MonthCalendar(_config);
     private MonthCalendar? _calendar;
 
+    // ── notificações ────────────────────────────────────────
+
+    private readonly NotificationService _notifications = new();
+    private DispatcherTimer? _notificationsTimer;
+    private bool _notificationsReading;
+    private bool _notificationsAgain;
+
+    /// <summary>
+    /// A dock consegue ler a Central. Só então o sino abre o cartão com a lista; sem
+    /// isso ele continua sendo o atalho para a Central do Windows.
+    /// </summary>
+    public bool HasNotificationList => _notifications.Available;
+
+    private IReadOnlyList<NotificationItem> _notificationItems = Array.Empty<NotificationItem>();
+
+    /// <summary>O que está na Central agora, da mais nova para a mais velha.</summary>
+    public IReadOnlyList<NotificationItem> Notifications
+    {
+        get => _notificationItems;
+        private set
+        {
+            if (!Set(ref _notificationItems, value)) return;
+            OnChanged(nameof(HasNotifications));
+            OnChanged(nameof(NotificationCount));
+            OnChanged(nameof(NotificationsTooltip));
+            OnChanged(nameof(BellBrush));
+        }
+    }
+
+    private static readonly Brush BellIdle = Frozen(Color.FromRgb(0xF2, 0xF2, 0xF2));
+
+    /// <summary>
+    /// Rosa enquanto houver o que ler. É a única cor que sobrou sem significado na barra: azul já
+    /// é atualização, laranja o processador, lilás a memória, e verde/âmbar/vermelho são níveis.
+    /// </summary>
+    private static readonly Brush BellPending = Frozen(Color.FromRgb(0xF4, 0x72, 0xB6));
+
+    /// <summary>O sino e o número acendem juntos quando a Central tem alguma coisa.</summary>
+    public Brush BellBrush => HasNotifications ? BellPending : BellIdle;
+
+    public bool HasNotifications => _notificationItems.Count > 0;
+
+    /// <summary>O número ao lado do sino; vazio com a Central limpa, e "9+" dali para cima.</summary>
+    public string NotificationCount => _notificationItems.Count switch
+    {
+        0 => "",
+        > 9 => "9+",
+        var n => n.ToString(CultureInfo.InvariantCulture)
+    };
+
+    public string NotificationsTooltip => _notificationItems.Count switch
+    {
+        0 => "Notificações",
+        1 => "1 notificação",
+        var n => $"{n} notificações"
+    };
+
+    /// <summary>
+    /// Liga a leitura. Pelo aviso do Windows quando ele aceita a assinatura; senão, de cinco em
+    /// cinco segundos — a leitura é local e barata, e mais devagar o número chegaria atrasado à
+    /// mensagem que acabou de pular.
+    /// </summary>
+    private void WatchNotifications()
+    {
+        _notifications.Start();
+        OnChanged(nameof(HasNotificationList));
+        if (!_notifications.Available) return;
+
+        if (_notifications.Notifies)
+            _notifications.Changed += () => _dispatcher.InvokeAsync(RefreshNotifications);
+        else
+        {
+            _notificationsTimer = new DispatcherTimer(DispatcherPriority.Background) { Interval = TimeSpan.FromSeconds(5) };
+            _notificationsTimer.Tick += (_, _) => RefreshNotifications();
+            _notificationsTimer.Start();
+        }
+
+        RefreshNotifications();
+    }
+
+    /// <summary>
+    /// Relê a Central. Avisos que chegam com uma leitura em curso viram uma leitura só, logo depois
+    /// dela — uma rajada de mensagens não empilha leituras.
+    /// </summary>
+    public async void RefreshNotifications()
+    {
+        if (_notificationsReading) { _notificationsAgain = true; return; }
+        _notificationsReading = true;
+        try
+        {
+            do
+            {
+                _notificationsAgain = false;
+                var lidas = await _notifications.ReadAsync();
+
+                // a mesma lista de antes não troca nada na tela: o relógio pergunta a cada
+                // cinco segundos e quase sempre a resposta é a mesma
+                if (!lidas.Select(n => n.Id).SequenceEqual(_notificationItems.Select(n => n.Id)))
+                    Notifications = lidas;
+            }
+            while (_notificationsAgain);
+        }
+        finally { _notificationsReading = false; }
+    }
+
+    public void DismissNotification(NotificationItem item)
+    {
+        _notifications.Remove(item.Id);
+        Notifications = _notificationItems.Where(n => n.Id != item.Id).ToList();
+    }
+
+    public void ClearNotifications()
+    {
+        _notifications.Clear(_notificationItems.Select(n => n.Id));
+        Notifications = Array.Empty<NotificationItem>();
+    }
+
     public void UseAudioDevice(string id)
     {
         VolumeService.SetDefault(id);
@@ -2191,6 +2309,7 @@ public sealed class PanelModel : INotifyPropertyChanged, IDisposable
     {
         _timer.Stop();
         _aiTimer?.Stop();
+        _notificationsTimer?.Stop();
         _selfUpdateTimer?.Stop();
         _secondsTimer?.Stop();
         _updatesTimer?.Stop();
