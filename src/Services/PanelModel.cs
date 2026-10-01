@@ -224,6 +224,8 @@ public sealed class PanelModel : INotifyPropertyChanged, IDisposable
             if (!Set(ref _batteryPercent, value)) return;
             OnChanged(nameof(BatteryFill));
             OnChanged(nameof(BatteryBrush));
+            OnChanged(nameof(BatteryBarWidth));
+            OnChanged(nameof(BatteryBarBrush));
         }
     }
 
@@ -249,6 +251,14 @@ public sealed class PanelModel : INotifyPropertyChanged, IDisposable
         return brush;
     }
 
+    /// <summary>A barra do cartão de energia: 246 px é a largura de dentro da caixa da bateria.</summary>
+    public double BatteryBarWidth => Math.Round(246 * Math.Clamp(_batteryPercent, 0, 100) / 100.0);
+
+    /// <summary>Verde com folga, âmbar abaixo de 40%, vermelha abaixo de 20% — as cores da barra.</summary>
+    public Brush BatteryBarBrush => _batteryPercent < 20 ? Frozen(Color.FromRgb(0xFF, 0x6B, 0x6B))
+                                  : _batteryPercent < 40 ? Frozen(Color.FromRgb(0xFF, 0xC8, 0x57))
+                                  : Frozen(Color.FromRgb(0x7F, 0xD1, 0x8B));
+
     /// <summary>Largura do miolo da pilha, em pixels — o desenho e o mesmo do Windows.</summary>
     public double BatteryFill => Math.Round(BatteryWidth * Math.Clamp(_batteryPercent, 0, 100) / 100.0);
 
@@ -270,6 +280,39 @@ public sealed class PanelModel : INotifyPropertyChanged, IDisposable
         ? $"{_batteryPercent}% — na tomada"
         : $"{_batteryPercent}% de carga";
 
+    // ── o cartão da bateria: o gráfico da semana ────────────
+
+    private IReadOnlyList<BatterySample> _batterySamples = [];
+    public IReadOnlyList<BatterySample> BatterySamples { get => _batterySamples; private set => Set(ref _batterySamples, value); }
+
+    private string _batteryHealth = string.Empty;
+    /// <summary>"Saúde 93% · cheia dura cerca de 4 h 45 min" — vazio enquanto o relatório não chega.</summary>
+    public string BatteryHealth { get => _batteryHealth; private set => Set(ref _batteryHealth, value); }
+
+    private bool _batteryLoading;
+    public bool BatteryLoading { get => _batteryLoading; private set => Set(ref _batteryLoading, value); }
+
+    /// <summary>Relê a carga de agora na hora, e o histórico em segundo plano (meio segundo de powercfg).</summary>
+    public async void LoadBatteryHistory()
+    {
+        UpdateBattery();
+        BatteryDetail = PowerService.BatteryDetail();
+
+        BatteryLoading = BatterySamples.Count == 0;
+        var historico = await BatteryHistoryService.ReadAsync();
+        BatteryLoading = false;
+        if (historico is null) { BatteryHealth = "Não consegui ler o histórico da bateria."; return; }
+
+        BatterySamples = historico.Samples;
+
+        var partes = new List<string>();
+        if (historico.Health is { } saude) partes.Add($"Saúde {saude:0}%");
+        if (historico.FullRuntime is { } t)
+            partes.Add(t.TotalHours >= 1 ? $"cheia dura cerca de {(int)t.TotalHours} h {t.Minutes} min"
+                                         : $"cheia dura cerca de {t.Minutes} min");
+        BatteryHealth = string.Join(" · ", partes);
+    }
+
     // ── conta ───────────────────────────────────────────────
 
     /// <summary>Nome e foto de quem está usando a máquina, para o topo do menu de energia.</summary>
@@ -278,6 +321,34 @@ public sealed class PanelModel : INotifyPropertyChanged, IDisposable
     public bool HasUserPicture => UserService.HasPicture;
     public bool NoUserPicture => !UserService.HasPicture;
     public string UserInitials => UserService.Initials;
+
+    // ── o estado da máquina, no topo do cartão de energia ────
+
+    private IReadOnlyList<PowerPlan> _powerPlans = [];
+    public IReadOnlyList<PowerPlan> PowerPlans { get => _powerPlans; private set => Set(ref _powerPlans, value); }
+
+    private string _uptime = string.Empty;
+    public string Uptime { get => _uptime; private set => Set(ref _uptime, value); }
+
+    private string _batteryDetail = string.Empty;
+    public string BatteryDetail { get => _batteryDetail; private set => Set(ref _batteryDetail, value); }
+
+    /// <summary>
+    /// Relê planos, tempo ligado e bateria. Chamado quando o cartão abre: é a única hora em que
+    /// alguém olha, e trocar de plano por fora (nas Opções de Energia) fica certo na próxima vez.
+    /// </summary>
+    public void RefreshPowerCard()
+    {
+        UpdateBattery();
+        PowerPlans = PowerService.Plans();
+        Uptime = PowerService.Uptime();
+        BatteryDetail = PowerService.BatteryDetail();
+    }
+
+    public void SetPowerPlan(Guid id)
+    {
+        if (PowerService.SetPlan(id)) PowerPlans = PowerService.Plans();
+    }
 
     // ── brilho ──────────────────────────────────────────────
     private readonly BrightnessService _brightness = new();

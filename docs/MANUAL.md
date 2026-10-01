@@ -286,6 +286,18 @@ A barra muda de cor conforme o nível: verde abaixo de 30%, amarelo até 70%, ve
 e cinza quando está mudo. Cada programa com som ganha o próprio controle; um programa aparece
 uma vez só, mesmo abrindo vários fluxos de áudio (o Discord abre dois).
 
+#### Bateria
+
+O clique na pilha (só em notebook) abre a bateria: a carga de agora, se está na tomada ou quanto
+ainda dura, e **os últimos 7 dias num quadriculado**, como o das contribuições do GitHub — uma
+linha por dia (hoje embaixo), uma casa por hora. **Verde** é hora na tomada, **âmbar** é hora
+que passou pela bateria, e o tom fica mais forte quanto mais carga havia; a casa vazia é hora com
+a máquina desligada ou dormindo. A dica do mouse diz o dia, a hora e a carga. Embaixo, a
+**saúde** da bateria (a capacidade cheia de hoje sobre a de fábrica) e quanto ela dura cheia.
+
+O histórico é o mesmo que o Windows usa no gráfico dele (`powercfg /batteryreport`), e começa
+antes da dock: a semana inteira aparece já no primeiro clique.
+
 #### Ferramentas
 
 A **chave de boca** abre a sua lista de comandos — os que você usa para mexer no Windows. Um
@@ -513,11 +525,17 @@ Vem ligado, em **Configurações > Atualizações esperando**. Desligado, o íco
 
 ![O menu de energia](img/card-energia.png)
 
-Sua foto e o nome da conta no topo, depois as opções. A linha separa o que mexe **só na sua
-sessão** (bloquear, encerrar sessão) do que mexe **na máquina inteira** — a ordem também põe o
-que interrompe o trabalho embaixo, longe da borda de cima, onde o cursor chega primeiro.
-Cada opção tem a sua cor — frias as da sessão, quentes as da máquina —, e o **Desligar** é
-vermelho, como o botão na barra.
+Sua foto e o nome da conta no topo, com há quanto tempo a máquina está ligada. Embaixo, o estado
+dela, como no painel do Windows:
+
+- **Bateria** (só em notebook): a porcentagem, uma barra verde, âmbar abaixo de 40% e vermelha
+  abaixo de 20%, e se está na tomada ou quanto tempo ainda dura;
+- **Plano de energia**: os planos da máquina (Equilibrado, Alto desempenho...), o ativo em azul. O
+  clique troca o plano na hora, como nas Opções de Energia do Windows.
+
+As ações vêm em ladrilhos coloridos — frias as que mexem só na sua sessão (bloquear, encerrar
+sessão), quentes as que mexem na máquina inteira —, e o **Desligar**, vermelho como o botão na
+barra, fecha a grade, longe de onde o cursor chega primeiro.
 
 ### Buscar aplicativos (`Alt+Espaço`)
 

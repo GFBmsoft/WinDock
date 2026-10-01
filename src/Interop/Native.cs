@@ -640,6 +640,27 @@ internal static class Native
     [DllImport("powrprof.dll", SetLastError = true)]
     public static extern bool SetSuspendState(bool hibernate, bool force, bool wakeupEventsDisabled);
 
+    // planos de energia: as mesmas chamadas que o powercfg usa. Todas devolvem 0 quando dá certo.
+    public const uint ACCESS_SCHEME = 16;
+    public const uint ERROR_NO_MORE_ITEMS = 259;
+
+    [DllImport("powrprof.dll")]
+    public static extern uint PowerEnumerate(nint rootPowerKey, nint schemeGuid, nint subGroupGuid,
+                                             uint accessFlags, uint index, byte[]? buffer, ref uint bufferSize);
+
+    [DllImport("powrprof.dll")]
+    public static extern uint PowerReadFriendlyName(nint rootPowerKey, ref Guid schemeGuid, nint subGroupGuid,
+                                                    nint powerSettingGuid, byte[]? buffer, ref uint bufferSize);
+
+    [DllImport("powrprof.dll")]
+    public static extern uint PowerGetActiveScheme(nint userRootPowerKey, out nint activePolicyGuid);
+
+    [DllImport("powrprof.dll")]
+    public static extern uint PowerSetActiveScheme(nint userRootPowerKey, ref Guid schemeGuid);
+
+    [DllImport("kernel32.dll")]
+    public static extern nint LocalFree(nint mem);
+
     // ── icone de qualquer item do shell, inclusive apps da Store ──
     [DllImport("shell32.dll", CharSet = CharSet.Unicode)]
     public static extern int SHCreateItemFromParsingName(string path, nint bindCtx, ref Guid riid,

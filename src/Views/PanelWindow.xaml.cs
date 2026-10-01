@@ -173,6 +173,7 @@ public partial class PanelWindow : Window
         _systemWasOpen = SystemPopup.IsOpen;
         _clockWasOpen = ClockPopup.IsOpen;
         _toolsWasOpen = ToolsPopup.IsOpen;
+        _batteryWasOpen = BatteryPopup.IsOpen;
 
         base.OnPreviewMouseDown(e);
     }
@@ -704,6 +705,7 @@ public partial class PanelWindow : Window
         yield return SystemPopup;
         yield return ClockPopup;
         yield return ToolsPopup;
+        yield return BatteryPopup;
     }
 
     private bool AnyPopupOpen => AllPopups().Any(p => p.IsOpen);
@@ -1109,12 +1111,34 @@ public partial class PanelWindow : Window
         if (session is not null) session.Muted = !session.Muted;
     }
 
+    // ── bateria ─────────────────────────────────────────────
+
+    private bool _batteryWasOpen;
+
+    /// <summary>Abre (ou fecha) o cartão da bateria; o histórico chega em seguida, em segundo plano.</summary>
+    private void OnBattery(object sender, RoutedEventArgs e)
+    {
+        var estavaAberto = _batteryWasOpen;
+        CloseOpenPanels();
+
+        if (!estavaAberto)
+        {
+            _model.LoadBatteryHistory();
+            BatteryPopup.IsOpen = true;
+        }
+        WatchOutsideClick();
+    }
+
     // ── energia ─────────────────────────────────────────────
 
     private void OnPower(object sender, RoutedEventArgs e)
     {
         CloseOpenPanels();
-        if (!_powerWasOpen) PowerPopup.IsOpen = true;
+        if (!_powerWasOpen)
+        {
+            _model.RefreshPowerCard();
+            PowerPopup.IsOpen = true;
+        }
         WatchOutsideClick();
     }
 
@@ -1130,6 +1154,13 @@ public partial class PanelWindow : Window
         _outsideClick.Stop();
 
         PowerService.All.FirstOrDefault(c => c.Name == name)?.Run();
+    }
+
+    /// <summary>Um plano do cartão de energia: troca na hora, e o cartão fica aberto mostrando o novo.</summary>
+    private void OnPowerPlan(object sender, RoutedEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.Tag is not Guid id) return;
+        _model.SetPowerPlan(id);
     }
 
     // ── calendário ──────────────────────────────────────────
