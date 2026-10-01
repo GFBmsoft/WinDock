@@ -661,6 +661,23 @@
               <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
             <StackPanel VerticalAlignment="Center">
+              <TextBlock Text="Ícones compactos" Style="{StaticResource FluentTitle}" />
+              <TextBlock Text="Os ícones da barra ficam mais juntos, com metade do espaço entre eles. O desenho não muda; a barra fica mais curta."
+                         Style="{StaticResource FluentCaption}" TextWrapping="Wrap" />
+            </StackPanel>
+            <CheckBox Grid.Column="1" Style="{StaticResource FluentToggle}"
+                      AutomationProperties.Name="Ícones compactos"
+                      IsChecked="{Binding PanelCompact, Mode=TwoWay}" />
+          </Grid>
+        </Border>
+
+        <Border Style="{StaticResource FluentCardBorderStyle}">
+          <Grid>
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="*" />
+              <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <StackPanel VerticalAlignment="Center">
               <TextBlock Text="Remover dispositivo externo" Style="{StaticResource FluentTitle}" />
               <TextBlock Text="Um botão na barra para remover pen-drive e HD externo com segurança, pela mesma via do &quot;Remover hardware&quot; do Windows. Só existe enquanto houver algum dispositivo externo conectado."
                          Style="{StaticResource FluentCaption}" TextWrapping="Wrap" />

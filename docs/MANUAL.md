@@ -157,6 +157,8 @@ monitor aceita ser controlado (veja [Brilho](#brilho)), a **cota de IA**, se voc
 (veja [Remover dispositivo externo](#remover-dispositivo-externo)), e as **atualizações**, enquanto
 houver alguma esperando (veja [Atualizações esperando](#atualizações-esperando)) — mais o
 **CPU e memória**, se você ligar (veja [CPU, memória e rede](#cpu-memória-e-rede)).
+Se preferir a barra mais curta, **Configurações > Ícones compactos** junta os ícones, com metade
+do espaço entre eles — o desenho é o mesmo.
 **A ordem é sua** — veja
 [Ordem dos itens](#ordem-dos-itens-da-barra).
 
@@ -439,8 +441,9 @@ deixa de avisar. Duas coisas tratam isso:
 
 **Atualizar não abre janela.** **Atualizar tudo pelo winget** — e o **Atualizar** de cada linha —
 roda o winget em segundo plano, sem terminal: o rodapé do cartão passa a dizer "*atualizando…*",
-os botões ficam desabilitados enquanto isso, e **quando termina a conferência sai na hora**, com o
-ícone apagando sozinho. Era esse o motivo da mudança: com o terminal, a dock não tinha como saber
+os botões ficam desabilitados enquanto isso, o ícone da barra troca a seta pelas duas setas em
+círculo (assim dá para ver o andamento com o cartão fechado), e **quando termina o que foi
+atualizado sai da conta na hora**, com a conferência confirmando logo atrás. Era esse o motivo da mudança: com o terminal, a dock não tinha como saber
 que a atualização acabou, e sobrava para você clicar em "Conferir agora" para limpar o ícone.
 
 Se alguma coisa falhar, a frase do winget aparece no cartão, em âmbar, com **Tentar num terminal**
@@ -451,8 +454,10 @@ seu mandou fazer.
 A conferência é feita **de três em três horas** quando está tudo em dia, e **de vinte em vinte
 minutos enquanto há algo esperando** — porque esse é o estado que muda pelas suas mãos, e logo
 depois. Clicar em **Abrir**, no Windows Update, agenda duas reconferências, dois e dez minutos
-depois: ali a instalação acontece numa tela que não é da dock, e essas duas voltas são a melhor
-pista que ela tem de que você foi mexer nisso.
+depois. E **toda instalação que o Windows Update termina** — pedida por você ou não, como as
+definições do Defender que se instalam sozinhas — dispara uma conferência cinco segundos depois:
+a dock ouve o aviso de "instalação concluída" que o próprio Windows escreve no log do Sistema, e o
+ícone não fica mais mostrando um número que já passou até a volta seguinte do relógio.
 
 A hora da última fica no rodapé do cartão. Abrir o cartão não refaz a consulta — ela mudaria de
 tamanho debaixo do mouse. Quando quiser a resposta na hora, **Conferir agora** refaz as duas

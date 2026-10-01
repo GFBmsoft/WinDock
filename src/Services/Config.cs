@@ -491,6 +491,17 @@ public sealed class DockConfig : INotifyPropertyChanged
     /// </summary>
     public bool PanelSystem { get => _panelSystem; set => Set(ref _panelSystem, value); }
 
+    private bool _panelCompact;
+    /// <summary>
+    /// Ícones da barra mais juntos: o respiro de cada botão cai pela metade, e o desenho fica o
+    /// mesmo. Pedido em 01/10/2026, quando a barra passou a ter CPU e memória — os dois números
+    /// cabem apertados, e o resto da fila parecia folgado ao lado deles.
+    ///
+    /// Desligada por padrão: o espaço largo é o alvo de clique de quem usa a barra com o mouse, e
+    /// apertá-lo é escolha de quem prefere a barra curta.
+    /// </summary>
+    public bool PanelCompact { get => _panelCompact; set => Set(ref _panelCompact, value); }
+
     /// <summary>
     /// Pacotes do winget que a pessoa mandou calar, pelo id (o nome, quando o pacote não tem id).
     ///
@@ -845,6 +856,7 @@ public sealed class DockConfig : INotifyPropertyChanged
         PanelBrightness = d.PanelBrightness; PanelAiUsage = d.PanelAiUsage;
         PanelUpdates = d.PanelUpdates;
         PanelSystem = d.PanelSystem;
+        PanelCompact = d.PanelCompact;
         PanelMediaTicker = d.PanelMediaTicker;
         PanelRemovable = d.PanelRemovable;
         Trace = d.Trace;

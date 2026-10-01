@@ -49,6 +49,14 @@
               <ContentPresenter VerticalAlignment="Center" HorizontalAlignment="Center" />
             </Border>
             <ControlTemplate.Triggers>
+              <!-- ícones compactos: metade do respiro, o mesmo desenho. A busca vai à janela, e
+                   não ao DataContext do botão, porque os ícones da bandeja têm o item como
+                   contexto -->
+              <DataTrigger Binding="{Binding DataContext.PanelCompact,
+                                     RelativeSource={RelativeSource AncestorType=Window}}" Value="True">
+                <Setter TargetName="Bg" Property="Padding" Value="5,2" />
+                <Setter TargetName="Bg" Property="Margin" Value="0" />
+              </DataTrigger>
               <Trigger Property="IsMouseOver" Value="True">
                 <Setter TargetName="Bg" Property="Background" Value="#22FFFFFF" />
               </Trigger>
