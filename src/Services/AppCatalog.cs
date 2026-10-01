@@ -144,7 +144,7 @@ public static class AppCatalog
         catch { /* comando que nao existe: o launcher so fecha */ }
     }
 
-    private static (string File, string Args) Split(string command)
+    internal static (string File, string Args) Split(string command)
     {
         if (command.StartsWith('"'))
         {

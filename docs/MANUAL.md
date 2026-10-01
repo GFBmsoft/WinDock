@@ -138,6 +138,7 @@ com os privilégios mais altos.
 | Reordenar | arraste um ícone sobre o outro |
 | Abrir o 1º, 2º... ícone pelo teclado | `Alt+1` a `Alt+9` (desligável em **Configurações > Abrir pela posição com Alt+número**) |
 | Configurações | botão direito > **Configurações...** |
+| Achar uma opção | as Configurações têm cinco páginas na coluna da esquerda: **Dock**, **Barra superior** (altura, cor, relógio, ilhas, ordem dos itens), **Itens da barra** (bandeja, música, ferramentas, CPU, atualizações, cota), **Mosaico** e **Geral** (barra do Windows, busca, iniciar com o Windows, log) |
 | Sair | botão direito > **Sair do WinDock** |
 | Escolher a cor da dock, do indicador, da barra ou da borda do mosaico | **Configurações** > clique na amostra ao lado do campo — abre a paleta; o campo continua aceitando hex |
 
@@ -294,8 +295,13 @@ dispositivos** (`devmgmt.msc`) e **Área de trabalho remota** (`mstsc.exe`).
 
 A lista é montada em **Configurações > Ferramentas** (ou pelo lápis do próprio cartão): um nome e
 o comando, escrito como no Executar (`Win+R`) — `mstsc /v:servidor`, `services.msc`,
-`control.exe sysdm.cpl`. Cada linha ganha um desenho colorido pelo que o comando abre (lixeira, globo,
-dispositivos, acesso remoto, serviços, registro...); o que a dock não conhece fica com o prompt.
+`control.exe sysdm.cpl`. O **…** procura o programa no disco, sem digitar o caminho. Um comando que
+não vai abrir avisa ali mesmo, em laranja — o arquivo que não existe, com os `.exe` que há na pasta.
+Se ainda assim um comando falhar, o cartão fica aberto e diz o motivo.
+
+Cada linha tem um desenho colorido, escolhido pelo que o comando abre (vassoura, globo,
+dispositivos, acesso remoto, serviços, registro...). O quadradinho à esquerda da linha abre o
+seletor: oito cores e quarenta desenhos; **Automático** devolve a escolha à dock.
 A seta sobe o comando na lista, o **✕** tira, e **Repor os exemplos**
 traz os quatro de volta. A mesma opção desliga o botão.
 
@@ -510,6 +516,8 @@ Vem ligado, em **Configurações > Atualizações esperando**. Desligado, o íco
 Sua foto e o nome da conta no topo, depois as opções. A linha separa o que mexe **só na sua
 sessão** (bloquear, encerrar sessão) do que mexe **na máquina inteira** — a ordem também põe o
 que interrompe o trabalho embaixo, longe da borda de cima, onde o cursor chega primeiro.
+Cada opção tem a sua cor — frias as da sessão, quentes as da máquina —, e o **Desligar** é
+vermelho, como o botão na barra.
 
 ### Buscar aplicativos (`Alt+Espaço`)
 
@@ -613,6 +621,19 @@ arquivo vazio chamado `rastrear` nessa mesma pasta liga o rastro já no arranque
 **Configurações > Ordem dos itens da barra** lista os onze itens do canto direito com setas para
 mover. A barra muda na hora. A música entra como **dois itens separados** (a informação e os
 controles), então dá para afastá-los ou juntá-los.
+
+### Barra em ilhas
+
+**Configurações > Barra em ilhas** tira a faixa de fundo e deixa pílulas: o relógio numa, os ícones
+do canto direito em outra, com a área de trabalho aparecendo entre elas. Para dividir os ícones em
+mais ilhas, marque **nova ilha** no item que deve abrir a ilha seguinte, na lista de
+[ordem](#ordem-dos-itens-da-barra) — a ilha vai dele até o próximo marcado. Uma ilha cujos itens
+estão todos escondidos (a música parada, nenhum pen-drive) some junto. A altura reservada no topo
+da tela continua a mesma: janelas maximizadas não sobem para o vão entre as ilhas.
+
+Com as ilhas ligadas aparece **Margens das ilhas**, como as margens da pílula da dock: a folga de
+cima e de baixo (zero em cima encosta as ilhas no topo da tela), a distância das bordas da tela até
+as ilhas das pontas e o vão **entre ilhas**. As pontas continuam redondas em qualquer altura.
 
 ## Atualizar
 

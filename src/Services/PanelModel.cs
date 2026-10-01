@@ -349,10 +349,17 @@ public sealed class PanelModel : INotifyPropertyChanged, IDisposable
     /// </summary>
     public IReadOnlyList<ToolRow> Tools => _tools ??= _config.Tools
         .Where(t => !string.IsNullOrWhiteSpace(t.Command))
-        .Select(t => { var (glifo, cor) = ToolsService.Look(t.Command); return new ToolRow(t, glifo, cor); })
+        .Select(t => { var (glifo, cor) = ToolsService.Look(t); return new ToolRow(t, glifo, cor); })
         .ToList();
 
     public bool HasNoTools => Tools.Count == 0;
+
+    private string _toolsError = string.Empty;
+    /// <summary>
+    /// Por que o último comando do cartão não abriu. Fica no cartão, aberto, em vez de ele se
+    /// fechar como se tivesse dado certo — e some na próxima vez que o cartão abre.
+    /// </summary>
+    public string ToolsError { get => _toolsError; set => Set(ref _toolsError, value); }
 
     /// <summary>Ícones da barra com metade do respiro — veja <c>DockConfig.PanelCompact</c>.</summary>
     public bool PanelCompact => _config.PanelCompact;
@@ -1834,6 +1841,21 @@ public sealed class PanelModel : INotifyPropertyChanged, IDisposable
         }
     }
 
+    /// <summary>A barra em ilhas — veja <c>DockConfig.PanelIslands</c>.</summary>
+    public bool PanelIslands => _config.PanelIslands;
+
+    /// <summary>A folga de cada ilha: metade do vão de cada lado, e as de cima e de baixo inteiras.</summary>
+    public Thickness IslandMargin => new(_config.IslandGap / 2.0, _config.IslandMarginTop,
+                                         _config.IslandGap / 2.0, _config.IslandMarginBottom);
+
+    /// <summary>Das bordas da tela até as ilhas das pontas, descontado o meio vão que elas já têm.</summary>
+    public Thickness IslandEdge => new(Math.Max(0, _config.IslandMarginLeft - _config.IslandGap / 2.0), 0,
+                                       Math.Max(0, _config.IslandMarginRight - _config.IslandGap / 2.0), 0);
+
+    /// <summary>Ponta redonda de verdade: metade da altura que sobra para a ilha.</summary>
+    public CornerRadius IslandCorner =>
+        new(Math.Max(4, (_config.PanelSize - _config.IslandMarginTop - _config.IslandMarginBottom) / 2.0));
+
     public HorizontalAlignment ClockAlignment =>
         _config.PanelCenterClock ? HorizontalAlignment.Center : HorizontalAlignment.Right;
 
@@ -1846,6 +1868,10 @@ public sealed class PanelModel : INotifyPropertyChanged, IDisposable
     private void RaiseAppearance()
     {
         OnChanged(nameof(PanelBrush));
+        OnChanged(nameof(PanelIslands));
+        OnChanged(nameof(IslandMargin));
+        OnChanged(nameof(IslandEdge));
+        OnChanged(nameof(IslandCorner));
         OnChanged(nameof(ClockAlignment));
         OnChanged(nameof(ClockCentered));
         OnChanged(nameof(ClockAtRight));

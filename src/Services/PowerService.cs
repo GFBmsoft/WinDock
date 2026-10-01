@@ -2,7 +2,6 @@ using static WinDock.Interop.Native;
 
 namespace WinDock.Services;
 
-/// <summary>Uma opção do menu de energia: o nome, o glifo e o que ela faz.</summary>
 /// <summary>
 /// Uma opção do menu de energia.
 ///
@@ -11,9 +10,13 @@ namespace WinDock.Services;
 /// máquina inteira (suspender, hibernar, reiniciar, desligar). São consequências de tamanhos
 /// bem diferentes, e a linha existe para o olho notar a fronteira antes de o dedo passar por
 /// ela — é o que o menu do GNOME faz entre "Lock" e "Power Off".
+///
+/// <paramref name="Color"/> é a cor do desenho no cartão da barra, no idioma das ferramentas e
+/// do processador: fria no que só mexe na sessão, quente no que desliga — o vermelho fica só
+/// com o Desligar, que é o mesmo vermelho do botão na barra.
 /// </summary>
 public sealed record PowerCommand(string Name, string Glyph, string Description, Action Run,
-                                  bool StartsGroup = false);
+                                  bool StartsGroup = false, string Color = "#FFF2F2F2");
 
 /// <summary>
 /// Desligar, reiniciar, hibernar, suspender, bloquear e encerrar a sessão.
@@ -49,24 +52,24 @@ public static class PowerService
     public static IReadOnlyList<PowerCommand> All { get; } = new[]
     {
         new PowerCommand("Bloquear", Lock, "Tranca a tela sem fechar nada",
-                         () => LockWorkStation()),
+                         () => LockWorkStation(), Color: "#FF6CB6FF"),
 
         new PowerCommand("Encerrar sessão", SignOut, "Fecha seus programas e volta ao logon",
-                         () => Shutdown("/l")),
+                         () => Shutdown("/l"), Color: "#FFB08AE8"),
 
         // daqui para baixo o efeito é na máquina, não só na sua sessão: a linha separadora
         // entra aqui
         new PowerCommand("Suspender", Moon, "Desliga a tela e dorme; volta na hora",
-                         () => SetSuspendState(false, false, false), StartsGroup: true),
+                         () => SetSuspendState(false, false, false), StartsGroup: true, Color: "#FF4FD1C5"),
 
         new PowerCommand("Hibernar", MoonThin, "Salva a sessão em disco e desliga",
-                         () => SetSuspendState(true, false, false)),
+                         () => SetSuspendState(true, false, false), Color: "#FF7FB2F0"),
 
         new PowerCommand("Reiniciar", Restart, "Fecha tudo e liga de novo",
-                         () => Shutdown("/r /t 0")),
+                         () => Shutdown("/r /t 0"), Color: "#FFF4A261"),
 
         new PowerCommand("Desligar", Power, "Fecha tudo e desliga a máquina",
-                         () => Shutdown("/s /t 0"))
+                         () => Shutdown("/s /t 0"), Color: "#FFFF6B6B")
     };
 
     /// <summary>

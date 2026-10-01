@@ -278,10 +278,60 @@ public sealed class FloatingSize
 /// comando que ele roda, como se digitada no Executar (Win+R) — "devmgmt.msc",
 /// "control inetcpl.cpl", "mstsc /v:servidor".
 /// </summary>
-public sealed class ToolCommand
+public sealed class ToolCommand : INotifyPropertyChanged
 {
-    public string Name { get; set; } = string.Empty;
-    public string Command { get; set; } = string.Empty;
+    private string _name = string.Empty;
+    public string Name { get => _name; set => Set(ref _name, value); }
+
+    private string _command = string.Empty;
+    public string Command
+    {
+        get => _command;
+        set
+        {
+            if (!Set(ref _command, value)) return;
+            Raise(nameof(Problem));
+            Raise(nameof(LookGlyph));
+            Raise(nameof(LookFill));
+        }
+    }
+
+    private string _glyph = string.Empty;
+    /// <summary>
+    /// O desenho escolhido à mão, pelo código do glifo na Segoe ("EA99"). Vazio: a dock escolhe
+    /// pelo que o comando abre (veja <see cref="ToolsService.Look"/>).
+    /// </summary>
+    public string Glyph
+    {
+        get => _glyph;
+        set { if (Set(ref _glyph, value)) { Raise(nameof(LookGlyph)); Raise(nameof(LookFill)); } }
+    }
+
+    private string _color = string.Empty;
+    /// <summary>A cor escolhida à mão, em hex. Vazio: a da tabela, ou cinza.</summary>
+    public string Color
+    {
+        get => _color;
+        set { if (Set(ref _color, value)) Raise(nameof(LookFill)); }
+    }
+
+    /// <summary>Por que o comando não vai abrir, quando dá para saber antes — vazio se está tudo certo.</summary>
+    [JsonIgnore] public string Problem => ToolsService.Problem(Command) ?? string.Empty;
+
+    /// <summary>O desenho que vale de fato: o escolhido ou o automático.</summary>
+    [JsonIgnore] public string LookGlyph => ToolsService.Look(this).Glyph;
+    [JsonIgnore] public System.Windows.Media.Brush LookFill => ToolsService.Look(this).Fill;
+
+    public event PropertyChangedEventHandler? PropertyChanged;
+    private void Raise(string name) => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
+    private bool Set(ref string field, string value, [CallerMemberName] string? name = null)
+    {
+        value ??= string.Empty;
+        if (field == value) return false;
+        field = value;
+        Raise(name!);
+        return true;
+    }
 }
 
 public sealed class PinnedApp
@@ -684,6 +734,49 @@ public sealed class DockConfig : INotifyPropertyChanged
     public void NotifyPanelOrderChanged() =>
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(PanelOrder)));
 
+    private bool _panelIslands;
+    /// <summary>
+    /// A barra em ilhas: a faixa some e ficam só pílulas — o relógio numa, os ícones do canto
+    /// direito em uma ou mais (veja <see cref="PanelIslandBreaks"/>), com o fundo da área de
+    /// trabalho aparecendo entre elas. Pedido de 01/10/2026, a partir de um mod do Windhawk
+    /// que faz o mesmo com a barra do Windows.
+    ///
+    /// Desligada de fábrica: a faixa inteira é o desenho de quem nunca mexeu, e é a que tapa o
+    /// que estiver atrás. A AppBar continua reservando a altura toda — as janelas maximizadas
+    /// não sobem para o vão entre as ilhas.
+    /// </summary>
+    public bool PanelIslands { get => _panelIslands; set => Set(ref _panelIslands, value); }
+
+    /// <summary>
+    /// Os itens que abrem uma ilha nova, pela chave do <see cref="PanelOrder"/>: a ilha começa
+    /// neles e vai até o próximo da lista. Vazia: o canto direito é uma ilha só.
+    /// Guarda a chave, e não a posição, para sobreviver a uma reordenação.
+    /// </summary>
+    public List<string> PanelIslandBreaks { get; set; } = new();
+
+    // As folgas das ilhas, em pixels — o mesmo par de opções que a pílula da dock tem. Pedido
+    // de 01/10/2026: com 2 px em cima e embaixo, a ilha ficava descolada do topo da tela, e
+    // quem quer a pílula encostada (ou mais solta) não tinha onde mexer.
+    private int _islandMarginTop = 2;
+    public int IslandMarginTop { get => _islandMarginTop; set => Set(ref _islandMarginTop, Clamp(value, 0, 20)); }
+
+    private int _islandMarginBottom = 2;
+    public int IslandMarginBottom { get => _islandMarginBottom; set => Set(ref _islandMarginBottom, Clamp(value, 0, 20)); }
+
+    /// <summary>Da borda da tela até a primeira ilha, e da última até a outra borda.</summary>
+    private int _islandMarginLeft = 4;
+    public int IslandMarginLeft { get => _islandMarginLeft; set => Set(ref _islandMarginLeft, Clamp(value, 0, 200)); }
+
+    private int _islandMarginRight = 4;
+    public int IslandMarginRight { get => _islandMarginRight; set => Set(ref _islandMarginRight, Clamp(value, 0, 200)); }
+
+    /// <summary>O vão entre uma ilha e a vizinha.</summary>
+    private int _islandGap = 6;
+    public int IslandGap { get => _islandGap; set => Set(ref _islandGap, Clamp(value, 0, 60)); }
+
+    public void NotifyPanelIslandBreaksChanged() =>
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(PanelIslandBreaks)));
+
     /// <summary>
     /// Aparelhos bluetooth que nao devem aparecer na lista da barra. Guardados pelo nome,
     /// que e como a pessoa os reconhece; a lista e curta e editada no proprio painel.
@@ -914,6 +1007,10 @@ public sealed class DockConfig : INotifyPropertyChanged
         PanelCompact = d.PanelCompact;
         PanelSelfUpdate = d.PanelSelfUpdate;
         PanelTools = d.PanelTools;
+        PanelIslands = d.PanelIslands;
+        IslandMarginTop = d.IslandMarginTop; IslandMarginBottom = d.IslandMarginBottom;
+        IslandMarginLeft = d.IslandMarginLeft; IslandMarginRight = d.IslandMarginRight;
+        IslandGap = d.IslandGap;
         PanelMediaTicker = d.PanelMediaTicker;
         PanelRemovable = d.PanelRemovable;
         Trace = d.Trace;

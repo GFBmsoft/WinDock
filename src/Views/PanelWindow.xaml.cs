@@ -280,7 +280,9 @@ public partial class PanelWindow : Window
     /// </summary>
     private void ApplyPanelOrder()
     {
-        var atuais = RightItems.Children.Cast<UIElement>().ToList();
+        // os itens soltos da primeira passagem: depois dela eles podem estar dentro de ilhas
+        _items ??= RightItems.Children.Cast<UIElement>().ToList();
+        var atuais = _items;
 
         // A ordem do XAML é guardada na primeira passagem: sem ela, "voltar ao padrão" não
         // teria a que voltar — a essa altura os filhos já estão na ordem customizada, e o
@@ -310,8 +312,65 @@ public partial class PanelWindow : Window
             ordenados.Insert(onde, orfao);
         }
 
+        Place(ordenados!);
+    }
+
+    /// <summary>Os itens do canto direito, guardados na primeira passagem do <see cref="ApplyPanelOrder"/>.</summary>
+    private List<UIElement>? _items;
+
+    /// <summary>
+    /// Põe os itens na fila — soltos, ou em ilhas quando a barra está em ilhas.
+    ///
+    /// Cada ilha é uma <see cref="Border"/> com o estilo <c>Island</c> e uma fila dentro; ela
+    /// começa no primeiro item e em cada um que a pessoa marcou nas Configurações
+    /// (<see cref="DockConfig.PanelIslandBreaks"/>). Uma ilha cujos itens estão todos escondidos
+    /// (a mídia parada, o pen-drive que saiu) some junto, senão sobraria uma pílula vazia.
+    /// </summary>
+    private void Place(List<UIElement> ordenados)
+    {
+        foreach (var (_, fila) in _islands) fila.Children.Clear();
+        foreach (var item in ordenados) VisibilityWatch.RemoveValueChanged(item, OnItemVisibilityChanged);
+        _islands.Clear();
         RightItems.Children.Clear();
-        foreach (var e in ordenados) RightItems.Children.Add(e!);
+
+        if (!_config.PanelIslands)
+        {
+            foreach (var e in ordenados) RightItems.Children.Add(e);
+            return;
+        }
+
+        StackPanel? atual = null;
+        foreach (var item in ordenados)
+        {
+            var chave = (item as FrameworkElement)?.Tag as string ?? "";
+            if (atual is null || _config.PanelIslandBreaks.Contains(chave, StringComparer.OrdinalIgnoreCase))
+            {
+                atual = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
+                var ilha = new Border { Style = (Style)FindResource("Island"), Child = atual };
+                RightItems.Children.Add(ilha);
+                _islands.Add((ilha, atual));
+            }
+
+            atual.Children.Add(item);
+            VisibilityWatch.AddValueChanged(item, OnItemVisibilityChanged);
+        }
+
+        UpdateIslandVisibility();
+    }
+
+    private readonly List<(Border Ilha, StackPanel Fila)> _islands = new();
+
+    private static readonly System.ComponentModel.DependencyPropertyDescriptor VisibilityWatch =
+        System.ComponentModel.DependencyPropertyDescriptor.FromProperty(VisibilityProperty, typeof(UIElement));
+
+    private void OnItemVisibilityChanged(object? sender, EventArgs e) => UpdateIslandVisibility();
+
+    private void UpdateIslandVisibility()
+    {
+        foreach (var (ilha, fila) in _islands)
+            ilha.Visibility = fila.Children.Cast<UIElement>().Any(c => c.Visibility == Visibility.Visible)
+                ? Visibility.Visible
+                : Visibility.Collapsed;
     }
 
     /// <summary>A ordem que veio do XAML, para o "voltar ao padrão" ter destino.</summary>
@@ -319,7 +378,8 @@ public partial class PanelWindow : Window
 
     private void OnPanelConfigChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
-        if (e.PropertyName is nameof(DockConfig.PanelOrder)) ApplyPanelOrder();
+        if (e.PropertyName is nameof(DockConfig.PanelOrder) or nameof(DockConfig.PanelIslands)
+                           or nameof(DockConfig.PanelIslandBreaks)) ApplyPanelOrder();
 
         // ligar ou desligar a rolagem vale na hora, com a música que já está tocando
         if (e.PropertyName is nameof(DockConfig.PanelMediaTicker)) UpdateMediaTicker();
@@ -440,16 +500,32 @@ public partial class PanelWindow : Window
         var estavaAberto = _toolsWasOpen;
         CloseOpenPanels();
 
-        if (!estavaAberto) ToolsPopup.IsOpen = true;
+        if (!estavaAberto)
+        {
+            _model.ToolsError = string.Empty;
+            ToolsPopup.IsOpen = true;
+        }
         WatchOutsideClick();
     }
 
-    /// <summary>Roda o comando da linha e fecha o cartão — quem clicou quer a ferramenta, não a lista.</summary>
+    /// <summary>
+    /// Roda o comando da linha e fecha o cartão — quem clicou quer a ferramenta, não a lista. Se
+    /// não abriu, o cartão fica, com o motivo embaixo: fechar calado era o que fazia parecer que
+    /// o clique não tinha pegado.
+    /// </summary>
     private void OnToolRun(object sender, RoutedEventArgs e)
     {
         if ((sender as FrameworkElement)?.Tag is not PanelModel.ToolRow row) return;
+
+        if (ToolsService.Run(row.Tool) is { } erro)
+        {
+            _model.ToolsError = $"{row.Name}: {erro}";
+            IgnoreNextOutsideClick();   // o cartão cresce uma linha debaixo do cursor
+            return;
+        }
+
+        _model.ToolsError = string.Empty;
         CloseAllPopups();
-        ToolsService.Run(row.Tool);
     }
 
     /// <summary>O lápis do cartão: as Configurações abertas já na lista de ferramentas.</summary>

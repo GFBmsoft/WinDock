@@ -35,7 +35,7 @@ public partial class SettingsWindow : Window
         LoadPanelOrder();
         LoadAiAccounts();
         ToolsList.ItemsSource = _tools;
-        foreach (var t in _config.Tools) _tools.Add(t);
+        foreach (var t in _config.Tools) Track(t);
         ExcludedAppsList.ItemsSource = _excludedApps;
 
         FloatingSizesList.ItemsSource = _floatingSizes;
@@ -157,15 +157,69 @@ public partial class SettingsWindow : Window
 
     private void OnToolEdited(object sender, RoutedEventArgs e) => SaveTools();
 
+    /// <summary>
+    /// Põe o comando na lista da tela. Desenho e cor mudam por clique no seletor, sem campo que
+    /// perca o foco depois, então esses dois avisam a barra na hora.
+    /// </summary>
+    private void Track(ToolCommand t)
+    {
+        t.PropertyChanged += OnToolLookChanged;
+        _tools.Add(t);
+    }
+
+    private void OnToolLookChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName is nameof(ToolCommand.Glyph) or nameof(ToolCommand.Color)) SaveTools();
+    }
+
+    /// <summary>
+    /// O "…" da linha: escolher o programa no disco em vez de digitar o caminho — foi um nome
+    /// digitado errado (revo.exe no lugar de RevoUPort.exe) que motivou o botão. Caminho com
+    /// espaço vai entre aspas, senão o primeiro pedaço viraria o programa e o resto argumento.
+    /// Linha sem nome ganha a descrição do executável.
+    /// </summary>
+    private void OnToolBrowse(object sender, RoutedEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.Tag is not ToolCommand t) return;
+
+        var (atual, _) = AppCatalog.Split(Environment.ExpandEnvironmentVariables(t.Command.Trim()));
+        var dlg = new Microsoft.Win32.OpenFileDialog
+        {
+            Title = "Programa da ferramenta",
+            Filter = "Programas e consoles|*.exe;*.msc;*.cpl;*.bat;*.cmd;*.lnk|Todos os arquivos|*.*"
+        };
+        try
+        {
+            var pasta = System.IO.Path.GetDirectoryName(atual);
+            if (!string.IsNullOrEmpty(pasta) && System.IO.Directory.Exists(pasta)) dlg.InitialDirectory = pasta;
+        }
+        catch { /* comando que não é caminho */ }
+
+        if (dlg.ShowDialog(this) != true) return;
+
+        t.Command = dlg.FileName.Contains(' ') ? $"\"{dlg.FileName}\"" : dlg.FileName;
+        if (string.IsNullOrWhiteSpace(t.Name))
+        {
+            string? descricao = null;
+            try { descricao = System.Diagnostics.FileVersionInfo.GetVersionInfo(dlg.FileName).FileDescription; }
+            catch { }
+            t.Name = string.IsNullOrWhiteSpace(descricao)
+                ? System.IO.Path.GetFileNameWithoutExtension(dlg.FileName)
+                : descricao.Trim();
+        }
+        SaveTools();
+    }
+
     private void OnToolAdd(object sender, RoutedEventArgs e)
     {
-        _tools.Add(new ToolCommand());
+        Track(new ToolCommand());
         SaveTools();
     }
 
     private void OnToolRemove(object sender, RoutedEventArgs e)
     {
         if ((sender as FrameworkElement)?.Tag is not ToolCommand t) return;
+        t.PropertyChanged -= OnToolLookChanged;
         _tools.Remove(t);
         SaveTools();
     }
@@ -181,8 +235,9 @@ public partial class SettingsWindow : Window
 
     private void OnToolsDefaults(object sender, RoutedEventArgs e)
     {
+        foreach (var velho in _tools) velho.PropertyChanged -= OnToolLookChanged;
         _tools.Clear();
-        foreach (var t in DockConfig.DefaultTools()) _tools.Add(t);
+        foreach (var t in DockConfig.DefaultTools()) Track(t);
         SaveTools();
     }
 
@@ -191,8 +246,36 @@ public partial class SettingsWindow : Window
     {
         if (section != "ferramentas") return;
 
+        // a página primeiro: com ela escondida o cartão não tem onde aparecer
+        SelectPage(PageItems);
+
         // depois do layout: na janela recém-criada o cartão ainda não tem posição para rolar até ela
         Dispatcher.BeginInvoke(() => ToolsCard.BringIntoView(), System.Windows.Threading.DispatcherPriority.Loaded);
+    }
+
+    // ── navegação ────────────────────────────────────────────
+
+    /// <summary>Um item da coluna da esquerda foi escolhido: mostra a página dele, do topo.</summary>
+    private void OnNav(object sender, RoutedEventArgs e)
+    {
+        // o primeiro item nasce marcado, e o Checked dele chega antes de as páginas existirem
+        if (sender is not FrameworkElement { Tag: string nome } || PageDock is null) return;
+        ShowPage(nome);
+    }
+
+    private void ShowPage(string nome)
+    {
+        foreach (var pagina in new[] { PageDock, PageBar, PageItems, PageTiling, PageGeneral })
+            pagina.Visibility = pagina.Name == nome ? Visibility.Visible : Visibility.Collapsed;
+        Scroller.ScrollToTop();
+    }
+
+    /// <summary>Escolhe a página por código, marcando também o item dela na coluna.</summary>
+    private void SelectPage(FrameworkElement pagina)
+    {
+        foreach (var item in Nav.Children.OfType<System.Windows.Controls.RadioButton>())
+            if (item.Tag as string == pagina.Name) item.IsChecked = true;
+        ShowPage(pagina.Name);
     }
 
     // ── atalhos ──────────────────────────────────────────────
@@ -429,7 +512,27 @@ public partial class SettingsWindow : Window
 
     // ── ordem dos itens da barra ─────────────────────────────
 
-    private sealed record PanelOrderRow(int Position, string Key, string Name);
+    private sealed record PanelOrderRow(int Position, string Key, string Name, bool StartsIsland)
+    {
+        public bool IsFirst => Position == 1;
+    }
+
+    /// <summary>A caixa "nova ilha" de um item: liga ou desliga a quebra dele, e a barra se refaz na hora.</summary>
+    private void OnIslandBreak(object sender, RoutedEventArgs e)
+    {
+        if (sender is not System.Windows.Controls.CheckBox caixa || caixa.Tag is not string chave) return;
+
+        // Checked/Unchecked, e não Click: o Click não dispara quando a caixa é marcada por
+        // automação (leitor de tela, teste). Em troca, eles disparam também quando a lista é
+        // montada com a caixa já marcada — por isso só se avisa a barra se a quebra mudou.
+        var tinha = _config.PanelIslandBreaks.Contains(chave, StringComparer.OrdinalIgnoreCase);
+        var quer = caixa.IsChecked == true;
+        if (tinha == quer) return;
+
+        _config.PanelIslandBreaks.RemoveAll(k => string.Equals(k, chave, StringComparison.OrdinalIgnoreCase));
+        if (quer) _config.PanelIslandBreaks.Add(chave);
+        _config.NotifyPanelIslandBreaksChanged();
+    }
 
     /// <summary>
     /// A ordem atual: o que está guardado, mais o que a barra tem e a configuração ainda não
@@ -452,7 +555,8 @@ public partial class SettingsWindow : Window
         var nomes = PanelWindow.PanelItems.ToDictionary(i => i.Key, i => i.Name);
 
         PanelOrderList.ItemsSource = CurrentPanelOrder()
-            .Select((k, i) => new PanelOrderRow(i + 1, k, nomes.TryGetValue(k, out var n) ? n : k))
+            .Select((k, i) => new PanelOrderRow(i + 1, k, nomes.TryGetValue(k, out var n) ? n : k,
+                                             _config.PanelIslandBreaks.Contains(k, StringComparer.OrdinalIgnoreCase)))
             .ToList();
     }
 
