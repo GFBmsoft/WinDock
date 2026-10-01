@@ -158,13 +158,15 @@ monitor aceita ser controlado (veja [Brilho](#brilho)), a **cota de IA**, se voc
 houver alguma esperando (veja [Atualizações esperando](#atualizações-esperando)) — mais o
 **CPU e memória**, se você ligar (veja [CPU, memória e rede](#cpu-memória-e-rede)).
 Se preferir a barra mais curta, **Configurações > Ícones compactos** diminui os ícones para o tamanho
-dos de CPU e memória e os junta, com metade do espaço entre eles.
+dos de CPU e memória e os junta, com metade do espaço entre eles — e a data e a hora passam para
+a mesma fonte dos números de CPU e memória. O cartão do calendário encolhe junto, a 90%.
 **A ordem é sua** — veja
 [Ordem dos itens](#ordem-dos-itens-da-barra).
 
 | ação | como |
 |---|---|
 | Calendário do mês | clique na data |
+| Hora com segundos e data por extenso | clique no horário |
 | Ver, anotar e mover as tarefas de um dia | clique no dia dentro do calendário |
 | Ver os ícones da bandeja | a seta `⌄` |
 | Abrir um programa da bandeja | clique no ícone dele |

@@ -166,6 +166,50 @@ public sealed class PanelModel : INotifyPropertyChanged, IDisposable
     /// <summary>Data por extenso, abreviada: "Seg, 31 de ago".</summary>
     public string Date { get => _date; private set => Set(ref _date, value); }
 
+    // ── o cartão do relógio ─────────────────────────────────
+
+    private string _clockSeconds = string.Empty;
+    /// <summary>A hora com segundos, "14:07:42" — só do cartão, e só enquanto ele está aberto.</summary>
+    public string ClockSeconds { get => _clockSeconds; private set => Set(ref _clockSeconds, value); }
+
+    private string _clockLongDate = string.Empty;
+    /// <summary>A data por extenso, "quinta-feira, 1 de outubro de 2026".</summary>
+    public string ClockLongDate { get => _clockLongDate; private set => Set(ref _clockLongDate, value); }
+
+    private DispatcherTimer? _secondsTimer;
+
+    /// <summary>
+    /// Liga o relógio de segundos do cartão.
+    ///
+    /// Não é o relógio da barra, de propósito. Aquele dispara a cada segundo contado a partir de
+    /// quando a dock abriu, e não da virada do segundo — num tique às ,98 e no seguinte às ,01 de
+    /// dois segundos depois, um número some. Para minutos isso não aparece; com os segundos à
+    /// vista, aparece. Este reagenda a si mesmo para logo depois de cada virada, e só existe
+    /// com o cartão aberto: fechado, ninguém está olhando.
+    /// </summary>
+    public void StartSeconds()
+    {
+        _secondsTimer ??= new DispatcherTimer(DispatcherPriority.Render);
+        _secondsTimer.Tick -= OnSecond;
+        _secondsTimer.Tick += OnSecond;
+        OnSecond(null, EventArgs.Empty);
+    }
+
+    public void StopSeconds() => _secondsTimer?.Stop();
+
+    private void OnSecond(object? sender, EventArgs e)
+    {
+        var agora = DateTime.Now;
+        var cultura = CultureInfo.CurrentCulture;
+
+        ClockSeconds = agora.ToString("HH:mm:ss", cultura);
+        ClockLongDate = agora.ToString("dddd, d 'de' MMMM 'de' yyyy", cultura);
+
+        // 15 ms depois da próxima virada: o bastante para não acordar ainda no segundo velho
+        _secondsTimer!.Interval = TimeSpan.FromMilliseconds(1000 - agora.Millisecond + 15);
+        _secondsTimer.Start();
+    }
+
     // ── bateria ─────────────────────────────────────────────
     private bool _hasBattery;
     /// <summary>Falso num desktop: a seção da bateria simplesmente não aparece.</summary>
@@ -2021,6 +2065,7 @@ public sealed class PanelModel : INotifyPropertyChanged, IDisposable
         _timer.Stop();
         _aiTimer?.Stop();
         _selfUpdateTimer?.Stop();
+        _secondsTimer?.Stop();
         _updatesTimer?.Stop();
         _updatesWatcher?.Dispose();
 

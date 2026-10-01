@@ -51,6 +51,7 @@ public partial class PanelWindow : Window
         _model.CardResized += (_, _) => IgnoreNextOutsideClick();
         TrayPopup.CustomPopupPlacementCallback = PlaceTrayCard;
         CalendarPopup.CustomPopupPlacementCallback = PlaceCalendarCard;
+        ClockPopup.CustomPopupPlacementCallback = PlaceCalendarCard;   // centrado no horário, pelo mesmo motivo
         ApplyPanelOrder();
 
         // reordenar nas Configurações vale na hora, sem fechar e abrir a barra
@@ -155,6 +156,7 @@ public partial class PanelWindow : Window
     private bool _updatesWasOpen;
     private bool _removableWasOpen;
     private bool _systemWasOpen;
+    private bool _clockWasOpen;
 
     protected override void OnPreviewMouseDown(System.Windows.Input.MouseButtonEventArgs e)
     {
@@ -169,6 +171,7 @@ public partial class PanelWindow : Window
         _updatesWasOpen = UpdatesPopup.IsOpen;
         _removableWasOpen = RemovablePopup.IsOpen;
         _systemWasOpen = SystemPopup.IsOpen;
+        _clockWasOpen = ClockPopup.IsOpen;
 
         base.OnPreviewMouseDown(e);
     }
@@ -592,6 +595,7 @@ public partial class PanelWindow : Window
         yield return UpdatesPopup;
         yield return RemovablePopup;
         yield return SystemPopup;
+        yield return ClockPopup;
     }
 
     private bool AnyPopupOpen => AllPopups().Any(p => p.IsOpen);
@@ -1041,6 +1045,27 @@ public partial class PanelWindow : Window
         CalendarPopup.IsOpen = true;
         WatchOutsideClick();
     }
+
+    /// <summary>
+    /// Clique no horário: o cartão com a hora completa, segundos inclusive, e a data por extenso.
+    /// Nasce embaixo do horário clicado — ele troca de lugar com o relógio centralizado.
+    /// </summary>
+    private void OnClock(object sender, RoutedEventArgs e)
+    {
+        CloseOpenPanels();   // um painel de cada vez
+
+        if (!_clockWasOpen)
+        {
+            _model.StartSeconds();
+            ClockPopup.PlacementTarget = (UIElement)sender;
+            ClockPopup.IsOpen = true;
+        }
+
+        WatchOutsideClick();
+    }
+
+    /// <summary>Fechado por qualquer caminho, o relógio de segundos para junto.</summary>
+    private void OnClockClosed(object? sender, EventArgs e) => _model.StopSeconds();
 
     private void OnCalendarPrevious(object sender, RoutedEventArgs e) => _model.Calendar.PreviousMonth();
     private void OnCalendarNext(object sender, RoutedEventArgs e) => _model.Calendar.NextMonth();
@@ -1619,6 +1644,7 @@ public partial class PanelWindow : Window
     /// </summary>
     /// <summary>
     /// O calendário nasce **centrado** no relógio, e não com a borda esquerda encostada nele.
+    /// O cartão do horário usa o mesmo cálculo, centrado no horário clicado.
     ///
     /// Com o relógio no meio da barra, alinhar pela esquerda (que é o que o <c>Placement="Bottom"</c>
     /// faz) jogava o cartão inteiro para a direita do centro da tela — o cartão tem 252 px de

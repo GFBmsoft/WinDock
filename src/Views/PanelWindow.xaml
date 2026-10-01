@@ -97,10 +97,31 @@
               <Trigger Property="IsPressed" Value="True">
                 <Setter TargetName="Bg" Property="Background" Value="#33FFFFFF" />
               </Trigger>
+              <DataTrigger Binding="{Binding DataContext.PanelCompact,
+                                     RelativeSource={RelativeSource AncestorType=Window}}" Value="True">
+                <Setter TargetName="Bg" Property="Padding" Value="4,2" />
+              </DataTrigger>
             </ControlTemplate.Triggers>
           </ControlTemplate>
         </Setter.Value>
       </Setter>
+    </Style>
+
+    <!-- data e hora na barra: 13 px em seminegrito, e nos ícones compactos a mesma fonte dos
+         números de CPU e memória (11 px, regular) — pedido junto com os ícones, para a barra
+         inteira falar a mesma língua -->
+    <Style x:Key="ClockText" TargetType="TextBlock">
+      <Setter Property="Foreground" Value="#FFF2F2F2" />
+      <Setter Property="FontSize" Value="13" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+      <Style.Triggers>
+        <DataTrigger Binding="{Binding DataContext.PanelCompact,
+                               RelativeSource={RelativeSource AncestorType=Window}}" Value="True">
+          <Setter Property="FontSize" Value="11" />
+          <Setter Property="FontWeight" Value="Normal" />
+        </DataTrigger>
+      </Style.Triggers>
     </Style>
 
     <!-- um ícone da bandeja: quadrado e apertado, para caber vários sem esticar a barra -->
@@ -186,11 +207,12 @@
                   Visibility="{Binding ClockCentered, Converter={StaticResource BoolToVisible}}">
         <Button x:Name="CenterDateButton" Style="{StaticResource ClockButton}" Click="OnCalendar"
                 ToolTip="Calendário">
-          <TextBlock Text="{Binding Date}" Foreground="#FFF2F2F2" FontSize="13" FontWeight="SemiBold"
-                     VerticalAlignment="Center" />
+          <TextBlock Text="{Binding Date}" Style="{StaticResource ClockText}" />
         </Button>
-        <TextBlock Text="{Binding Time}" Foreground="#FFF2F2F2" FontSize="13"
-                   FontWeight="SemiBold" VerticalAlignment="Center" Margin="6,0,0,0" />
+        <Button x:Name="CenterTimeButton" Style="{StaticResource ClockButton}" Click="OnClock"
+                ToolTip="Hora com segundos">
+          <TextBlock Text="{Binding Time}" Style="{StaticResource ClockText}" />
+        </Button>
       </StackPanel>
 
       <!-- Canto direito: bandeja, mídia, bateria, wi-fi, som, notificações e (fora do modo
@@ -439,11 +461,12 @@
                     Visibility="{Binding ClockAtRight, Converter={StaticResource BoolToVisible}}">
           <Button x:Name="RightDateButton" Style="{StaticResource ClockButton}" Click="OnCalendar"
                   ToolTip="Calendário">
-            <TextBlock Text="{Binding Date}" Foreground="#FFF2F2F2" FontSize="13" FontWeight="SemiBold"
-                       VerticalAlignment="Center" />
+            <TextBlock Text="{Binding Date}" Style="{StaticResource ClockText}" />
           </Button>
-          <TextBlock Text="{Binding Time}" Foreground="#FFF2F2F2" FontSize="13"
-                     FontWeight="SemiBold" VerticalAlignment="Center" Margin="6,0,0,0" />
+          <Button x:Name="RightTimeButton" Style="{StaticResource ClockButton}" Click="OnClock"
+                  ToolTip="Hora com segundos">
+            <TextBlock Text="{Binding Time}" Style="{StaticResource ClockText}" />
+          </Button>
         </StackPanel>
       </StackPanel>
 
@@ -819,6 +842,26 @@
 
       <!-- O cartão das atualizações: o que o Windows Update já sabe, e o que o winget vê. Cada
            metade leva ao lugar onde ela se resolve — nada é instalado daqui. -->
+      <!-- a hora com segundos, ao clicar no horário. Algarismos de largura fixa: em fonte
+           proporcional o "1" é mais estreito, e o número inteiro tremeria a cada segundo -->
+      <Popup x:Name="ClockPopup" Placement="Custom"
+             StaysOpen="True" AllowsTransparency="True" PopupAnimation="Fade"
+             Closed="OnClockClosed">
+        <Border Background="#F7242424" BorderBrush="#2EFFFFFF" BorderThickness="1"
+                CornerRadius="10" Padding="20,14,20,16" Margin="10">
+          <Border.Effect>
+            <DropShadowEffect BlurRadius="20" ShadowDepth="5" Opacity="0.55" Color="Black" />
+          </Border.Effect>
+          <StackPanel MinWidth="200">
+            <TextBlock Text="{Binding ClockSeconds}" Foreground="#FFF2F2F2" FontSize="34"
+                       FontWeight="Light" HorizontalAlignment="Center"
+                       Typography.NumeralAlignment="Tabular" />
+            <TextBlock Text="{Binding ClockLongDate}" Foreground="#FF9D9D9D" FontSize="12"
+                       HorizontalAlignment="Center" Margin="0,2,0,0" />
+          </StackPanel>
+        </Border>
+      </Popup>
+
       <Popup x:Name="UpdatesPopup" PlacementTarget="{Binding ElementName=UpdatesButton}"
              Placement="Bottom" VerticalOffset="6" HorizontalOffset="-8"
              StaysOpen="True" AllowsTransparency="True" PopupAnimation="Fade">
@@ -1319,6 +1362,23 @@
         <Border Background="#F7242424" BorderBrush="#2EFFFFFF" BorderThickness="1"
                 CornerRadius="10" Padding="14,12" Margin="10" DataContext="{Binding Calendar}"
                 PreviewMouseWheel="OnCalendarWheel">
+          <!-- nos ícones compactos o cartão inteiro encolhe a 90%: são dezenas de medidas (título,
+               dias, células, a lista de tarefas e os campos), e a escala as leva juntas, na mesma
+               proporção — os números dos dias ficam nos ~11 px dos outros itens compactos. O
+               contexto aqui é o calendário, então a opção é lida do Popup, que tem o da barra -->
+          <Border.Style>
+            <Style TargetType="Border">
+              <Style.Triggers>
+                <DataTrigger Binding="{Binding DataContext.PanelCompact, ElementName=CalendarPopup}" Value="True">
+                  <Setter Property="LayoutTransform">
+                    <Setter.Value>
+                      <ScaleTransform ScaleX="0.9" ScaleY="0.9" />
+                    </Setter.Value>
+                  </Setter>
+                </DataTrigger>
+              </Style.Triggers>
+            </Style>
+          </Border.Style>
           <Border.Effect>
             <DropShadowEffect BlurRadius="20" ShadowDepth="5" Opacity="0.55" Color="Black" />
           </Border.Effect>
