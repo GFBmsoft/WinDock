@@ -1327,8 +1327,9 @@ public sealed class PanelModel : INotifyPropertyChanged, IDisposable
     }
 
     /// <summary>
-    /// A cor do robô na barra: branco enquanto sobra, âmbar a partir de 60%, vermelho a
-    /// partir de 90%.
+    /// A cor do robô na barra: verde até 70%, amarelo de 70 a 95%, vermelho a partir de 95%
+    /// (pedido em 01/10/2026; antes era branco, âmbar a partir de 60% e vermelho de 90%).
+    /// O verde diz "li, e sobra" — o branco ficou só para quando ainda não há leitura.
     ///
     /// Vale <b>o medidor mais cheio de todas as contas</b>, e não o de cinco horas que a dica
     /// do mouse mostra: qualquer janela que estourar interrompe o trabalho do mesmo jeito, e
@@ -1342,21 +1343,22 @@ public sealed class PanelModel : INotifyPropertyChanged, IDisposable
     {
         get
         {
-            var cheio = AiCards.SelectMany(c => c.Gauges)
-                               .Select(g => g.Percent)
-                               .DefaultIfEmpty(0)
-                               .Max();
+            var medidores = AiCards.SelectMany(c => c.Gauges).Select(g => g.Percent).ToList();
+            if (medidores.Count == 0) return AiSemLeitura;
 
-            return cheio >= 90 ? AiFim : cheio >= 60 ? AiAtencao : AiCalmo;
+            var cheio = medidores.Max();
+            return cheio >= 95 ? AiFim : cheio >= 70 ? AiAtencao : AiCalmo;
         }
     }
 
     /// <summary>
-    /// As cores do medidor de cota — as mesmas do <c>UsageBrush</c>, que pinta as barras do
-    /// cartão —, menos o azul: na barra, "normal" é a cor dos outros ícones, senão o robô
-    /// viveria destacado do resto como se sempre houvesse algo a dizer.
+    /// As cores do robô. Amarelo e vermelho são os do <c>UsageBrush</c>, que pinta as barras do
+    /// cartão, nas mesmas faixas. O verde é o de sucesso do Windows 11 sobre fundo escuro — e
+    /// substitui o branco de antes, que deixava o robô igual aos outros ícones: a pessoa pediu
+    /// que ele dissesse "está tranquilo" também, e não só quando aperta.
     /// </summary>
-    private static readonly Brush AiCalmo = Congelado(0xF2, 0xF2, 0xF2);
+    private static readonly Brush AiSemLeitura = Congelado(0xF2, 0xF2, 0xF2);
+    private static readonly Brush AiCalmo = Congelado(0x6C, 0xCB, 0x5F);
     private static readonly Brush AiAtencao = Congelado(0xFF, 0xB9, 0x00);
     private static readonly Brush AiFim = Congelado(0xFF, 0x60, 0x5C);
 

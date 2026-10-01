@@ -28,7 +28,9 @@ public sealed class UsageBrush : IValueConverter
             _ => 0d
         };
 
-        return percent >= 90 ? Fim : percent >= 70 ? Atencao : Calmo;
+        // as mesmas faixas do robô da barra (70 e 95): com réguas diferentes, entre 90 e 95% a
+        // barra do cartão ficava vermelha embaixo de um ícone ainda amarelo
+        return percent >= 95 ? Fim : percent >= 70 ? Atencao : Calmo;
     }
 
     public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture) =>
