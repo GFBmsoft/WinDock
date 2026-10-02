@@ -172,6 +172,30 @@
       </Style.Triggers>
     </Style>
 
+    <!-- Os controles de música: um pouco menores que os outros ícones (13 e 14), porque os
+         desenhos de anterior, tocar e próxima enchem a caixa mais que os do wi-fi ou do sino. Nos
+         compactos encolhem na mesma proporção dos outros (15 → 12): estavam de fora do estilo, e
+         ficavam grandes ao lado deles (notado em 02/10/2026). -->
+    <Style x:Key="MediaGlyph" TargetType="ui:GlyphIcon">
+      <Setter Property="Size" Value="13" />
+      <Style.Triggers>
+        <DataTrigger Binding="{Binding DataContext.PanelCompact,
+                               RelativeSource={RelativeSource AncestorType=Window}}" Value="True">
+          <Setter Property="Size" Value="10.5" />
+        </DataTrigger>
+      </Style.Triggers>
+    </Style>
+
+    <Style x:Key="MediaPlayGlyph" TargetType="ui:GlyphIcon">
+      <Setter Property="Size" Value="14" />
+      <Style.Triggers>
+        <DataTrigger Binding="{Binding DataContext.PanelCompact,
+                               RelativeSource={RelativeSource AncestorType=Window}}" Value="True">
+          <Setter Property="Size" Value="11" />
+        </DataTrigger>
+      </Style.Triggers>
+    </Style>
+
     <!-- o relógio e a data: mesmo realce dos outros botões, sem o respiro largo deles -->
     <Style x:Key="ClockButton" TargetType="Button" BasedOn="{StaticResource PanelButton}">
       <Setter Property="Template">
@@ -512,17 +536,17 @@
 
           <Button Style="{StaticResource PanelButton}" Click="OnMediaPrevious" Padding="4,2"
                   IsEnabled="{Binding Media.CanPrevious}" ToolTip="Faixa anterior">
-            <ui:GlyphIcon Glyph="&#xE892;" Fill="#FFF2F2F2" Size="13" VerticalAlignment="Center" />
+            <ui:GlyphIcon Glyph="&#xE892;" Fill="#FFF2F2F2" Style="{StaticResource MediaGlyph}" VerticalAlignment="Center" />
           </Button>
 
           <Button Style="{StaticResource PanelButton}" Click="OnMediaToggle" Padding="4,2"
                   ToolTip="Tocar ou pausar">
-            <ui:GlyphIcon Glyph="{Binding MediaGlyph}" Fill="#FFF2F2F2" Size="14" VerticalAlignment="Center" />
+            <ui:GlyphIcon Glyph="{Binding MediaGlyph}" Fill="#FFF2F2F2" Style="{StaticResource MediaPlayGlyph}" VerticalAlignment="Center" />
           </Button>
 
           <Button Style="{StaticResource PanelButton}" Click="OnMediaNext" Padding="4,2"
                   IsEnabled="{Binding Media.CanNext}" ToolTip="Próxima faixa">
-            <ui:GlyphIcon Glyph="&#xE893;" Fill="#FFF2F2F2" Size="13" VerticalAlignment="Center" />
+            <ui:GlyphIcon Glyph="&#xE893;" Fill="#FFF2F2F2" Style="{StaticResource MediaGlyph}" VerticalAlignment="Center" />
           </Button>
         </StackPanel>
 
