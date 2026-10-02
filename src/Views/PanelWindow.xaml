@@ -456,13 +456,18 @@
 
                  Com a opção desligada (ou com o texto cabendo), nada disso entra em cena e o
                  TextBlock volta a ser o de sempre, com as reticências do WPF. -->
+            <!-- O StackPanel no meio é o que deixa o texto ter a largura inteira: direto na
+                 moldura, o WPF recortava o texto nos 220 px dela, e o que rolava era só o
+                 pedaço recortado — o nome andava e continuava cortado. -->
             <Border x:Name="MediaClip" MaxWidth="220" ClipToBounds="True" VerticalAlignment="Center">
-              <TextBlock x:Name="MediaText" Text="{Binding Media.Summary}" Foreground="#FFE8E8EA"
-                         FontSize="12" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis">
-                <TextBlock.RenderTransform>
-                  <TranslateTransform x:Name="MediaSlide" />
-                </TextBlock.RenderTransform>
-              </TextBlock>
+              <StackPanel Orientation="Horizontal">
+                <TextBlock x:Name="MediaText" Text="{Binding Media.Summary}" Foreground="#FFE8E8EA"
+                           FontSize="12" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis">
+                  <TextBlock.RenderTransform>
+                    <TranslateTransform x:Name="MediaSlide" />
+                  </TextBlock.RenderTransform>
+                </TextBlock>
+              </StackPanel>
             </Border>
 
             <TextBlock Text="&#x276F;" Foreground="#FF8A8A8A" FontSize="12"
@@ -1495,6 +1500,7 @@
       <!-- O card da mídia: capa, o que está tocando, onde a faixa está e os controles
            maiores. A barra de progresso aceita clique para pular no tempo. -->
       <Popup x:Name="MediaPopup" PlacementTarget="{Binding ElementName=MediaButton}"
+             Opened="OnMediaPopupToggled" Closed="OnMediaPopupToggled"
              Placement="Bottom" VerticalOffset="6" HorizontalOffset="-8"
              StaysOpen="True" AllowsTransparency="True" PopupAnimation="Fade">
         <Border Background="#F7242424" BorderBrush="#2EFFFFFF" BorderThickness="1"
@@ -1526,12 +1532,32 @@
               </Border>
 
               <StackPanel Margin="12,0,0,0" Width="200" VerticalAlignment="Center">
-                <TextBlock Text="{Binding Media.Title}" Foreground="#FFE8E8EA" FontSize="12"
-                           FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                <!-- O nome da faixa rola quando não cabe, como o da barra: numa linha só ele
+                     virava reticências logo no meio (duas linhas foram tentadas, e o card
+                     mudava de altura de uma faixa para outra). A conta é a mesma da barra —
+                     veja `UpdateCardTicker`. -->
+                <!-- O StackPanel horizontal no meio não é enfeite: direto na moldura, o texto
+                     ganha um espaço de 200 px, o WPF o recorta ali, e o que rola é só o pedaço
+                     recortado (foi assim na primeira versão). Dentro dele, o texto fica com a
+                     largura inteira, e quem recorta é a moldura. -->
+                <Border x:Name="MediaCardClip" Width="200" ClipToBounds="True">
+                  <StackPanel Orientation="Horizontal">
+                    <TextBlock x:Name="MediaCardTitle" Text="{Binding Media.Title}"
+                               Foreground="#FFE8E8EA" FontSize="12" FontWeight="SemiBold"
+                               TextWrapping="NoWrap" TextTrimming="CharacterEllipsis"
+                               ToolTip="{Binding Media.Title}">
+                      <TextBlock.RenderTransform>
+                        <TranslateTransform x:Name="MediaCardSlide" />
+                      </TextBlock.RenderTransform>
+                    </TextBlock>
+                  </StackPanel>
+                </Border>
                 <TextBlock Text="{Binding Media.Artist}" Foreground="#FFE8E8EA" FontSize="12"
-                           TextTrimming="CharacterEllipsis" Margin="0,3,0,0" />
+                           TextTrimming="CharacterEllipsis" Margin="0,3,0,0"
+                           ToolTip="{Binding Media.Artist}" />
                 <TextBlock Text="{Binding Media.Album}" Foreground="#FF9D9D9D" FontSize="11"
-                           TextTrimming="CharacterEllipsis" Margin="0,3,0,0" />
+                           TextTrimming="CharacterEllipsis" Margin="0,3,0,0"
+                           ToolTip="{Binding Media.Album}" />
               </StackPanel>
             </StackPanel>
 

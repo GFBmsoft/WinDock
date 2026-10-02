@@ -72,6 +72,7 @@ public partial class PanelWindow : Window
             _config.PropertyChanged -= OnPanelConfigChanged;
             _model.PropertyChanged -= OnModelChanged;
             MediaSlide.BeginAnimation(TranslateTransform.XProperty, null);
+            MediaCardSlide.BeginAnimation(TranslateTransform.XProperty, null);
             foreach (var b in _balloons.ToList()) b.Close();
             _model.Dispose();
             _appBar?.Dispose();
@@ -552,12 +553,21 @@ public partial class PanelWindow : Window
                            or nameof(DockConfig.PanelIslandBreaks)) ApplyPanelOrder();
 
         // ligar ou desligar a rolagem vale na hora, com a música que já está tocando
-        if (e.PropertyName is nameof(DockConfig.PanelMediaTicker)) UpdateMediaTicker();
+        if (e.PropertyName is nameof(DockConfig.PanelMediaTicker))
+        {
+            _tickerText = _cardTickerText = "\0";   // força refazer: o texto é o mesmo, a opção não
+            UpdateMediaTicker();
+            UpdateCardTicker();
+        }
     }
 
     private void OnModelChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
-        if (e.PropertyName is nameof(PanelModel.Media)) UpdateMediaTicker();
+        if (e.PropertyName is nameof(PanelModel.Media))
+        {
+            UpdateMediaTicker();
+            UpdateCardTicker();
+        }
     }
 
     // ── o nome da faixa rolando ──────────────────────────────
@@ -595,17 +605,51 @@ public partial class PanelWindow : Window
         _tickerText = texto;
         _tickerPlaying = tocando;
 
-        MediaSlide.BeginAnimation(TranslateTransform.XProperty, null);
-        MediaSlide.X = 0;
-        MediaText.Width = double.NaN;   // de volta ao automático: as reticências do WPF voltam a valer
+        Roll(MediaText, MediaSlide, MediaClip.MaxWidth, texto, tocando);
+    }
+
+    /// <summary>O título e o estado da última vez no card — o mesmo cuidado da barra.</summary>
+    private string _cardTickerText = "";
+    private bool _cardTickerRolling;
+
+    /// <summary>
+    /// O nome da faixa rolando no card "Tocando agora", com a mesma conta da barra. Só anda
+    /// com o card aberto: fechado, ninguém vê, e a animação ficaria girando à toa.
+    /// </summary>
+    private void UpdateCardTicker()
+    {
+        var texto = _model.Media.Title ?? "";
+        var rolando = _model.Media.IsPlaying && MediaPopup.IsOpen;
+
+        if (texto == _cardTickerText && rolando == _cardTickerRolling) return;
+
+        _cardTickerText = texto;
+        _cardTickerRolling = rolando;
+
+        Roll(MediaCardTitle, MediaCardSlide, MediaCardClip.Width, texto, rolando);
+    }
+
+    private void OnMediaPopupToggled(object? sender, EventArgs e) => UpdateCardTicker();
+
+    /// <summary>
+    /// Põe <paramref name="text"/> para rolar dentro de uma moldura de largura
+    /// <paramref name="cabe"/>, ou o devolve parado com as reticências se cabe, se a opção
+    /// está desligada ou se não está tocando (aí o começo fica à mostra, sem reticências).
+    /// </summary>
+    private void Roll(TextBlock text, TranslateTransform slide, double cabe, string texto, bool tocando)
+    {
+        slide.BeginAnimation(TranslateTransform.XProperty, null);
+        slide.X = 0;
+        text.Width = double.NaN;   // de volta ao automático: as reticências do WPF voltam a valer
+        text.MaxWidth = cabe;      // num pai que não limita a largura (o do card), é isto que traz as reticências
 
         if (!_config.PanelMediaTicker || texto.Length == 0) return;
 
-        var cabe = MediaClip.MaxWidth;
-        var inteiro = TextWidth(texto);
+        var inteiro = TextWidth(text, texto);
         if (inteiro <= cabe + 0.5) return;
 
-        MediaText.Width = inteiro;
+        text.MaxWidth = double.PositiveInfinity;
+        text.Width = inteiro;
         if (!tocando) return;
 
         // Dois segundos parado em cada ponta, e a volta rápida. Ler o começo é o mais
@@ -629,18 +673,17 @@ public partial class PanelWindow : Window
         Quadro(-sobra, 4 + rolagem);
         Quadro(0, 4.45 + rolagem);
 
-        MediaSlide.BeginAnimation(TranslateTransform.XProperty, anda);
+        slide.BeginAnimation(TranslateTransform.XProperty, anda);
     }
 
-    /// <summary>Quanto o texto da faixa mede, na fonte em que ele é desenhado.</summary>
-    private double TextWidth(string texto)
+    /// <summary>Quanto o texto mede, na fonte em que <paramref name="text"/> o desenha.</summary>
+    private static double TextWidth(TextBlock text, string texto)
     {
-        var tipo = new Typeface(MediaText.FontFamily, MediaText.FontStyle, MediaText.FontWeight,
-                                MediaText.FontStretch);
+        var tipo = new Typeface(text.FontFamily, text.FontStyle, text.FontWeight, text.FontStretch);
 
         return new FormattedText(texto, System.Globalization.CultureInfo.CurrentCulture,
-                                 FlowDirection.LeftToRight, tipo, MediaText.FontSize,
-                                 Brushes.White, VisualTreeHelper.GetDpi(MediaText).PixelsPerDip).Width;
+                                 FlowDirection.LeftToRight, tipo, text.FontSize,
+                                 Brushes.White, VisualTreeHelper.GetDpi(text).PixelsPerDip).Width;
     }
 
     // ── rede e sistema ───────────────────────────────────────
