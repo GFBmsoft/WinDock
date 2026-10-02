@@ -402,6 +402,78 @@ public sealed class ToolCommand : IGlyphChoice
     }
 }
 
+/// <summary>
+/// Uma pasta do botão de locais da barra: o nome que aparece no cartão e o caminho que o
+/// Explorador abre. O caminho aceita variável de ambiente ("%USERPROFILE%\Projetos"), pasta de
+/// rede ("\\servidor\pasta") e os endereços do shell ("shell:Downloads").
+/// </summary>
+public sealed class PlaceEntry : IGlyphChoice
+{
+    private string _name = string.Empty;
+    public string Name { get => _name; set => Set(ref _name, value); }
+
+    private string _path = string.Empty;
+    public string Path
+    {
+        get => _path;
+        set
+        {
+            if (!Set(ref _path, value)) return;
+            Raise(nameof(Problem));
+            Raise(nameof(LookGlyph));
+            Raise(nameof(LookFill));
+        }
+    }
+
+    private string _glyph = string.Empty;
+    /// <summary>O desenho escolhido à mão ("E8B7"). Vazio: o da pasta conhecida, ou a pasta amarela.</summary>
+    public string Glyph
+    {
+        get => _glyph;
+        set { if (Set(ref _glyph, value)) { Raise(nameof(LookGlyph)); Raise(nameof(LookFill)); } }
+    }
+
+    private string _color = string.Empty;
+    public string Color
+    {
+        get => _color;
+        set { if (Set(ref _color, value)) Raise(nameof(LookFill)); }
+    }
+
+    /// <summary>Por que a pasta não vai abrir — vazio se ela existe.</summary>
+    [JsonIgnore] public string Problem => PlacesService.Problem(Path) ?? string.Empty;
+
+    [JsonIgnore] public string LookGlyph => PlacesService.Look(this).Glyph;
+    [JsonIgnore] public System.Windows.Media.Brush LookFill => PlacesService.Look(this).Fill;
+
+    public event PropertyChangedEventHandler? PropertyChanged;
+    private void Raise(string name) => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
+    private bool Set(ref string field, string value, [CallerMemberName] string? name = null)
+    {
+        value ??= string.Empty;
+        if (field == value) return false;
+        field = value;
+        Raise(name!);
+        return true;
+    }
+}
+
+/// <summary>Onde e como a busca de aplicativos aparece.</summary>
+public enum SearchStyle
+{
+    /// <summary>A caixa no meio da tela, com a lista para baixo — a de sempre.</summary>
+    Center,
+
+    /// <summary>
+    /// Compacta, logo abaixo da lupa da barra. Só para o clique na lupa: o Alt+Espaço continua no
+    /// meio, onde o olho está quando não se olhou para a barra.
+    ///
+    /// <para>Houve um terceiro, em faixa sobre a barra como o dmenu do Linux (02/10/2026). Mesmo
+    /// com ícone e poucos resultados, o usuário preferiu ficar só com estes dois.</para>
+    /// </summary>
+    Button
+}
+
 public sealed class PinnedApp
 {
     public string Id { get; set; } = string.Empty;
@@ -661,6 +733,35 @@ public sealed class DockConfig : INotifyPropertyChanged
     /// <summary>A lista mudou por dentro — o mesmo caminho do <c>PanelOrder</c>.</summary>
     public void NotifyToolsChanged() =>
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Tools)));
+
+    // ── o canto esquerdo da barra ────────────────────────────
+    //
+    // Busca e locais, pedidos juntos em 02/10/2026: o canto esquerdo era o único vazio da barra.
+
+    private bool _panelSearch = true;
+    /// <summary>A lupa da barra (no canto esquerdo, de fábrica): abre a mesma busca do Alt+Espaço.</summary>
+    public bool PanelSearch { get => _panelSearch; set => Set(ref _panelSearch, value); }
+
+    private SearchStyle _searchStyle = SearchStyle.Center;
+    /// <summary>Onde e como a busca aparece — veja <see cref="Services.SearchStyle"/>.</summary>
+    [JsonConverter(typeof(JsonStringEnumConverter))]
+    public SearchStyle SearchStyle { get => _searchStyle; set => Set(ref _searchStyle, value); }
+
+    private bool _panelPlaces = true;
+    /// <summary>
+    /// O botão "Locais" no canto esquerdo, com as pastas de <see cref="Places"/> — o menu de
+    /// lugares do GNOME (referência EV27).
+    /// </summary>
+    public bool PanelPlaces { get => _panelPlaces; set => Set(ref _panelPlaces, value); }
+
+    /// <summary>
+    /// As pastas do botão de locais, na ordem do cartão. As de fábrica (as do usuário, como no
+    /// GNOME) entram só para quem nunca teve a chave — a mesma regra das ferramentas.
+    /// </summary>
+    public List<PlaceEntry> Places { get; set; } = PlacesService.Defaults();
+
+    public void NotifyPlacesChanged() =>
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Places)));
 
     /// <summary>
     /// As origens de notificação já vistas, com o desenho de cada uma no cartão do sino. A dock
@@ -1119,6 +1220,8 @@ public sealed class DockConfig : INotifyPropertyChanged
         PanelCompact = d.PanelCompact;
         PanelSelfUpdate = d.PanelSelfUpdate;
         PanelTools = d.PanelTools;
+        PanelSearch = d.PanelSearch; SearchStyle = d.SearchStyle;
+        PanelPlaces = d.PanelPlaces;
         PanelIslands = d.PanelIslands;
         IslandMarginTop = d.IslandMarginTop; IslandMarginBottom = d.IslandMarginBottom;
         IslandMarginLeft = d.IslandMarginLeft; IslandMarginRight = d.IslandMarginRight;

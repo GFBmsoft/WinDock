@@ -33,14 +33,24 @@ public partial class LauncherWindow : Window
         Deactivated += (_, _) => Hide();   // clicou fora: some, como o menu iniciar
     }
 
-    /// <summary>Mostra centralizado na tela onde o mouse esta, com a busca limpa.</summary>
-    public void Open()
+    /// <summary>
+    /// Mostra com a busca limpa: centralizada na tela onde o mouse esta, ou — com
+    /// <paramref name="below"/>, o ponto da tela logo abaixo da lupa da barra — compacta ali.
+    /// </summary>
+    public void Open(Point? below = null)
     {
+        // Compacta: mais estreita e com a letra do campo menor. Embaixo da lupa ela é um cartão
+        // da barra, e os 560 px do meio da tela pareciam uma janela caída no canto.
+        var compacta = below is not null;
+        Width = compacta ? 420 : 560;
+        Query.FontSize = Hint.FontSize = compacta ? 16 : 20;
+
         Query.Text = string.Empty;
         Refresh();
 
         Show();
-        PositionOnActiveScreen();
+        if (below is { } ponto) PositionBelow(ponto);
+        else PositionOnActiveScreen();
 
         // o Show() sozinho mostra a janela mas deixa o teclado no app anterior: sem esse
         // empurrao o que a pessoa digitar vai parar la, e nao no campo de busca
@@ -71,6 +81,20 @@ public partial class LauncherWindow : Window
         var work = info.rcWork;
         Left = (work.Left + (work.Width - Width * scaleX) / 2) / scaleX;
         Top = (work.Top + work.Height * 0.22) / scaleY;
+    }
+
+    /// <summary>
+    /// Encostada embaixo da lupa: a borda esquerda da caixa alinhada com a do botão e 6 px abaixo
+    /// da barra, o mesmo respiro dos cartões dela.
+    /// </summary>
+    private void PositionBelow(Point ponto)
+    {
+        var transform = PresentationSource.FromVisual(this)?.CompositionTarget?.TransformToDevice;
+        var scaleX = transform?.M11 ?? 1;
+        var scaleY = transform?.M22 ?? 1;
+
+        Left = ponto.X / scaleX;
+        Top = ponto.Y / scaleY + 6;
     }
 
     private void Refresh()

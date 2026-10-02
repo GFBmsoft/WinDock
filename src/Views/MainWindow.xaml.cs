@@ -536,7 +536,13 @@ public partial class MainWindow : Window
     }
 
     /// <summary>Abre a busca; a janela e criada uma vez e depois so escondida e mostrada.</summary>
-    private void OpenLauncher()
+    private void OpenLauncher() => OpenLauncher(null);
+
+    /// <summary>
+    /// A busca aberta pela lupa da barra. <paramref name="below"/>, em pixels da tela: o canto
+    /// onde ela abre, compacta, em vez do meio da tela — veja <c>DockConfig.SearchAtButton</c>.
+    /// </summary>
+    internal void OpenLauncher(Point? below)
     {
         if (_model is null) return;
 
@@ -545,7 +551,7 @@ public partial class MainWindow : Window
         // ja aberto: o mesmo atalho fecha, como o menu iniciar
         if (_launcher.IsVisible) { _launcher.Hide(); return; }
 
-        _launcher.Open();
+        _launcher.Open(below);
     }
 
     private static DockItem? ItemOf(object sender) => (sender as FrameworkElement)?.Tag as DockItem;

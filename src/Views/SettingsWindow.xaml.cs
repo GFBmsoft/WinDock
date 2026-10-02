@@ -36,6 +36,8 @@ public partial class SettingsWindow : Window
         LoadAiAccounts();
         ToolsList.ItemsSource = _tools;
         foreach (var t in _config.Tools) Track(t);
+        PlacesList.ItemsSource = _places;
+        foreach (var p in _config.Places) TrackPlace(p);
         NotificationSourcesList.ItemsSource = _sources;
         foreach (var s in _config.NotificationSources) TrackSource(s);
         ExcludedAppsList.ItemsSource = _excludedApps;
@@ -274,16 +276,101 @@ public partial class SettingsWindow : Window
         SaveTools();
     }
 
-    /// <summary>Rola até uma seção — por enquanto só a das ferramentas, que o cartão da barra abre.</summary>
+    // ── locais ───────────────────────────────────────────────
+
+    /// <summary>Espelha <see cref="DockConfig.Places"/> para a tela — o mesmo caminho das ferramentas.</summary>
+    private readonly ObservableCollection<PlaceEntry> _places = new();
+
+    private void SavePlaces()
+    {
+        _config.Places = _places.ToList();
+        _config.NotifyPlacesChanged();
+    }
+
+    private void OnPlaceEdited(object sender, RoutedEventArgs e) => SavePlaces();
+
+    private void TrackPlace(PlaceEntry p)
+    {
+        p.PropertyChanged += OnPlaceLookChanged;
+        _places.Add(p);
+    }
+
+    private void OnPlaceLookChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName is nameof(PlaceEntry.Glyph) or nameof(PlaceEntry.Color)) SavePlaces();
+    }
+
+    /// <summary>O "…" da linha: escolher a pasta em vez de digitar. Linha sem nome ganha o da pasta.</summary>
+    private void OnPlaceBrowse(object sender, RoutedEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.Tag is not PlaceEntry p) return;
+
+        var dlg = new Microsoft.Win32.OpenFolderDialog { Title = "Pasta do local" };
+        try
+        {
+            var atual = Environment.ExpandEnvironmentVariables(p.Path.Trim().Trim('"'));
+            if (atual.Length > 0 && System.IO.Directory.Exists(atual)) dlg.InitialDirectory = atual;
+        }
+        catch { /* caminho torto */ }
+
+        if (dlg.ShowDialog(this) != true) return;
+
+        p.Path = dlg.FolderName;
+        if (string.IsNullOrWhiteSpace(p.Name))
+        {
+            var nome = System.IO.Path.GetFileName(dlg.FolderName.TrimEnd('\\'));
+            p.Name = string.IsNullOrEmpty(nome) ? dlg.FolderName : nome;   // a raiz de um disco não tem nome
+        }
+        SavePlaces();
+    }
+
+    private void OnPlaceAdd(object sender, RoutedEventArgs e)
+    {
+        TrackPlace(new PlaceEntry());
+        SavePlaces();
+    }
+
+    private void OnPlaceRemove(object sender, RoutedEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.Tag is not PlaceEntry p) return;
+        p.PropertyChanged -= OnPlaceLookChanged;
+        _places.Remove(p);
+        SavePlaces();
+    }
+
+    private void OnPlaceUp(object sender, RoutedEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.Tag is not PlaceEntry p) return;
+        var i = _places.IndexOf(p);
+        if (i <= 0) return;
+        _places.Move(i, i - 1);
+        SavePlaces();
+    }
+
+    private void OnPlacesDefaults(object sender, RoutedEventArgs e)
+    {
+        foreach (var velho in _places) velho.PropertyChanged -= OnPlaceLookChanged;
+        _places.Clear();
+        foreach (var p in PlacesService.Defaults()) TrackPlace(p);
+        SavePlaces();
+    }
+
+    /// <summary>Rola até uma seção — as que os lápis dos cartões da barra abrem.</summary>
     internal void ShowSection(string section)
     {
-        if (section != "ferramentas") return;
+        FrameworkElement? cartao = section switch
+        {
+            "ferramentas" => ToolsCard,
+            "locais" => PlacesCard,
+            _ => null
+        };
+        if (cartao is null) return;
 
         // a página primeiro: com ela escondida o cartão não tem onde aparecer
         SelectPage(PageItems);
 
         // depois do layout: na janela recém-criada o cartão ainda não tem posição para rolar até ela
-        Dispatcher.BeginInvoke(() => ToolsCard.BringIntoView(), System.Windows.Threading.DispatcherPriority.Loaded);
+        Dispatcher.BeginInvoke(() => cartao.BringIntoView(), System.Windows.Threading.DispatcherPriority.Loaded);
     }
 
     // ── navegação ────────────────────────────────────────────
@@ -545,9 +632,15 @@ public partial class SettingsWindow : Window
 
     // ── ordem dos itens da barra ─────────────────────────────
 
+    /// <summary>
+    /// Uma linha da lista de ordem. A posição recomeça em cada canto, e a primeira de cada um não
+    /// ganha a caixa "nova ilha" — ela sempre abre uma.
+    /// </summary>
     private sealed record PanelOrderRow(int Position, string Key, string Name, bool StartsIsland)
     {
         public bool IsFirst => Position == 1;
+        public bool IsDivider => Key == PanelWindow.SideDivider;
+        public bool IsItem => !IsDivider;
     }
 
     /// <summary>A caixa "nova ilha" de um item: liga ou desliga a quebra dele, e a barra se refaz na hora.</summary>
@@ -567,30 +660,24 @@ public partial class SettingsWindow : Window
         _config.NotifyPanelIslandBreaksChanged();
     }
 
-    /// <summary>
-    /// A ordem atual: o que está guardado, mais o que a barra tem e a configuração ainda não
-    /// cita — item novo aparece no fim, igualzinho ao que a barra faz ao desenhar.
-    /// </summary>
-    private List<string> CurrentPanelOrder()
-    {
-        var conhecidos = PanelWindow.PanelItems.Select(i => i.Key).ToList();
-
-        var ordem = _config.PanelOrder
-            .Where(k => conhecidos.Contains(k, StringComparer.OrdinalIgnoreCase))
-            .ToList();
-
-        ordem.AddRange(conhecidos.Where(k => !ordem.Contains(k, StringComparer.OrdinalIgnoreCase)));
-        return ordem;
-    }
+    /// <summary>A ordem atual, com a divisória — a mesma conta que a barra faz ao desenhar.</summary>
+    private List<string> CurrentPanelOrder() => PanelWindow.FullOrder(_config.PanelOrder);
 
     private void LoadPanelOrder()
     {
         var nomes = PanelWindow.PanelItems.ToDictionary(i => i.Key, i => i.Name);
 
-        PanelOrderList.ItemsSource = CurrentPanelOrder()
-            .Select((k, i) => new PanelOrderRow(i + 1, k, nomes.TryGetValue(k, out var n) ? n : k,
-                                             _config.PanelIslandBreaks.Contains(k, StringComparer.OrdinalIgnoreCase)))
-            .ToList();
+        var linhas = new List<PanelOrderRow>();
+        var posicao = 0;
+        foreach (var k in CurrentPanelOrder())
+        {
+            // a divisória recomeça a contagem: a posição é dentro do canto
+            posicao = k == PanelWindow.SideDivider ? 0 : posicao + 1;
+            linhas.Add(new PanelOrderRow(posicao, k, nomes.TryGetValue(k, out var n) ? n : k,
+                                         _config.PanelIslandBreaks.Contains(k, StringComparer.OrdinalIgnoreCase)));
+        }
+
+        PanelOrderList.ItemsSource = linhas;
     }
 
     /// <summary>Uma conta do Claude Code na lista de escolha do cartão de cota.</summary>

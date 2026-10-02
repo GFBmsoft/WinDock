@@ -556,18 +556,36 @@
           </Grid>
         </Border>
 
-        <!-- A ordem dos itens do canto direito da barra. Vale para o que existe hoje; item
-             novo entra no fim até ser movido. -->
+        <!-- A ordem dos itens da barra, nos dois cantos. A divisória é uma linha da lista como as
+             outras: passar um item por ela, com as setas, é mudar o item de canto. -->
         <Border Style="{StaticResource FluentCardBorderStyle}">
           <StackPanel>
             <TextBlock Text="Ordem dos itens da barra" Style="{StaticResource FluentTitle}" />
-            <TextBlock Text="Da esquerda para a direita, como aparecem no canto direito da barra. Use as setas para mover — a barra muda na hora."
+            <TextBlock Text="Da esquerda para a direita, como aparecem na barra. O que fica acima da divisória vai para o canto esquerdo, o que fica abaixo para o direito — use as setas para mover um item, inclusive de um canto para o outro. A barra muda na hora."
                        Style="{StaticResource FluentCaption}" TextWrapping="Wrap" />
 
-            <ItemsControl x:Name="PanelOrderList" Margin="0,12,0,0">
+            <TextBlock Text="CANTO ESQUERDO" Foreground="{StaticResource FluentTextDim}" FontSize="10"
+                       FontWeight="SemiBold" Margin="2,12,0,6" />
+
+            <ItemsControl x:Name="PanelOrderList">
               <ItemsControl.ItemTemplate>
                 <DataTemplate>
+                  <Grid>
+                  <!-- a divisória: só o rótulo do canto direito, entre dois riscos -->
+                  <Grid Margin="0,8,0,8"
+                        Visibility="{Binding IsDivider, Converter={StaticResource BoolToVisible}}">
+                    <Grid.ColumnDefinitions>
+                      <ColumnDefinition Width="Auto" />
+                      <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Text="CANTO DIREITO" Foreground="{StaticResource FluentTextDim}" FontSize="10"
+                               FontWeight="SemiBold" Margin="2,0,10,0" VerticalAlignment="Center" />
+                    <Border Grid.Column="1" Height="1" Background="{StaticResource FluentControlBorder}"
+                            VerticalAlignment="Center" />
+                  </Grid>
+
                   <Border Background="{StaticResource FluentControl}"
+                          Visibility="{Binding IsItem, Converter={StaticResource BoolToVisible}}"
                           BorderBrush="{StaticResource FluentControlBorder}" BorderThickness="1"
                           CornerRadius="6" Padding="10,5" Margin="0,0,0,4">
                     <Grid>
@@ -618,6 +636,7 @@
                       </Button>
                     </Grid>
                   </Border>
+                  </Grid>
                 </DataTemplate>
               </ItemsControl.ItemTemplate>
             </ItemsControl>
@@ -631,7 +650,132 @@
 
       <StackPanel x:Name="PageItems" Visibility="Collapsed">
 
-        <TextBlock Text="Relógio e calendário" Style="{StaticResource FluentSection}" Margin="2,0,0,8" />
+        <TextBlock Text="Busca e locais" Style="{StaticResource FluentSection}" Margin="2,0,0,8" />
+
+        <!-- A lupa e onde a busca aparece quando aberta por ela -->
+        <Border Style="{StaticResource FluentCardBorderStyle}">
+          <StackPanel>
+            <Grid>
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+              </Grid.ColumnDefinitions>
+              <StackPanel VerticalAlignment="Center">
+                <TextBlock Text="Busca" Style="{StaticResource FluentTitle}" />
+                <TextBlock Text="Uma lupa na barra que abre a busca de aplicativos — a mesma do Alt+Espaço."
+                           Style="{StaticResource FluentCaption}" TextWrapping="Wrap" />
+              </StackPanel>
+              <CheckBox Grid.Column="1" Style="{StaticResource FluentToggle}"
+                        AutomationProperties.Name="Busca"
+                        IsChecked="{Binding PanelSearch, Mode=TwoWay}" />
+            </Grid>
+
+            <!-- onde a busca aberta pela lupa aparece; o Alt+Espaço fica sempre no meio -->
+            <Grid Margin="0,12,0,0"
+                  Visibility="{Binding PanelSearch, Converter={StaticResource BoolToVisible}}">
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+              </Grid.ColumnDefinitions>
+              <StackPanel VerticalAlignment="Center" Margin="0,0,12,0">
+                <TextBlock Text="Onde a busca aparece" Style="{StaticResource FluentTitle}" />
+                <TextBlock Text="Ao clicar na lupa. Compacta: logo abaixo dela, mais estreita. O Alt+Espaço continua abrindo no meio da tela."
+                           Style="{StaticResource FluentCaption}" TextWrapping="Wrap" />
+              </StackPanel>
+              <ComboBox Grid.Column="1" Width="190" Style="{StaticResource FluentCombo}"
+                        SelectedValue="{Binding SearchStyle, Mode=TwoWay}" SelectedValuePath="Tag">
+                <ComboBoxItem Content="No meio da tela" Tag="{x:Static services:SearchStyle.Center}" />
+                <ComboBoxItem Content="Compacta, abaixo da lupa" Tag="{x:Static services:SearchStyle.Button}" />
+              </ComboBox>
+            </Grid>
+          </StackPanel>
+        </Border>
+
+        <!-- Os locais: a mesma lista apertada das ferramentas, com a pasta no lugar do comando -->
+        <Border x:Name="PlacesCard" Style="{StaticResource FluentCardBorderStyle}">
+          <StackPanel>
+            <Grid>
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+              </Grid.ColumnDefinitions>
+              <StackPanel VerticalAlignment="Center">
+                <TextBlock Text="Locais" Style="{StaticResource FluentTitle}" />
+                <TextBlock Text="Um botão &quot;Locais&quot; na barra com as pastas que você mais usa, abertas no Explorador. Vale pasta de rede (\\servidor\pasta) e variável (%USERPROFILE%\Projetos)."
+                           Style="{StaticResource FluentCaption}" TextWrapping="Wrap" />
+              </StackPanel>
+              <CheckBox Grid.Column="1" Style="{StaticResource FluentToggle}"
+                        AutomationProperties.Name="Locais"
+                        IsChecked="{Binding PanelPlaces, Mode=TwoWay}" />
+            </Grid>
+
+            <StackPanel Visibility="{Binding PanelPlaces, Converter={StaticResource BoolToVisible}}">
+              <Grid Margin="0,12,0,4">
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="38" />
+                  <ColumnDefinition Width="160" />
+                  <ColumnDefinition Width="*" />
+                  <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <TextBlock Grid.Column="1" Text="Nome" Style="{StaticResource FluentCaption}" />
+                <TextBlock Grid.Column="2" Text="Pasta" Style="{StaticResource FluentCaption}" Margin="6,0,0,0" />
+              </Grid>
+
+              <ItemsControl x:Name="PlacesList">
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate>
+                    <StackPanel Margin="0,0,0,4">
+                      <Grid>
+                        <Grid.ColumnDefinitions>
+                          <ColumnDefinition Width="38" />
+                          <ColumnDefinition Width="160" />
+                          <ColumnDefinition Width="*" />
+                          <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <ui:GlyphPicker Tool="{Binding}" HorizontalAlignment="Left" />
+                        <TextBox Grid.Column="1" Style="{StaticResource FluentTextBox}" FontSize="12" Height="28"
+                                 TextAlignment="Left" Padding="4,0"
+                                 Text="{Binding Name, UpdateSourceTrigger=PropertyChanged}"
+                                 LostFocus="OnPlaceEdited" />
+                        <TextBox Grid.Column="2" Style="{StaticResource FluentTextBox}" FontSize="12"
+                                 Height="28" Margin="6,0,0,0" Padding="4,0"
+                                 FontFamily="Cascadia Mono, Consolas"
+                                 Text="{Binding Path, UpdateSourceTrigger=PropertyChanged}"
+                                 LostFocus="OnPlaceEdited" />
+                        <StackPanel Grid.Column="3" Orientation="Horizontal" Margin="6,0,0,0">
+                          <Button Style="{StaticResource FluentButton}" Padding="7,1" Height="28"
+                                  Click="OnPlaceBrowse" Tag="{Binding}" ToolTip="Escolher a pasta">
+                            <TextBlock Text="&#x2026;" FontSize="11" />
+                          </Button>
+                          <Button Style="{StaticResource FluentButton}" Padding="7,1" Height="28" Margin="3,0,0,0"
+                                  Click="OnPlaceUp" Tag="{Binding}" ToolTip="Subir">
+                            <TextBlock Text="&#x2191;" FontSize="11" />
+                          </Button>
+                          <Button Style="{StaticResource FluentButton}" Padding="7,1" Height="28" Margin="3,0,0,0"
+                                  Click="OnPlaceRemove" Tag="{Binding}" ToolTip="Tirar da lista">
+                            <TextBlock Text="&#x2715;" FontSize="11" />
+                          </Button>
+                        </StackPanel>
+                      </Grid>
+
+                      <TextBlock Text="{Binding Problem}" Foreground="#FFFFB86C" FontSize="11"
+                                 Margin="44,3,0,2" TextWrapping="Wrap"
+                                 Visibility="{Binding Problem, Converter={StaticResource EmptyToCollapsed}}" />
+                    </StackPanel>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+
+              <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
+                <Button Style="{StaticResource FluentButton}" Click="OnPlaceAdd" Content="Adicionar pasta" />
+                <Button Style="{StaticResource FluentButton}" Click="OnPlacesDefaults" Margin="8,0,0,0"
+                        Content="Repor as pastas do usuário" />
+              </StackPanel>
+            </StackPanel>
+          </StackPanel>
+        </Border>
+
+        <TextBlock Text="Relógio e calendário" Style="{StaticResource FluentSection}" />
 
         <!-- uma lista, e não um controle deslizante: a limpeza roda assim que o prazo muda, e
              arrastar de 30 até "Nunca" passaria por 1 dia no caminho, apagando tarefas no meio -->

@@ -51,7 +51,7 @@
                  TextChanged="OnQueryChanged" />
 
         <!-- o texto-fantasma some no primeiro caractere digitado -->
-        <TextBlock Text="Buscar aplicativo…  ou  run &lt;comando&gt;" FontSize="20" Padding="12,8"
+        <TextBlock x:Name="Hint" Text="Buscar aplicativo…  ou  run &lt;comando&gt;" FontSize="20" Padding="12,8"
                    IsHitTestVisible="False">
           <TextBlock.Style>
             <Style TargetType="TextBlock">

@@ -180,6 +180,7 @@ public partial class PanelWindow : Window
         _notificationsWasOpen = NotificationsPopup.IsOpen;
         _wifiWasOpen = WifiPopup.IsOpen;
         _toolsWasOpen = ToolsPopup.IsOpen;
+        _placesWasOpen = PlacesPopup.IsOpen;
         _batteryWasOpen = BatteryPopup.IsOpen;
 
         base.OnPreviewMouseDown(e);
@@ -401,15 +402,22 @@ public partial class PanelWindow : Window
     // ── ordem dos itens da barra ─────────────────────────────
 
     /// <summary>
-    /// Os itens do canto direito que a pessoa pode reordenar: a chave que vai no
-    /// <c>Tag</c> de cada um no XAML, e o nome que aparece nas Configurações.
+    /// Os itens da barra que a pessoa pode reordenar: a chave que vai no <c>Tag</c> de cada um
+    /// no XAML, e o nome que aparece nas Configurações.
     ///
     /// Fica aqui, e não no XAML, para as duas janelas lerem a mesma lista — a de opções
     /// precisa dos nomes, e esta precisa das chaves. Item novo na barra entra aqui também,
     /// senão ele funciona mas não aparece para ser reordenado.
+    ///
+    /// <para><b>Esta lista é também a ordem de fábrica</b>, e por isso segue a do XAML. Já foi
+    /// só a dos nomes, com o volume fora do lugar — e as Configurações mostravam, para quem nunca
+    /// tinha reordenado, uma ordem diferente da que a barra desenhava.</para>
     /// </summary>
     public static readonly (string Key, string Name)[] PanelItems =
     [
+        ("busca",           "Busca"),
+        ("locais",          "Locais (pastas mais usadas)"),
+        (SideDivider,       "canto direito"),
         ("bandeja",         "Ícones da bandeja"),
         ("midia",           "Música — o que está tocando"),
         ("midia-controles", "Música — controles"),
@@ -418,95 +426,124 @@ public partial class PanelWindow : Window
         ("bateria",         "Bateria"),
         ("wifi",            "Wi-Fi"),
         ("bluetooth",       "Bluetooth"),
-        ("volume",          "Volume"),
         ("brilho",          "Brilho"),
         ("remover",         "Remover dispositivo externo"),
         ("atualizacoes",    "Atualizações esperando (e nova versão do WinDock)"),
         ("cotaIa",          "Cota de IA"),
+        ("volume",          "Volume"),
         ("notificacoes",    "Notificações"),
         ("energia",         "Energia"),
         ("relogio",         "Relógio"),
     ];
 
     /// <summary>
-    /// Põe os itens do canto direito na ordem que a pessoa escolheu.
+    /// A divisória entre os dois cantos, guardada no meio do <c>PanelOrder</c> como se fosse um
+    /// item: o que vem antes dela vai para o canto esquerdo, o que vem depois para o direito.
+    /// Assim mover um item de canto é o mesmo gesto de mover de lugar — passar pela divisória.
+    /// </summary>
+    public const string SideDivider = "|direita";
+
+    /// <summary>
+    /// A ordem completa, com a divisória, a partir da guardada.
+    ///
+    /// Quem não aparece na guardada entra ao lado do vizinho que tem na ordem de fábrica — é o
+    /// que faz uma preferência antiga continuar válida quando a barra ganha um item novo, <b>e o
+    /// item novo nascer onde ele foi desenhado para nascer</b>.
+    ///
+    /// <para>Ele já foi para o fim da fila, e isso estava errado: o "Remover dispositivo"
+    /// nasceu à esquerda da cota de IA justamente porque é ali que ele faz sentido, e quem
+    /// tivesse reordenado a barra alguma vez o receberia no canto oposto, depois do relógio. A
+    /// preferência salva diz onde ficam os itens que ela cita; sobre um item que ela nem conhece,
+    /// ela não tem opinião — e aí o desenho é quem decide.</para>
+    ///
+    /// <para>Uma ordem guardada sem divisória é de antes do canto esquerdo existir, quando tudo
+    /// era do direito: a divisória entra no começo, e a busca e os locais, que ela não cita,
+    /// entram antes dela — no canto esquerdo, onde nasceram.</para>
+    ///
+    /// Pública porque as Configurações mostram esta mesma ordem: as duas telas não podem divergir.
+    /// </summary>
+    public static List<string> FullOrder(IReadOnlyList<string> saved)
+    {
+        var padrao = PanelItems.Select(i => i.Key).ToList();
+        if (saved.Count == 0) return padrao;
+
+        // a chave como está na fábrica, ignorando maiúsculas, e uma vez só
+        var ordem = new List<string>();
+        foreach (var k in saved)
+            if (padrao.FirstOrDefault(p => p.Equals(k, StringComparison.OrdinalIgnoreCase)) is { } chave
+                && !ordem.Contains(chave))
+                ordem.Add(chave);
+
+        if (!ordem.Contains(SideDivider)) ordem.Insert(0, SideDivider);
+
+        foreach (var orfao in padrao.Where(k => !ordem.Contains(k)).ToList())
+        {
+            var vizinho = padrao.SkipWhile(k => k != orfao).Skip(1).FirstOrDefault(ordem.Contains);
+            ordem.Insert(vizinho is null ? ordem.Count : ordem.IndexOf(vizinho), orfao);
+        }
+
+        return ordem;
+    }
+
+    /// <summary>
+    /// Põe os itens na ordem que a pessoa escolheu, cada um no canto dele (veja
+    /// <see cref="FullOrder"/> e <see cref="SideDivider"/>).
     ///
     /// Reordenar os filhos que já existem é o que evita reescrever a barra como lista de
     /// dados: cada item continua sendo o XAML dele, com os bindings e handlers que já tem, e
     /// só o lugar muda. Um <c>StackPanel</c> desenha na ordem de <c>Children</c>.
-    ///
-    /// Quem não aparece na configuração entra ao lado do vizinho que tinha no XAML — é o que
-    /// faz uma preferência antiga continuar válida quando a barra ganha um item novo, <b>e o
-    /// item novo nascer onde ele foi desenhado para nascer</b>.
-    ///
-    /// <para>Ele já foi para o fim da fila, e isso estava errado: o "Remover dispositivo"
-    /// nasceu à esquerda da cota de IA no XAML justamente porque é ali que ele faz sentido, e
-    /// quem tivesse reordenado a barra alguma vez o receberia no canto oposto, depois do
-    /// relógio. A preferência salva diz onde ficam os itens que ela cita; sobre um item que
-    /// ela nem conhece, ela não tem opinião — e aí o desenho é quem decide.</para>
     /// </summary>
     private void ApplyPanelOrder()
     {
-        // os itens soltos da primeira passagem: depois dela eles podem estar dentro de ilhas
+        // os itens soltos da primeira passagem: depois dela eles podem estar dentro de ilhas,
+        // ou no outro canto
         _items ??= RightItems.Children.Cast<UIElement>().ToList();
-        var atuais = _items;
 
-        // A ordem do XAML é guardada na primeira passagem: sem ela, "voltar ao padrão" não
-        // teria a que voltar — a essa altura os filhos já estão na ordem customizada, e o
-        // arranjo original teria se perdido.
-        _defaultOrder ??= atuais.Select(e => (e as FrameworkElement)?.Tag as string ?? "").ToList();
+        var porChave = _items.ToDictionary(e => (e as FrameworkElement)?.Tag as string ?? "",
+                                           StringComparer.OrdinalIgnoreCase);
 
-        var desejada = _config.PanelOrder.Count > 0 ? _config.PanelOrder : _defaultOrder;
+        var ordem = FullOrder(_config.PanelOrder);
+        var corte = ordem.IndexOf(SideDivider);
 
-        var ordenados = desejada
-            .Select(chave => atuais.FirstOrDefault(e => (e as FrameworkElement)?.Tag as string == chave))
-            .Where(e => e is not null)
-            .ToList();
+        List<UIElement> Itens(IEnumerable<string> chaves) =>
+            chaves.Select(k => porChave.GetValueOrDefault(k)).OfType<UIElement>().ToList();
 
-        // Os que a configuração não citou entram junto do vizinho que tinham no XAML: procura-se
-        // o primeiro sucessor dele na ordem original que já esteja colocado, e ele entra logo
-        // antes. Sem sucessor colocado (o item era o último), vai para o fim.
-        foreach (var orfao in atuais.Where(e => !ordenados.Contains(e)))
-        {
-            var chave = (orfao as FrameworkElement)?.Tag as string ?? "";
-            var depoisNoXaml = _defaultOrder.SkipWhile(k => k != chave).Skip(1);
-
-            var vizinho = depoisNoXaml
-                .Select(k => ordenados.FirstOrDefault(e => (e as FrameworkElement)?.Tag as string == k))
-                .FirstOrDefault(e => e is not null);
-
-            var onde = vizinho is null ? ordenados.Count : ordenados.IndexOf(vizinho);
-            ordenados.Insert(onde, orfao);
-        }
-
-        Place(ordenados!);
+        Place(Itens(ordem.Take(corte)), Itens(ordem.Skip(corte + 1)));
     }
 
-    /// <summary>Os itens do canto direito, guardados na primeira passagem do <see cref="ApplyPanelOrder"/>.</summary>
+    /// <summary>Os itens da barra, guardados na primeira passagem do <see cref="ApplyPanelOrder"/>.</summary>
     private List<UIElement>? _items;
 
     /// <summary>
-    /// Põe os itens na fila — soltos, ou em ilhas quando a barra está em ilhas.
+    /// Põe os itens nas duas filas — soltos, ou em ilhas quando a barra está em ilhas.
     ///
     /// Cada ilha é uma <see cref="Border"/> com o estilo <c>Island</c> e uma fila dentro; ela
-    /// começa no primeiro item e em cada um que a pessoa marcou nas Configurações
+    /// começa no primeiro item de cada canto e em cada um que a pessoa marcou nas Configurações
     /// (<see cref="DockConfig.PanelIslandBreaks"/>). Uma ilha cujos itens estão todos escondidos
     /// (a mídia parada, o pen-drive que saiu) some junto, senão sobraria uma pílula vazia.
     /// </summary>
-    private void Place(List<UIElement> ordenados)
+    private void Place(List<UIElement> esquerda, List<UIElement> direita)
     {
         foreach (var (_, fila) in _islands) fila.Children.Clear();
-        foreach (var item in ordenados) VisibilityWatch.RemoveValueChanged(item, OnItemVisibilityChanged);
+        foreach (var item in _items!) VisibilityWatch.RemoveValueChanged(item, OnItemVisibilityChanged);
         _islands.Clear();
+        LeftItems.Children.Clear();
         RightItems.Children.Clear();
 
         // cada item no meio da altura dele, e não a fila inteira — veja o comentário do RightItems
-        foreach (var item in ordenados)
+        foreach (var item in _items)
             if (item is FrameworkElement fe) fe.VerticalAlignment = VerticalAlignment.Center;
 
+        Fill(LeftItems, esquerda);
+        Fill(RightItems, direita);
+        UpdateIslandVisibility();
+    }
+
+    private void Fill(StackPanel canto, List<UIElement> ordenados)
+    {
         if (!_config.PanelIslands)
         {
-            foreach (var e in ordenados) RightItems.Children.Add(e);
+            foreach (var e in ordenados) canto.Children.Add(e);
             return;
         }
 
@@ -518,15 +555,13 @@ public partial class PanelWindow : Window
             {
                 atual = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Stretch };
                 var ilha = new Border { Style = (Style)FindResource("Island"), Child = atual };
-                RightItems.Children.Add(ilha);
+                canto.Children.Add(ilha);
                 _islands.Add((ilha, atual));
             }
 
             atual.Children.Add(item);
             VisibilityWatch.AddValueChanged(item, OnItemVisibilityChanged);
         }
-
-        UpdateIslandVisibility();
     }
 
     private readonly List<(Border Ilha, StackPanel Fila)> _islands = new();
@@ -544,8 +579,6 @@ public partial class PanelWindow : Window
                 : Visibility.Collapsed;
     }
 
-    /// <summary>A ordem que veio do XAML, para o "voltar ao padrão" ter destino.</summary>
-    private List<string>? _defaultOrder;
 
     private void OnPanelConfigChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
@@ -748,6 +781,66 @@ public partial class PanelWindow : Window
         Application.Current.Windows.OfType<MainWindow>().FirstOrDefault()?.OpenSettingsAt("ferramentas");
     }
 
+    // ── busca e locais (o canto esquerdo) ────────────────────
+
+    /// <summary>
+    /// A lupa: a mesma busca do Alt+Espaço, do jeito de <c>DockConfig.SearchStyle</c>. Compacta,
+    /// ela abre logo abaixo da lupa, encostada à esquerda — o ponto de baixo da barra, na tela
+    /// dela, em pixels.
+    /// </summary>
+    private void OnSearch(object sender, RoutedEventArgs e)
+    {
+        CloseAllPopups();
+
+        Point? junto = null;
+        if (_config.SearchStyle == SearchStyle.Button)
+        {
+            var botao = SearchButton.PointToScreen(new Point(0, 0));
+            var baixo = PointToScreen(new Point(0, ActualHeight));
+            junto = new Point(botao.X, baixo.Y);
+        }
+
+        Application.Current.Windows.OfType<MainWindow>().FirstOrDefault()?.OpenLauncher(junto);
+    }
+
+    private bool _placesWasOpen;
+
+    /// <summary>Abre (ou fecha) o cartão com as pastas de <c>DockConfig.Places</c>.</summary>
+    private void OnPlaces(object sender, RoutedEventArgs e)
+    {
+        var estavaAberto = _placesWasOpen;
+        CloseOpenPanels();
+
+        if (!estavaAberto)
+        {
+            _model.PlacesError = string.Empty;
+            PlacesPopup.IsOpen = true;
+        }
+        WatchOutsideClick();
+    }
+
+    /// <summary>Abre a pasta e fecha o cartão; se não abriu, ele fica, com o motivo — como nas ferramentas.</summary>
+    private void OnPlaceOpen(object sender, RoutedEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.Tag is not PanelModel.PlaceRow row) return;
+
+        if (PlacesService.Open(row.Place) is { } erro)
+        {
+            _model.PlacesError = $"{row.Name}: {erro}";
+            IgnoreNextOutsideClick();
+            return;
+        }
+
+        _model.PlacesError = string.Empty;
+        CloseAllPopups();
+    }
+
+    private void OnPlacesEdit(object sender, RoutedEventArgs e)
+    {
+        CloseAllPopups();
+        Application.Current.Windows.OfType<MainWindow>().FirstOrDefault()?.OpenSettingsAt("locais");
+    }
+
     // ── brilho ───────────────────────────────────────────────
 
     private void OnBrightness(object sender, RoutedEventArgs e)
@@ -917,6 +1010,7 @@ public partial class PanelWindow : Window
         yield return SystemPopup;
         yield return ClockPopup;
         yield return ToolsPopup;
+        yield return PlacesPopup;
         yield return BatteryPopup;
         yield return NotificationsPopup;
         yield return WifiPopup;

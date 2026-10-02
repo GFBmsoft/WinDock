@@ -439,6 +439,35 @@ public sealed class PanelModel : INotifyPropertyChanged, IDisposable
     /// </summary>
     public string ToolsError { get => _toolsError; set => Set(ref _toolsError, value); }
 
+    // ── o canto esquerdo: busca e locais ─────────────────────
+
+    /// <summary>A lupa — veja <c>DockConfig.PanelSearch</c>.</summary>
+    public bool HasSearch => _config.PanelSearch;
+
+    /// <summary>O botão de locais — veja <c>DockConfig.PanelPlaces</c>.</summary>
+    public bool HasPlaces => _config.PanelPlaces;
+
+    /// <summary>Uma linha do cartão de locais: a pasta da config e o desenho dela.</summary>
+    public sealed record PlaceRow(PlaceEntry Place, string Glyph, System.Windows.Media.Brush Fill)
+    {
+        public string Name => Place.Name.Length > 0 ? Place.Name : Place.Path;
+        public string Path => Place.Path;
+    }
+
+    private IReadOnlyList<PlaceRow>? _places;
+
+    /// <summary>As pastas do cartão, refeitas só quando a lista muda nas Configurações.</summary>
+    public IReadOnlyList<PlaceRow> Places => _places ??= _config.Places
+        .Where(p => !string.IsNullOrWhiteSpace(p.Path))
+        .Select(p => { var (glifo, cor) = PlacesService.Look(p); return new PlaceRow(p, glifo, cor); })
+        .ToList();
+
+    public bool HasNoPlaces => Places.Count == 0;
+
+    private string _placesError = string.Empty;
+    /// <summary>Por que a última pasta não abriu — o mesmo papel do <see cref="ToolsError"/>.</summary>
+    public string PlacesError { get => _placesError; set => Set(ref _placesError, value); }
+
     /// <summary>Ícones da barra com metade do respiro — veja <c>DockConfig.PanelCompact</c>.</summary>
     public bool PanelCompact => _config.PanelCompact;
 
@@ -2401,6 +2430,17 @@ public sealed class PanelModel : INotifyPropertyChanged, IDisposable
         if (e.PropertyName is nameof(DockConfig.PanelSystem)) OnChanged(nameof(HasSystemInfo));
         if (e.PropertyName is nameof(DockConfig.PanelCompact)) OnChanged(nameof(PanelCompact));
         if (e.PropertyName is nameof(DockConfig.PanelTools)) OnChanged(nameof(HasTools));
+        if (e.PropertyName is nameof(DockConfig.PanelSearch) or nameof(DockConfig.PanelPlaces))
+        {
+            OnChanged(nameof(HasSearch));
+            OnChanged(nameof(HasPlaces));
+        }
+        if (e.PropertyName is nameof(DockConfig.Places))
+        {
+            _places = null;
+            OnChanged(nameof(Places));
+            OnChanged(nameof(HasNoPlaces));
+        }
         if (e.PropertyName is nameof(DockConfig.NotificationSources)) RedressNotifications();
         if (e.PropertyName is nameof(DockConfig.Tools))
         {

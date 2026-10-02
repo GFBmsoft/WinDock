@@ -386,6 +386,11 @@
         </Style>
       </Grid.Style>
 
+      <!-- Canto esquerdo (pedido de 02/10/2026 — era o único canto vazio da barra). Começa
+           vazio no XAML: quem decide o que vem para cá é a ordem dos itens, que tem uma divisória
+           entre os dois cantos (veja `ApplyPanelOrder`). De fábrica, a busca e os locais. -->
+      <StackPanel x:Name="LeftItems" Orientation="Horizontal" HorizontalAlignment="Left" />
+
       <!-- relogio no meio, quando a opção estiver ligada — uma ilha só dele -->
       <Border Style="{StaticResource Island}" HorizontalAlignment="Center"
               Visibility="{Binding ClockCentered, Converter={StaticResource BoolToVisible}}">
@@ -415,6 +420,30 @@
            num espaço de 22 sobra 1,5, que o arredondamento do layout leva para baixo. Cada
            ícone, com 16, cai em 3 inteiros. Medido na tela em 02/10/2026. -->
       <StackPanel x:Name="RightItems" Orientation="Horizontal" HorizontalAlignment="Right">
+
+        <!-- A busca e os locais nascem aqui, como todo item, e o ApplyPanelOrder os leva para o
+             canto esquerdo — é a divisória da ordem, e não o XAML, que diz de que lado cada um
+             fica. -->
+
+        <!-- a lupa abre a busca do Alt+Espaço, do jeito escolhido em DockConfig.SearchStyle -->
+        <Button Tag="busca" x:Name="SearchButton" Style="{StaticResource PanelButton}" Click="OnSearch"
+                ToolTip="Buscar aplicativos (Alt+Espaço)"
+                Visibility="{Binding HasSearch, Converter={StaticResource BoolToVisible}}">
+          <ui:GlyphIcon Glyph="&#xE721;" Fill="#FFF2F2F2" Style="{StaticResource BarGlyph}" VerticalAlignment="Center" />
+        </Button>
+
+        <!-- Locais: o menu de lugares do GNOME (EV27) — palavra e seta, e não só um ícone,
+             porque a pasta sozinha se confundia com a do Explorador na dock -->
+        <Button Tag="locais" x:Name="PlacesButton" Style="{StaticResource ClockButton}" Click="OnPlaces"
+                ToolTip="Pastas mais usadas"
+                Visibility="{Binding HasPlaces, Converter={StaticResource BoolToVisible}}">
+          <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+            <ui:GlyphIcon Glyph="&#xE8B7;" Fill="#FFFFC857" Size="12" VerticalAlignment="Center" />
+            <TextBlock Text="Locais" Style="{StaticResource BarText}" FontSize="12" Margin="6,0,0,0" />
+            <ui:GlyphIcon Glyph="&#xE70D;" Fill="#FF9D9D9D" Size="8" VerticalAlignment="Center"
+                          Margin="5,1,0,0" />
+          </StackPanel>
+        </Button>
 
         <!-- a bandeja: com a barra do Windows escondida, é aqui que o antivírus e os
              programas que só vivem na bandeja continuam alcançáveis. A seta abre um cartão
@@ -1653,6 +1682,78 @@
             <TextBlock Text="Nenhum comando na lista. Use o lápis para montar a sua."
                        Foreground="#FF9D9D9D" FontSize="11" Margin="6,2,6,4" TextWrapping="Wrap"
                        Visibility="{Binding HasNoTools, Converter={StaticResource BoolToVisible}}" />
+          </StackPanel>
+        </Border>
+      </Popup>
+
+      <!-- O cartão de locais: o mesmo desenho apertado do de ferramentas — uma lista de atalhos,
+           lida de relance. O clique abre a pasta no Explorador e fecha o cartão. Encostado à
+           esquerda do botão (HorizontalOffset), como o menu do GNOME que ele imita. -->
+      <Popup x:Name="PlacesPopup" PlacementTarget="{Binding ElementName=PlacesButton}"
+             Placement="Bottom" VerticalOffset="6" HorizontalOffset="-8"
+             StaysOpen="True" AllowsTransparency="True" PopupAnimation="Fade">
+        <Border Background="#F7242424" BorderBrush="#2EFFFFFF" BorderThickness="1"
+                CornerRadius="10" Padding="8,10,8,8" Margin="10">
+          <Border.Effect>
+            <DropShadowEffect BlurRadius="20" ShadowDepth="5" Opacity="0.55" Color="Black" />
+          </Border.Effect>
+          <Border.Style>
+            <Style TargetType="Border">
+              <Style.Triggers>
+                <DataTrigger Binding="{Binding PanelCompact}" Value="True">
+                  <Setter Property="LayoutTransform">
+                    <Setter.Value>
+                      <ScaleTransform ScaleX="0.9" ScaleY="0.9" />
+                    </Setter.Value>
+                  </Setter>
+                </DataTrigger>
+              </Style.Triggers>
+            </Style>
+          </Border.Style>
+          <StackPanel MinWidth="220" MaxWidth="320">
+
+            <Grid Margin="6,0,2,6">
+              <StackPanel Orientation="Horizontal">
+                <ui:GlyphIcon Glyph="&#xE8B7;" Fill="#FFF2F2F2" Size="13"
+                              VerticalAlignment="Center" Margin="0,0,8,0" />
+                <TextBlock Text="Locais" Foreground="#FFF2F2F2" FontSize="13"
+                           FontWeight="SemiBold" VerticalAlignment="Center" />
+              </StackPanel>
+              <Button Style="{StaticResource PanelButton}" HorizontalAlignment="Right" Padding="5,2"
+                      Click="OnPlacesEdit" ToolTip="Editar a lista nas Configurações">
+                <ui:GlyphIcon Glyph="&#xE70F;" Fill="#FF9D9D9D" Size="11" VerticalAlignment="Center" />
+              </Button>
+            </Grid>
+
+            <ItemsControl ItemsSource="{Binding Places}">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate>
+                  <Button Style="{StaticResource PanelRowCompact}" Click="OnPlaceOpen" Tag="{Binding}"
+                          ToolTip="{Binding Path}">
+                    <Grid Height="20">
+                      <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                      </Grid.ColumnDefinitions>
+                      <ui:GlyphIcon Glyph="{Binding Glyph}" Fill="{Binding Fill}" Size="13"
+                                    Width="16" VerticalAlignment="Center" />
+                      <TextBlock Grid.Column="1" Text="{Binding Name}" Foreground="#FFE8E8EA"
+                                 FontSize="12" VerticalAlignment="Center" Margin="9,0,4,0"
+                                 TextTrimming="CharacterEllipsis" />
+                    </Grid>
+                  </Button>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+
+            <!-- a pasta que não abriu: o cartão fica aberto e diz por quê -->
+            <TextBlock Text="{Binding PlacesError}" Foreground="#FFFFB86C" FontSize="11"
+                       Margin="6,4,6,2" TextWrapping="Wrap" MaxWidth="300"
+                       Visibility="{Binding PlacesError, Converter={StaticResource EmptyToCollapsed}}" />
+
+            <TextBlock Text="Nenhuma pasta na lista. Use o lápis para montar a sua."
+                       Foreground="#FF9D9D9D" FontSize="11" Margin="6,2,6,4" TextWrapping="Wrap"
+                       Visibility="{Binding HasNoPlaces, Converter={StaticResource BoolToVisible}}" />
           </StackPanel>
         </Border>
       </Popup>
