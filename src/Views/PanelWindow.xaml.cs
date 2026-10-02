@@ -49,6 +49,7 @@ public partial class PanelWindow : Window
         // um cartão que encolhe deixa o cursor do lado de fora sem ninguém ter mexido no
         // mouse; o vigia precisa saber disso. Veja o `PanelModel.CardResized`.
         _model.CardResized += (_, _) => IgnoreNextOutsideClick();
+        _model.NotificationArrived += ShowBalloon;
         TrayPopup.CustomPopupPlacementCallback = PlaceTrayCard;
         CalendarPopup.CustomPopupPlacementCallback = PlaceCalendarCard;
         ClockPopup.CustomPopupPlacementCallback = PlaceCalendarCard;   // centrado no horário, pelo mesmo motivo
@@ -71,6 +72,7 @@ public partial class PanelWindow : Window
             _config.PropertyChanged -= OnPanelConfigChanged;
             _model.PropertyChanged -= OnModelChanged;
             MediaSlide.BeginAnimation(TranslateTransform.XProperty, null);
+            foreach (var b in _balloons.ToList()) b.Close();
             _model.Dispose();
             _appBar?.Dispose();
         };
@@ -158,6 +160,7 @@ public partial class PanelWindow : Window
     private bool _systemWasOpen;
     private bool _clockWasOpen;
     private bool _notificationsWasOpen;
+    private bool _wifiWasOpen;
 
     protected override void OnPreviewMouseDown(System.Windows.Input.MouseButtonEventArgs e)
     {
@@ -174,14 +177,81 @@ public partial class PanelWindow : Window
         _systemWasOpen = SystemPopup.IsOpen;
         _clockWasOpen = ClockPopup.IsOpen;
         _notificationsWasOpen = NotificationsPopup.IsOpen;
+        _wifiWasOpen = WifiPopup.IsOpen;
         _toolsWasOpen = ToolsPopup.IsOpen;
         _batteryWasOpen = BatteryPopup.IsOpen;
 
         base.OnPreviewMouseDown(e);
     }
 
-    private void OnQuickSettings(object sender, RoutedEventArgs e) =>
+    /// <summary>
+    /// O cartão do wi-fi. Ele abre com a rede de agora relida; detalhado, procura as redes ao
+    /// alcance depois de aberto — a varredura leva uns segundos e o cartão não espera por ela.
+    /// </summary>
+    private async void OnWifi(object sender, RoutedEventArgs e)
+    {
+        CloseOpenPanels();   // um painel de cada vez
+
+        if (_wifiWasOpen) { WatchOutsideClick(); return; }
+
+        await _model.RefreshWifi();
+        WifiPopup.IsOpen = true;
+        WatchOutsideClick();
+
+        if (_model.WifiExpanded) await _model.ScanWifi();
+    }
+
+    private async void OnToggleWifi(object sender, RoutedEventArgs e) => await _model.ToggleWifi();
+
+    /// <summary>
+    /// Uma rede da lista. A salva ou aberta conecta daqui; a que pede senha nova vai para a lista
+    /// do Windows, que sabe perguntar por ela.
+    /// </summary>
+    private async void OnWifiNetwork(object sender, RoutedEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.Tag is not WifiNetwork rede || rede.Connected) return;
+
+        if (rede.Secure && !rede.Known) { OnWifiWindowsList(sender, e); return; }
+        if (!await _model.ConnectWifi(rede)) OnWifiWindowsList(sender, e);
+    }
+
+    private void OnWifiLocation(object sender, RoutedEventArgs e)
+    {
+        WifiPopup.IsOpen = false;
+        PanelModel.OpenSystemPanel(WifiService.LocationSettings);
+    }
+
+    private void OnWifiSettings(object sender, RoutedEventArgs e)
+    {
+        WifiPopup.IsOpen = false;
+        PanelModel.OpenSystemPanel(WifiService.WifiSettings);
+    }
+
+    /// <summary>O painel de redes do próprio Windows — o de antes deste cartão.</summary>
+    private void OnWifiWindowsList(object sender, RoutedEventArgs e)
+    {
+        _shellPanelWasOpen = false;
         Toggle(PanelModel.QuickSettings);
+    }
+
+    private void OnSoundSettings(object sender, RoutedEventArgs e)
+    {
+        VolumePopup.IsOpen = false;
+        PanelModel.OpenSystemPanel("ms-settings:sound");
+    }
+
+    /// <summary>
+    /// A seta do rodapé dos cartões compactos (volume, wi-fi, bluetooth, bateria): o Tag diz qual.
+    /// Abrir o do wi-fi já procura as redes, que é o que ele tem a mais.
+    /// </summary>
+    private async void OnToggleCard(object sender, RoutedEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.Tag is not string card) return;
+
+        _model.ToggleCard(card);
+        if (card == "wifi" && _model.WifiExpanded) await _model.ScanWifi();
+        if (card == "bateria" && _model.BatteryExpanded) _model.RefreshBatteryCard();
+    }
 
     /// <summary>
     /// O sino abre o cartão das notificações, desenhado aqui. Só quando a dock consegue ler a
@@ -218,6 +288,65 @@ public partial class PanelWindow : Window
     }
 
     private void OnClearNotifications(object sender, RoutedEventArgs e) => _model.ClearNotifications();
+
+    // ── balões de notificação ───────────────────────────────
+
+    private readonly List<NotificationBalloon> _balloons = new();
+
+    /// <summary>Mais que isto e a pilha cobre a tela: o mais velho sai para o novo entrar.</summary>
+    private const int MaxBalloons = 3;
+
+    /// <summary>
+    /// Uma notificação nova, com balão pedido pela origem. Com o cartão do sino aberto não há
+    /// balão: a lista à vista já ganhou a linha.
+    /// </summary>
+    private void ShowBalloon(NotificationItem item)
+    {
+        if (NotificationsPopup.IsOpen) return;
+
+        while (_balloons.Count >= MaxBalloons) _balloons[0].Close();
+
+        var balao = new NotificationBalloon(item, _config.NotificationPopupText, _config.NotificationPopupSeconds);
+        balao.Opened += b => _model.OpenNotification(b.Item);
+        balao.Closed += (_, _) => { _balloons.Remove(balao); StackBalloons(); };
+        balao.SizeChanged += (_, _) => StackBalloons();
+
+        _balloons.Add(balao);
+        balao.Show();
+        StackBalloons();
+    }
+
+    /// <summary>
+    /// Embaixo do sino, o mais novo em cima. Alinhado pela direita ao sino, mas sem passar da
+    /// borda da tela — com o sino perto do canto, o balão encosta no canto.
+    /// </summary>
+    private void StackBalloons()
+    {
+        if (_balloons.Count == 0 || !BellButton.IsVisible) return;
+
+        var sino = BellButton.PointToScreen(new Point(BellButton.ActualWidth, BellButton.ActualHeight));
+        var deTela = PresentationSource.FromVisual(this)?.CompositionTarget?.TransformFromDevice ?? Matrix.Identity;
+        var canto = deTela.Transform(sino);
+        var tela = deTela.Transform(PointToScreen(new Point(ActualWidth, 0)));
+
+        var y = canto.Y - 4;   // o balão tem 10 de margem por dentro: a sombra encosta na barra
+        foreach (var balao in Enumerable.Reverse(_balloons))
+        {
+            balao.Left = Math.Min(canto.X + 40, tela.X) - balao.Width;
+            balao.Top = y;
+            y += balao.ActualHeight > 0 ? balao.ActualHeight - 8 : 100;
+        }
+    }
+
+    /// <summary>O balão da notificação: o cartão sai da frente e quem a mandou vem para ela.</summary>
+    private void OnOpenNotification(object sender, RoutedEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.DataContext is not NotificationItem item) return;
+
+        NotificationsPopup.IsOpen = false;
+        _outsideClick.Stop();
+        _model.OpenNotification(item);
+    }
 
     private void Toggle(string uri)
     {
@@ -261,9 +390,10 @@ public partial class PanelWindow : Window
     /// sintético (veja <see cref="PanelModel.CloseShellPanel"/>), e um Esc solto vai parar
     /// em quem estiver em primeiro plano.
     /// </summary>
-    private void CloseOpenPanels()
+    private void CloseOpenPanels([System.Runtime.CompilerServices.CallerMemberName] string origem = "")
     {
-        CloseAllPopups();
+        // no rastro sai quem pediu ("CloseOpenPanels ← OnVolume"), e não só que foi este método
+        CloseAllPopups($"{nameof(CloseOpenPanels)} ← {origem}");
         if (_shellPanelWasOpen) PanelModel.CloseShellPanel();
     }
 
@@ -369,6 +499,10 @@ public partial class PanelWindow : Window
         _islands.Clear();
         RightItems.Children.Clear();
 
+        // cada item no meio da altura dele, e não a fila inteira — veja o comentário do RightItems
+        foreach (var item in ordenados)
+            if (item is FrameworkElement fe) fe.VerticalAlignment = VerticalAlignment.Center;
+
         if (!_config.PanelIslands)
         {
             foreach (var e in ordenados) RightItems.Children.Add(e);
@@ -381,7 +515,7 @@ public partial class PanelWindow : Window
             var chave = (item as FrameworkElement)?.Tag as string ?? "";
             if (atual is null || _config.PanelIslandBreaks.Contains(chave, StringComparer.OrdinalIgnoreCase))
             {
-                atual = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
+                atual = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Stretch };
                 var ilha = new Border { Style = (Style)FindResource("Island"), Child = atual };
                 RightItems.Children.Add(ilha);
                 _islands.Add((ilha, atual));
@@ -742,6 +876,7 @@ public partial class PanelWindow : Window
         yield return ToolsPopup;
         yield return BatteryPopup;
         yield return NotificationsPopup;
+        yield return WifiPopup;
     }
 
     private bool AnyPopupOpen => AllPopups().Any(p => p.IsOpen);
@@ -1159,10 +1294,16 @@ public partial class PanelWindow : Window
 
         if (!estavaAberto)
         {
-            _model.LoadBatteryHistory();
+            _model.RefreshBatteryCard();
             BatteryPopup.IsOpen = true;
         }
         WatchOutsideClick();
+    }
+
+    private void OnPowerSettings(object sender, RoutedEventArgs e)
+    {
+        BatteryPopup.IsOpen = false;
+        PanelModel.OpenSystemPanel("ms-settings:powersleep");
     }
 
     // ── energia ─────────────────────────────────────────────

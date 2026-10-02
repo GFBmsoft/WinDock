@@ -252,8 +252,8 @@ public sealed class PanelModel : INotifyPropertyChanged, IDisposable
         return brush;
     }
 
-    /// <summary>A barra do cartão de energia: 246 px é a largura de dentro da caixa da bateria.</summary>
-    public double BatteryBarWidth => Math.Round(246 * Math.Clamp(_batteryPercent, 0, 100) / 100.0);
+    /// <summary>A barra do cartão da bateria: 290 px é a largura dele, a do quadriculado.</summary>
+    public double BatteryBarWidth => Math.Round(290 * Math.Clamp(_batteryPercent, 0, 100) / 100.0);
 
     /// <summary>Verde com folga, âmbar abaixo de 40%, vermelha abaixo de 20% — as cores da barra.</summary>
     public Brush BatteryBarBrush => _batteryPercent < 20 ? Frozen(Color.FromRgb(0xFF, 0x6B, 0x6B))
@@ -334,16 +334,22 @@ public sealed class PanelModel : INotifyPropertyChanged, IDisposable
     private string _batteryDetail = string.Empty;
     public string BatteryDetail { get => _batteryDetail; private set => Set(ref _batteryDetail, value); }
 
+    /// <summary>Relê o tempo ligado, que é o que o cartão do usuário mostra embaixo do nome.</summary>
+    public void RefreshPowerCard() => Uptime = PowerService.Uptime();
+
     /// <summary>
-    /// Relê planos, tempo ligado e bateria. Chamado quando o cartão abre: é a única hora em que
-    /// alguém olha, e trocar de plano por fora (nas Opções de Energia) fica certo na próxima vez.
+    /// Relê o cartão da bateria quando ele abre. A carga é na hora; plano e histórico só com o
+    /// cartão detalhado, que é onde aparecem — o histórico custa meio segundo de powercfg. Trocar
+    /// de plano por fora (nas Opções de Energia) fica certo na próxima abertura.
     /// </summary>
-    public void RefreshPowerCard()
+    public void RefreshBatteryCard()
     {
         UpdateBattery();
-        PowerPlans = PowerService.Plans();
-        Uptime = PowerService.Uptime();
         BatteryDetail = PowerService.BatteryDetail();
+        if (!BatteryExpanded) return;
+
+        PowerPlans = PowerService.Plans();
+        LoadBatteryHistory();
     }
 
     public void SetPowerPlan(Guid id)
@@ -448,6 +454,13 @@ public sealed class PanelModel : INotifyPropertyChanged, IDisposable
     private string _ramText = "0%";
     public string RamText { get => _ramText; private set => Set(ref _ramText, value); }
 
+    private string _gpuText = "0%";
+    public string GpuText { get => _gpuText; private set => Set(ref _gpuText, value); }
+
+    private bool _hasGpu;
+    /// <summary>A placa de vídeo entra no cartão quando a leitura dela chega — veja o <c>GpuMeter</c>.</summary>
+    public bool HasGpu { get => _hasGpu; private set => Set(ref _hasGpu, value); }
+
     private string _systemTooltip = "CPU e memória";
     public string SystemTooltip { get => _systemTooltip; private set => Set(ref _systemTooltip, value); }
 
@@ -456,6 +469,7 @@ public sealed class PanelModel : INotifyPropertyChanged, IDisposable
     public IReadOnlyList<double> RamHistory => _stats.RamHistory;
     public IReadOnlyList<double> DownHistory => _stats.DownHistory;
     public IReadOnlyList<double> UpHistory => _stats.UpHistory;
+    public IReadOnlyList<double> GpuHistory => _stats.GpuHistory;
 
     /// <summary>
     /// Mede tudo uma vez por segundo, e só com o item ligado: somar os contadores de todos
@@ -472,10 +486,14 @@ public sealed class PanelModel : INotifyPropertyChanged, IDisposable
         NetUp = SystemStatsService.Rate(_stats.Up);
         CpuText = _stats.Cpu.ToString("0") + "%";
         RamText = _stats.Ram.ToString("0") + "%";
+        GpuText = _stats.Gpu.ToString("0") + "%";
+        HasGpu = _stats.HasGpu;
 
         // a rede entra na dica do item, e não na barra: quem quer o número de passagem lê
         // aqui, e quem quer acompanhar abre o cartão
-        SystemTooltip = $"CPU {CpuText} · memória {RamText} · rede {NetDown} ↓ {NetUp} ↑";
+        SystemTooltip = HasGpu
+            ? $"CPU {CpuText} · memória {RamText} · GPU {GpuText} · rede {NetDown} ↓ {NetUp} ↑"
+            : $"CPU {CpuText} · memória {RamText} · rede {NetDown} ↓ {NetUp} ↑";
 
         // os gráficos só existem enquanto o cartão está aberto; avisar sempre não custa
         // nada e evita o cartão abrir com o desenho de um minuto atrás
@@ -483,6 +501,7 @@ public sealed class PanelModel : INotifyPropertyChanged, IDisposable
         OnChanged(nameof(RamHistory));
         OnChanged(nameof(DownHistory));
         OnChanged(nameof(UpHistory));
+        OnChanged(nameof(GpuHistory));
     }
 
     // ── mídia ───────────────────────────────────────────────
@@ -619,7 +638,6 @@ public sealed class PanelModel : INotifyPropertyChanged, IDisposable
                                : _volume < 66          ? ""   // duas
                                                        : "";  // cheio
 
-    public string WifiGlyph => "";
     public string BellGlyph => "";
     public string BluetoothGlyph => "";
 
@@ -647,7 +665,13 @@ public sealed class PanelModel : INotifyPropertyChanged, IDisposable
     public IReadOnlyList<BluetoothDevice> BluetoothDevices
     {
         get => _bluetoothDevices;
-        private set { if (Set(ref _bluetoothDevices, value)) OnChanged(nameof(HasBluetoothDevices)); }
+        private set
+        {
+            if (!Set(ref _bluetoothDevices, value)) return;
+            OnChanged(nameof(HasBluetoothDevices));
+            OnChanged(nameof(BluetoothConnected));
+            OnChanged(nameof(HasNoBluetoothConnected));
+        }
     }
 
     public bool HasBluetoothDevices => _bluetoothDevices.Count > 0;
@@ -728,6 +752,159 @@ public sealed class PanelModel : INotifyPropertyChanged, IDisposable
         RefreshBluetoothDevices();
     }
 
+    /// <summary>Os aparelhos que estão conectados agora — o que o cartão mostra recolhido.</summary>
+    public IReadOnlyList<BluetoothDevice> BluetoothConnected => _bluetoothDevices.Where(d => d.Connected).ToList();
+
+    public bool HasNoBluetoothConnected => !_bluetoothDevices.Any(d => d.Connected);
+
+    // ── wi-fi ───────────────────────────────────────────────
+
+    private WifiState _wifi = WifiState.None;
+
+    /// <summary>O rádio, a rede de agora e o sinal — relidos de cinco em cinco segundos e ao abrir o cartão.</summary>
+    public WifiState Wifi
+    {
+        get => _wifi;
+        private set
+        {
+            if (!Set(ref _wifi, value)) return;
+            OnChanged(nameof(WifiGlyph));
+            OnChanged(nameof(WifiOpacity));
+            OnChanged(nameof(WifiTooltip));
+            OnChanged(nameof(WifiStatus));
+            OnChanged(nameof(WifiShowsBars));
+        }
+    }
+
+    /// <summary>As ondas pelo sinal, como na barra do Windows — veja <c>WifiService.Glyph</c>.</summary>
+    public string WifiGlyph => WifiService.Glyph(_wifi);
+
+    /// <summary>
+    /// As ondas apagadas por trás das acesas: com duas barras, sem elas o desenho seria um
+    /// arquinho solto, e não "metade do sinal".
+    /// </summary>
+    public bool WifiShowsBars => _wifi.On && _wifi.Connected && _wifi.Bars < 4;
+
+    public double WifiOpacity => _wifi.On ? 1.0 : 0.4;
+
+    public string WifiTooltip =>
+        !_wifi.HasRadio ? "Wi-Fi"
+        : !_wifi.On ? "Wi-Fi desligado"
+        : !_wifi.Connected ? "Wi-Fi: sem conexão"
+        : $"{_wifi.Ssid}\n{(_wifi.Internet ? "Conectado, com internet" : "Conectado, sem internet")}";
+
+    /// <summary>A linha de baixo da rede de agora, no cartão.</summary>
+    public string WifiStatus =>
+        !_wifi.On ? "O Wi-Fi está desligado"
+        : !_wifi.Connected ? "Nenhuma rede conectada"
+        : _wifi.Internet ? "Conectado, com internet" : "Conectado, sem internet";
+
+    private bool _wifiBusy;
+    /// <summary>O rádio está mudando de estado, ou uma conexão está em curso: o interruptor espera.</summary>
+    public bool WifiBusy
+    {
+        get => _wifiBusy;
+        private set { if (Set(ref _wifiBusy, value)) OnChanged(nameof(WifiReady)); }
+    }
+
+    public bool WifiReady => !_wifiBusy;
+
+    private IReadOnlyList<WifiNetwork> _wifiNetworks = Array.Empty<WifiNetwork>();
+    public IReadOnlyList<WifiNetwork> WifiNetworks
+    {
+        get => _wifiNetworks;
+        private set => Set(ref _wifiNetworks, value);
+    }
+
+    private bool _wifiNeedsLocation;
+    /// <summary>O Windows não deixou listar as redes — é a localização desligada (veja o <c>WifiService</c>).</summary>
+    public bool WifiNeedsLocation { get => _wifiNeedsLocation; private set => Set(ref _wifiNeedsLocation, value); }
+
+    private bool _wifiScanning;
+    public bool WifiScanning { get => _wifiScanning; private set => Set(ref _wifiScanning, value); }
+
+    public async Task RefreshWifi() => Wifi = await WifiService.ReadAsync();
+
+    /// <summary>
+    /// Procura as redes ao alcance — só com o cartão detalhado, que é onde a lista aparece: a
+    /// varredura acorda o rádio e leva uns segundos.
+    /// </summary>
+    public async Task ScanWifi()
+    {
+        if (!_wifi.On || WifiScanning) { WifiNetworks = Array.Empty<WifiNetwork>(); return; }
+
+        WifiScanning = true;
+        try
+        {
+            var redes = await WifiService.ScanAsync(_wifi.Ssid);
+            WifiNeedsLocation = redes is null;
+            WifiNetworks = redes ?? Array.Empty<WifiNetwork>();
+        }
+        finally { WifiScanning = false; }
+
+        CardResized?.Invoke(this, EventArgs.Empty);
+    }
+
+    public async Task ToggleWifi()
+    {
+        if (WifiBusy || !_wifi.HasRadio) return;
+
+        WifiBusy = true;
+        try { await WifiService.SetOn(!_wifi.On); }
+        finally { WifiBusy = false; }
+
+        // o rádio religado leva um instante até se conectar: a primeira leitura sai "sem rede", e a
+        // de cinco segundos depois acerta
+        await RefreshWifi();
+        WifiNetworks = Array.Empty<WifiNetwork>();
+        if (WifiExpanded && _wifi.On) await ScanWifi();
+    }
+
+    /// <summary>Conecta numa rede da lista. Falso quando ela pede senha — aí a do Windows assume.</summary>
+    public async Task<bool> ConnectWifi(WifiNetwork rede)
+    {
+        if (WifiBusy) return true;
+
+        WifiBusy = true;
+        bool ok;
+        try { ok = await WifiService.ConnectAsync(rede); }
+        finally { WifiBusy = false; }
+
+        await RefreshWifi();
+        if (ok) await ScanWifi();
+        return ok;
+    }
+
+    // ── cartões compactos ───────────────────────────────────
+
+    /// <summary>
+    /// Os cartões de volume, wi-fi, bluetooth e bateria nascem compactos — o essencial — e a seta
+    /// do rodapé abre o resto, como o da cota de IA. A escolha de cada um mora na configuração
+    /// (<c>DockConfig.CardsExpanded</c>), pelo mesmo motivo do da cota: é jeito de ler.
+    /// </summary>
+    public bool VolumeExpanded => IsExpanded("volume");
+    public bool BluetoothExpanded => IsExpanded("bluetooth");
+    public bool WifiExpanded => IsExpanded("wifi");
+    public bool BatteryExpanded => IsExpanded("bateria");
+
+    private bool IsExpanded(string card) => _config.CardsExpanded.Contains(card, StringComparer.OrdinalIgnoreCase);
+
+    public void ToggleCard(string card)
+    {
+        // tirar devolve quantos saíram: nenhum quer dizer que estava recolhido, e então abre
+        if (_config.CardsExpanded.RemoveAll(c => c.Equals(card, StringComparison.OrdinalIgnoreCase)) == 0)
+            _config.CardsExpanded.Add(card);
+
+        _config.Save();
+        OnChanged(nameof(VolumeExpanded));
+        OnChanged(nameof(BluetoothExpanded));
+        OnChanged(nameof(WifiExpanded));
+        OnChanged(nameof(BatteryExpanded));
+
+        // recolher encolhe o cartão debaixo do cursor — veja o CardResized
+        CardResized?.Invoke(this, EventArgs.Empty);
+    }
+
     /// <summary>
     /// Sobe ou desce o volume na roda do mouse, em degraus de dois — o mesmo passo do
     /// controle do Windows.
@@ -745,8 +922,11 @@ public sealed class PanelModel : INotifyPropertyChanged, IDisposable
     public IReadOnlyList<VolumeService.AudioDevice> AudioDevices
     {
         get => _audioDevices;
-        private set => Set(ref _audioDevices, value);
+        private set { if (Set(ref _audioDevices, value)) OnChanged(nameof(AudioDefault)); }
     }
+
+    /// <summary>Só a saída em uso — o que o cartão de volume mostra recolhido.</summary>
+    public IReadOnlyList<VolumeService.AudioDevice> AudioDefault => _audioDevices.Where(d => d.IsDefault).ToList();
 
     /// <summary>
     /// A lista e montada quando o controle de volume abre, e nao de segundo em segundo:
@@ -1596,7 +1776,23 @@ public sealed class PanelModel : INotifyPropertyChanged, IDisposable
             OnChanged(nameof(AiTooltip));
             OnChanged(nameof(HasAiReading));
             OnChanged(nameof(AiBrush));
+            OnChanged(nameof(AiPercentText));
             OnChanged(nameof(AiReadAt));
+        }
+    }
+
+    /// <summary>
+    /// O número ao lado do robô, no jeito do processador e da memória: o medidor mais cheio de
+    /// todas as contas — o mesmo que decide a cor, para o número e a cor nunca discordarem (um
+    /// "12%" vermelho, com a semana em 96%, seria pior que número nenhum). Qual janela é, a dica
+    /// do mouse e o cartão dizem. Vazio antes da primeira leitura.
+    /// </summary>
+    public string AiPercentText
+    {
+        get
+        {
+            var medidores = AiCards.SelectMany(c => c.Gauges).Select(g => g.Percent).ToList();
+            return medidores.Count == 0 ? string.Empty : $"{medidores.Max():0}%";
         }
     }
 
@@ -1988,23 +2184,137 @@ public sealed class PanelModel : INotifyPropertyChanged, IDisposable
 
                 // a mesma lista de antes não troca nada na tela: o relógio pergunta a cada
                 // cinco segundos e quase sempre a resposta é a mesma
-                if (!lidas.Select(n => n.Id).SequenceEqual(_notificationItems.Select(n => n.Id)))
-                    Notifications = lidas;
+                if (lidas.Select(n => n.Id).SequenceEqual(_allNotifications.Select(n => n.Id))) continue;
+
+                Remember(lidas);
+                _allNotifications = lidas;
+                Notifications = Visible(lidas);
+                Announce(lidas);
             }
             while (_notificationsAgain);
         }
         finally { _notificationsReading = false; }
     }
 
+    /// <summary>Tudo o que a Central tem, inclusive o das origens que a pessoa tirou do sino.</summary>
+    private IReadOnlyList<NotificationItem> _allNotifications = Array.Empty<NotificationItem>();
+
+    /// <summary>As que entram no sino — sem as origens desmarcadas —, já com o desenho de cada uma.</summary>
+    private List<NotificationItem> Visible(IEnumerable<NotificationItem> itens) =>
+        itens.Where(i => SourceOf(i)?.Show ?? true).Select(Dress).ToList();
+
+    private NotificationSource? SourceOf(NotificationItem item) =>
+        _config.NotificationSources.FirstOrDefault(s =>
+            string.Equals(s.Key, item.SourceKey, StringComparison.OrdinalIgnoreCase));
+
+    /// <summary>Os Ids já vistos: só o que nunca passou por aqui ganha balão.</summary>
+    private readonly HashSet<uint> _seenNotifications = new();
+    private bool _notificationsPrimed;
+
+    /// <summary>
+    /// Uma notificação nova chegou e pede balão — a barra mostra (veja <c>NotificationBalloon</c>).
+    /// A primeira leitura não conta: o que já estava na Central quando a dock abriu não é novidade.
+    /// </summary>
+    public event Action<NotificationItem>? NotificationArrived;
+
+    private void Announce(IReadOnlyList<NotificationItem> lidas)
+    {
+        var novas = lidas.Where(n => _seenNotifications.Add(n.Id)).ToList();
+        if (!_notificationsPrimed) { _notificationsPrimed = true; return; }
+        if (!_config.NotificationPopup) return;
+
+        // da mais velha para a mais nova, para a mais nova ficar em cima da pilha
+        foreach (var item in novas.OrderBy(n => n.Time))
+        {
+            var origem = SourceOf(item);
+            if (origem is { Show: false } or { Popup: false }) continue;
+            NotificationArrived?.Invoke(Dress(item));
+        }
+    }
+
+    /// <summary>Veste a notificação com o desenho escolhido para a origem dela, se houver um.</summary>
+    private NotificationItem Dress(NotificationItem item)
+    {
+        var origem = SourceOf(item);
+        if (origem is null) return item;
+
+        var (glifo, cor) = NotificationService.Look(origem);
+        return item with { Glyph = glifo, GlyphFill = cor };
+    }
+
+    /// <summary>
+    /// Toda origem que aparece na Central entra na lista das Configurações, para ganhar desenho —
+    /// ninguém precisa digitar "web.whatsapp.com" à mão.
+    /// </summary>
+    private void Remember(IEnumerable<NotificationItem> itens)
+    {
+        var novas = itens
+            .Where(i => i.SourceKey.Length > 0)
+            .Where(i => !_config.NotificationSources.Any(s => string.Equals(s.Key, i.SourceKey, StringComparison.OrdinalIgnoreCase)))
+            .GroupBy(i => i.SourceKey, StringComparer.OrdinalIgnoreCase)
+            .Select(g => new NotificationSource { Key = g.Key, Name = g.First().App })
+            .ToList();
+        if (novas.Count == 0) return;
+
+        _config.NotificationSources.AddRange(novas);
+        _config.Save();
+        _config.NotifyNotificationSourcesChanged();
+    }
+
+    /// <summary>
+    /// O clique na notificação: leva a quem a mandou, como o clique no balão do Windows — que a
+    /// dock não consegue acionar (o "abrir a conversa certa" é do app). Do navegador, vai à janela
+    /// cujo título traz o nome do site (o WhatsApp Web, a aba do Gmail); sem ela, abre o endereço.
+    /// De app, a janela dele, ou o app aberto de novo. E sai da Central, como lá.
+    /// </summary>
+    public void OpenNotification(NotificationItem item)
+    {
+        var janelas = WindowService.Enumerate();
+
+        if (item.Site.Length > 0)
+        {
+            var aba = janelas.FirstOrDefault(w => w.Title.Contains(item.App, StringComparison.OrdinalIgnoreCase) &&
+                                                  item.App != item.Site);
+            if (aba is not null) WindowService.Activate(aba.Handle);
+            else OpenUrl("https://" + item.Site);
+        }
+        else if (item.Aumid.Length > 0)
+        {
+            var janela = janelas.FirstOrDefault(w => string.Equals(w.Aumid, item.Aumid, StringComparison.OrdinalIgnoreCase));
+            if (janela is not null) WindowService.Activate(janela.Handle);
+            else WindowService.LaunchApp(item.Aumid);
+        }
+
+        DismissNotification(item);
+    }
+
+    /// <summary>
+    /// O endereço no navegador padrão, pelo explorer — como o <c>WindowService.LaunchApp</c>. A dock
+    /// roda como administrador, e abrir o endereço direto subiria o navegador elevado também; o
+    /// explorer que já está de pé abre como o usuário.
+    /// </summary>
+    private static void OpenUrl(string url)
+    {
+        try { System.Diagnostics.Process.Start("explorer.exe", $"\"{url}\""); }
+        catch (Exception ex) { Log.Write($"não deu para abrir {url}", ex); }
+    }
+
+    /// <summary>Um desenho mudou nas Configurações: a lista aberta se veste de novo.</summary>
+    private void RedressNotifications() => Notifications = Visible(_allNotifications);
+
     public void DismissNotification(NotificationItem item)
     {
         _notifications.Remove(item.Id);
-        Notifications = _notificationItems.Where(n => n.Id != item.Id).ToList();
+        _allNotifications = _allNotifications.Where(n => n.Id != item.Id).ToList();
+        Notifications = Visible(_allNotifications);
     }
 
+    /// <summary>Limpa o que está no sino; o das origens escondidas fica na Central, que é delas.</summary>
     public void ClearNotifications()
     {
-        _notifications.Clear(_notificationItems.Select(n => n.Id));
+        var ids = _notificationItems.Select(n => n.Id).ToHashSet();
+        _notifications.Clear(ids);
+        _allNotifications = _allNotifications.Where(n => !ids.Contains(n.Id)).ToList();
         Notifications = Array.Empty<NotificationItem>();
     }
 
@@ -2091,6 +2401,7 @@ public sealed class PanelModel : INotifyPropertyChanged, IDisposable
         if (e.PropertyName is nameof(DockConfig.PanelSystem)) OnChanged(nameof(HasSystemInfo));
         if (e.PropertyName is nameof(DockConfig.PanelCompact)) OnChanged(nameof(PanelCompact));
         if (e.PropertyName is nameof(DockConfig.PanelTools)) OnChanged(nameof(HasTools));
+        if (e.PropertyName is nameof(DockConfig.NotificationSources)) RedressNotifications();
         if (e.PropertyName is nameof(DockConfig.Tools))
         {
             _tools = null;
@@ -2171,7 +2482,8 @@ public sealed class PanelModel : INotifyPropertyChanged, IDisposable
         // o bluetooth muda devagar e a consulta e mais cara que as outras: de cinco em
         // cinco segundos basta. A bandeja fica de fora de proposito — ler a bandeja pisca a
         // barra do Windows, e piscar a cada cinco segundos seria intoleravel
-        if (++_ticks % 5 == 0) UpdateBluetooth();
+        // O wi-fi vai junto: o sinal muda, mas não a cada segundo, e a leitura é do WinRT.
+        if (++_ticks % 5 == 0) { UpdateBluetooth(); _ = RefreshWifi(); }
 
         // depois da meia-noite o "hoje" do calendario mudou de casa
         if (_today != now.Date) { _today = now.Date; Calendar.GoToToday(); }

@@ -2,6 +2,7 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:ui="clr-namespace:WinDock.Ui"
+        xmlns:sys="clr-namespace:System;assembly=System.Runtime"
         xmlns:views="clr-namespace:WinDock.Views"
         Title="WinDock Panel"
         WindowStyle="None" AllowsTransparency="True" Background="{x:Null}"
@@ -38,6 +39,95 @@
     <ui:EmptyToCollapsed x:Key="EmptyToCollapsed" />
     <ui:ResetText x:Key="ResetText" />
     <ui:HexBrushConverter x:Key="HexBrush" />
+    <ui:ExpandGlyph x:Key="ExpandGlyph" />
+    <ui:WifiBars x:Key="WifiBars" />
+
+    <!-- a seta e os atalhos do rodapé dos cartões: só o realce ao passar o mouse, como os do
+         rodapé da cota -->
+    <Style x:Key="CardFooterButton" TargetType="Button">
+      <Setter Property="Cursor" Value="Hand" />
+      <Setter Property="Padding" Value="8,3" />
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="Button">
+            <Border x:Name="Fundo" Background="Transparent" CornerRadius="5" Padding="{TemplateBinding Padding}">
+              <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+            </Border>
+            <ControlTemplate.Triggers>
+              <Trigger Property="IsMouseOver" Value="True">
+                <Setter TargetName="Fundo" Property="Background" Value="#18FFFFFF" />
+              </Trigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+
+    <!-- Interruptor no desenho do Windows, para um rádio (bluetooth, wi-fi): o estado vem pelo
+         Tag, ligado a um bool do modelo, e o clique é de quem usa. A alça desliza dentro do
+         trilho (36 px de área interna, alça de 14 com 3 de folga de cada lado, logo um percurso
+         de 16). Enquanto o rádio muda de estado o botão fica desabilitado, e a opacidade é o que
+         mostra isso. -->
+    <Style x:Key="RadioSwitch" TargetType="Button">
+      <Setter Property="Cursor" Value="Hand" />
+      <Setter Property="HorizontalAlignment" Value="Right" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="Button">
+            <Border x:Name="Trilho" Width="38" Height="20" CornerRadius="10"
+                    Background="#00000000" BorderBrush="#8AFFFFFF" BorderThickness="1">
+              <Ellipse x:Name="Alca" Width="14" Height="14" Fill="#FFD8D8DA"
+                       HorizontalAlignment="Left" VerticalAlignment="Center" Margin="3,0,0,0">
+                <Ellipse.RenderTransform>
+                  <TranslateTransform x:Name="Desliza" X="0" />
+                </Ellipse.RenderTransform>
+              </Ellipse>
+            </Border>
+
+            <ControlTemplate.Triggers>
+              <!-- o Tag é object: o valor do gatilho tem de ser o bool, e não o texto "True" -->
+              <Trigger Property="Tag">
+                <Trigger.Value>
+                  <sys:Boolean>True</sys:Boolean>
+                </Trigger.Value>
+                <Setter TargetName="Trilho" Property="Background" Value="#FF3FA34D" />
+                <Setter TargetName="Trilho" Property="BorderBrush" Value="#FF3FA34D" />
+                <Setter TargetName="Alca" Property="Fill" Value="#FFFFFFFF" />
+                <Trigger.EnterActions>
+                  <BeginStoryboard>
+                    <Storyboard>
+                      <DoubleAnimation Storyboard.TargetName="Desliza" Storyboard.TargetProperty="X"
+                                       To="16" Duration="0:0:0.12" />
+                    </Storyboard>
+                  </BeginStoryboard>
+                </Trigger.EnterActions>
+                <Trigger.ExitActions>
+                  <BeginStoryboard>
+                    <Storyboard>
+                      <DoubleAnimation Storyboard.TargetName="Desliza" Storyboard.TargetProperty="X"
+                                       To="0" Duration="0:0:0.12" />
+                    </Storyboard>
+                  </BeginStoryboard>
+                </Trigger.ExitActions>
+              </Trigger>
+
+              <!-- só a opacidade, que nenhum outro gatilho aqui disputa: mexer no tamanho da
+                   alça desalinharia o percurso, e mexer no fundo perderia para o verde de cima -->
+              <Trigger Property="IsMouseOver" Value="True">
+                <Setter TargetName="Trilho" Property="Opacity" Value="0.82" />
+              </Trigger>
+
+              <!-- o rádio está mudando de estado: nada de um segundo clique. Vem por último de
+                   propósito, para vencer o realce do mouse -->
+              <Trigger Property="IsEnabled" Value="False">
+                <Setter TargetName="Trilho" Property="Opacity" Value="0.4" />
+              </Trigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
 
     <Style x:Key="PanelButton" TargetType="Button">
       <Setter Property="Cursor" Value="Hand" />
@@ -119,6 +209,13 @@
       <Setter Property="FontSize" Value="11" />
       <Setter Property="VerticalAlignment" Value="Center" />
       <Setter Property="TextOptions.TextFormattingMode" Value="Display" />
+      <!-- algarismo e % não descem abaixo da linha, e a caixa do texto reserva espaço para quem
+           desce: centrado pela caixa, o número ficava 1 px abaixo dos ícones vizinhos -->
+      <Setter Property="RenderTransform">
+        <Setter.Value>
+          <TranslateTransform Y="-1" />
+        </Setter.Value>
+      </Setter>
     </Style>
 
     <!-- data e hora na barra: 13 px em seminegrito, e nos ícones compactos 11 px, o tamanho dos
@@ -232,6 +329,21 @@
       <Setter Property="HorizontalAlignment" Value="Center" />
     </Style>
 
+    <!-- Cartão compacto: com os ícones compactos, o cartão inteiro a 90%, por escala — letra,
+         respiro e desenho juntos, como no calendário e nas ferramentas. Vale para o que é lista
+         de controles (volume, wi-fi, bluetooth); quem é leitura demorada fica no tamanho cheio -->
+    <Style x:Key="CompactCard" TargetType="Border">
+      <Style.Triggers>
+        <DataTrigger Binding="{Binding PanelCompact}" Value="True">
+          <Setter Property="LayoutTransform">
+            <Setter.Value>
+              <ScaleTransform ScaleX="0.9" ScaleY="0.9" />
+            </Setter.Value>
+          </Setter>
+        </DataTrigger>
+      </Style.Triggers>
+    </Style>
+
     <!-- Uma ilha da barra (DockConfig.PanelIslands): a pílula com o fundo da barra. Com a opção
          desligada ela não desenha nada, e quem pinta é a faixa inteira, como sempre foi. As do
          canto direito são criadas no código, pelo ApplyPanelOrder — quantas forem as quebras. -->
@@ -297,18 +409,12 @@
            `ApplyPanelOrder`). Quem mexer aqui só define o padrão de quem nunca customizou —
            e ao acrescentar um item novo, dê a ele um `Tag` e um nome em `PanelItems`, senão
            ele fica de fora da lista das opções. -->
+      <!-- A fila estica na altura da barra e quem se centra é cada item, sozinho (o Place faz
+           isso). Centrar a fila inteira punha todos os ícones meio pixel abaixo do meio: a fila
+           tem a altura do item mais alto — o texto de CPU e memória, 19 px nos compactos —, e 19
+           num espaço de 22 sobra 1,5, que o arredondamento do layout leva para baixo. Cada
+           ícone, com 16, cai em 3 inteiros. Medido na tela em 02/10/2026. -->
       <StackPanel x:Name="RightItems" Orientation="Horizontal" HorizontalAlignment="Right">
-        <!-- em ilhas a fila estica na altura: quem fica no meio é cada ilha, por dentro -->
-        <StackPanel.Style>
-          <Style TargetType="StackPanel">
-            <Setter Property="VerticalAlignment" Value="Center" />
-            <Style.Triggers>
-              <DataTrigger Binding="{Binding PanelIslands}" Value="True">
-                <Setter Property="VerticalAlignment" Value="Stretch" />
-              </DataTrigger>
-            </Style.Triggers>
-          </Style>
-        </StackPanel.Style>
 
         <!-- a bandeja: com a barra do Windows escondida, é aqui que o antivírus e os
              programas que só vivem na bandeja continuam alcançáveis. A seta abre um cartão
@@ -463,8 +569,15 @@
         </StackPanel>
         </Button>
 
-        <Button Tag="wifi" Style="{StaticResource PanelButton}" Click="OnQuickSettings" ToolTip="Wi-Fi">
-          <ui:GlyphIcon Glyph="{Binding WifiGlyph}" Fill="#FFF2F2F2" Style="{StaticResource BarGlyph}" VerticalAlignment="Center" />
+        <!-- as ondas pelo sinal, com as que faltam apagadas por trás; apagado com o rádio
+             desligado, como o bluetooth. O clique abre o cartão do wi-fi -->
+        <Button Tag="wifi" x:Name="WifiButton" Style="{StaticResource PanelButton}" Click="OnWifi"
+                ToolTip="{Binding WifiTooltip}" Opacity="{Binding WifiOpacity}">
+          <Grid VerticalAlignment="Center">
+            <ui:GlyphIcon Glyph="&#xE701;" Fill="#40F2F2F2" Style="{StaticResource BarGlyph}"
+                          Visibility="{Binding WifiShowsBars, Converter={StaticResource BoolToVisible}}" />
+            <ui:GlyphIcon Glyph="{Binding WifiGlyph}" Fill="#FFF2F2F2" Style="{StaticResource BarGlyph}" />
+          </Grid>
         </Button>
 
         <!-- apagado quando o radio esta desligado; o clique abre a lista de aparelhos -->
@@ -522,13 +635,18 @@
 
         <!-- Cota de IA: só aparece com a opção ligada e credencial do Claude Code na
              máquina. O clique abre o cartão com as janelas de uso. -->
-        <Button Tag="cotaIa" x:Name="AiUsageButton" Style="{StaticResource PanelButton}"
-                Click="OnAiUsage" ToolTip="{Binding AiTooltip}"
+        <!-- o robô e o número ao lado, no jeito do processador e da memória. A cor segue o
+             medidor mais cheio — verde, amarelo a partir de 70%, vermelho a partir de 95% — e o
+             número é esse mesmo medidor; veja `PanelModel.AiBrush` e `AiPercentText` -->
+        <Button Tag="cotaIa" x:Name="AiUsageButton" Style="{StaticResource ClockButton}"
+                Click="OnAiUsage" ToolTip="{Binding AiTooltip}" Padding="4,2"
                 Visibility="{Binding HasAiUsage, Converter={StaticResource BoolToVisible}}">
-          <!-- a cor segue o medidor mais cheio: branco enquanto sobra, âmbar a partir de 60%,
-               vermelho a partir de 90% — veja `PanelModel.AiBrush` -->
-          <ui:GlyphIcon Glyph="{Binding AiGlyph}" Fill="{Binding AiBrush}" Style="{StaticResource BarGlyph}"
-                        VerticalAlignment="Center" />
+          <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+            <ui:GlyphIcon Glyph="{Binding AiGlyph}" Fill="{Binding AiBrush}" Style="{StaticResource BarGlyph}"
+                          VerticalAlignment="Center" />
+            <TextBlock Text="{Binding AiPercentText}" Style="{StaticResource BarText}" Margin="3,0,0,0"
+                       Visibility="{Binding AiPercentText, Converter={StaticResource EmptyToCollapsed}}" />
+          </StackPanel>
         </Button>
 
         <!-- a roda do mouse sobe e desce o volume, como na barra do Windows -->
@@ -577,185 +695,282 @@
         </StackPanel>
       </StackPanel>
 
-      <!-- os aparelhos bluetooth, sem precisar abrir as configuracoes -->
-      <Popup x:Name="BluetoothPopup" PlacementTarget="{Binding ElementName=BluetoothButton}"
+      <!-- O wi-fi sem o painel do Windows: o rádio, a rede de agora e — detalhado, e com a
+           permissão de localização — as redes ao alcance. Veja o WifiService. -->
+      <Popup x:Name="WifiPopup" PlacementTarget="{Binding ElementName=WifiButton}"
              Placement="Bottom" VerticalOffset="6" HorizontalOffset="-8"
              StaysOpen="True" AllowsTransparency="True" PopupAnimation="Fade">
         <Border Background="#F7242424" BorderBrush="#2EFFFFFF" BorderThickness="1"
-                CornerRadius="10" Padding="16,14" Margin="10">
+                CornerRadius="10" Padding="16,14,16,8" Margin="10" Style="{StaticResource CompactCard}">
           <Border.Effect>
             <DropShadowEffect BlurRadius="20" ShadowDepth="5" Opacity="0.55" Color="Black" />
           </Border.Effect>
           <StackPanel Width="280">
 
-            <!-- cabeçalho: o que é, e o estado do rádio à direita -->
-            <Grid Margin="0,0,0,12">
+            <Grid Margin="0,0,0,10">
+              <StackPanel Orientation="Horizontal">
+                <ui:GlyphIcon Glyph="&#xE701;" Fill="#FFF2F2F2" Size="16"
+                              VerticalAlignment="Center" Margin="0,0,10,0" />
+                <TextBlock Text="Wi-Fi" Foreground="#FFF2F2F2" FontSize="14"
+                           FontWeight="SemiBold" VerticalAlignment="Center" />
+              </StackPanel>
+              <Button Style="{StaticResource RadioSwitch}" Tag="{Binding Wifi.On}"
+                      Click="OnToggleWifi" IsEnabled="{Binding WifiReady}"
+                      ToolTip="Ligar ou desligar o Wi-Fi" />
+            </Grid>
+
+            <!-- a rede de agora: nome, sinal e se há internet -->
+            <Border Background="#0FFFFFFF" CornerRadius="8" Padding="12,9">
+              <Grid>
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="Auto" />
+                  <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <Grid VerticalAlignment="Center" Margin="0,0,12,0">
+                  <ui:GlyphIcon Glyph="&#xE701;" Fill="#40F2F2F2" Size="16"
+                                Visibility="{Binding WifiShowsBars, Converter={StaticResource BoolToVisible}}" />
+                  <ui:GlyphIcon Glyph="{Binding WifiGlyph}" Fill="#FF4CC2FF" Size="16" />
+                </Grid>
+                <StackPanel Grid.Column="1">
+                  <TextBlock Text="{Binding Wifi.Ssid}" Foreground="#FFF2F2F2" FontSize="13" FontWeight="SemiBold"
+                             TextTrimming="CharacterEllipsis"
+                             Visibility="{Binding Wifi.Ssid, Converter={StaticResource EmptyToCollapsed}}" />
+                  <TextBlock Text="{Binding WifiStatus}" Foreground="#FF9D9D9D" FontSize="11" />
+                </StackPanel>
+              </Grid>
+            </Border>
+
+            <!-- detalhado: as redes ao alcance, ou o porquê de não haver lista -->
+            <StackPanel Visibility="{Binding WifiExpanded, Converter={StaticResource BoolToVisible}}">
+              <TextBlock Text="Redes ao alcance" Foreground="#FF9D9D9D" FontSize="11"
+                         FontWeight="SemiBold" Margin="2,12,0,4" />
+
+              <TextBlock Text="Procurando…" Foreground="#FF9D9D9D" FontSize="12" Margin="8,2,0,4"
+                         Visibility="{Binding WifiScanning, Converter={StaticResource BoolToVisible}}" />
+
+              <!-- sem a permissão, o Windows nem lista: o mesmo vale para o netsh -->
+              <StackPanel Margin="2,0,0,4"
+                          Visibility="{Binding WifiNeedsLocation, Converter={StaticResource BoolToVisible}}">
+                <TextBlock TextWrapping="Wrap" Foreground="#FFD8D8DA" FontSize="12"
+                           Text="Para listar as redes, o Windows pede que apps da área de trabalho possam usar a localização." />
+                <Button Style="{StaticResource CardFooterButton}" HorizontalAlignment="Left" Padding="0,4"
+                        Click="OnWifiLocation" Margin="0,4,0,0">
+                  <TextBlock Text="Abrir as configurações de localização" Foreground="#FF4CC2FF" FontSize="12" />
+                </Button>
+              </StackPanel>
+
+              <ItemsControl ItemsSource="{Binding WifiNetworks}">
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate>
+                    <Button Style="{StaticResource PanelRowCompact}" Click="OnWifiNetwork" Tag="{Binding}"
+                            ToolTip="Conectar">
+                      <Grid>
+                        <Grid.ColumnDefinitions>
+                          <ColumnDefinition Width="Auto" />
+                          <ColumnDefinition Width="*" />
+                          <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <Grid VerticalAlignment="Center" Margin="0,0,10,0">
+                          <ui:GlyphIcon Glyph="&#xE701;" Fill="#40F2F2F2" Size="13" />
+                          <ui:GlyphIcon Glyph="{Binding Bars, Converter={StaticResource WifiBars}}" Fill="#FFF2F2F2" Size="13" />
+                        </Grid>
+                        <TextBlock Grid.Column="1" Text="{Binding Ssid}" Foreground="#FFE8E8EA" FontSize="12"
+                                   TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                        <StackPanel Grid.Column="2" Orientation="Horizontal" Margin="8,0,0,0" VerticalAlignment="Center">
+                          <ui:GlyphIcon Glyph="&#xE72E;" Fill="#FF9D9D9D" Size="10" Margin="0,0,5,0"
+                                        VerticalAlignment="Center"
+                                        Visibility="{Binding Secure, Converter={StaticResource BoolToVisible}}" />
+                          <TextBlock Text="{Binding Detail}" FontSize="11" VerticalAlignment="Center">
+                            <TextBlock.Style>
+                              <Style TargetType="TextBlock">
+                                <Setter Property="Foreground" Value="#FF9D9D9D" />
+                                <Style.Triggers>
+                                  <DataTrigger Binding="{Binding Connected}" Value="True">
+                                    <Setter Property="Foreground" Value="#FF6CCB5F" />
+                                  </DataTrigger>
+                                </Style.Triggers>
+                              </Style>
+                            </TextBlock.Style>
+                          </TextBlock>
+                        </StackPanel>
+                      </Grid>
+                    </Button>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+            </StackPanel>
+
+            <!-- rodapé: as configurações à esquerda, a seta à direita -->
+            <Border Height="1" Background="#22FFFFFF" Margin="0,10,0,4" />
+            <Grid>
+              <StackPanel Orientation="Horizontal" HorizontalAlignment="Left">
+                <Button Style="{StaticResource CardFooterButton}" Click="OnWifiSettings">
+                  <TextBlock Text="Configurações de Wi-Fi" Foreground="#FF4CC2FF" FontSize="11" />
+                </Button>
+                <!-- o painel do Windows continua a um clique: é lá que se digita a senha de rede nova -->
+                <Button Style="{StaticResource CardFooterButton}" Click="OnWifiWindowsList"
+                        ToolTip="A lista de redes do Windows">
+                  <TextBlock Text="Painel do Windows" Foreground="#FF4CC2FF" FontSize="11" />
+                </Button>
+              </StackPanel>
+              <Button Style="{StaticResource CardFooterButton}" HorizontalAlignment="Right"
+                      Click="OnToggleCard" Tag="wifi" ToolTip="Mostrar ou esconder as redes ao alcance">
+                <ui:GlyphIcon Glyph="{Binding WifiExpanded, Converter={StaticResource ExpandGlyph}}"
+                              Fill="#FF9D9D9D" Size="11" />
+              </Button>
+            </Grid>
+          </StackPanel>
+        </Border>
+      </Popup>
+
+      <!-- os aparelhos bluetooth, sem precisar abrir as configuracoes -->
+      <Popup x:Name="BluetoothPopup" PlacementTarget="{Binding ElementName=BluetoothButton}"
+             Placement="Bottom" VerticalOffset="6" HorizontalOffset="-8"
+             StaysOpen="True" AllowsTransparency="True" PopupAnimation="Fade">
+        <Border Background="#F7242424" BorderBrush="#2EFFFFFF" BorderThickness="1"
+                CornerRadius="10" Padding="16,14,16,8" Margin="10" Style="{StaticResource CompactCard}">
+          <Border.Effect>
+            <DropShadowEffect BlurRadius="20" ShadowDepth="5" Opacity="0.55" Color="Black" />
+          </Border.Effect>
+          <Border.Resources>
+            <!-- uma linha de aparelho, a mesma no compacto (só os conectados) e no detalhado -->
+            <DataTemplate x:Key="BluetoothRow">
+              <!-- o realce segue o mouse, como nas listas do Windows -->
+              <Border x:Name="Row" Background="Transparent" CornerRadius="6" Padding="8,7" Margin="0,1">
+                <Grid>
+                  <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                  </Grid.ColumnDefinitions>
+
+                  <!-- verde quando conectado de verdade, so contorno quando apenas pareado -->
+                  <Ellipse Width="7" Height="7" VerticalAlignment="Center" Margin="0,0,8,0">
+                    <Ellipse.Style>
+                      <Style TargetType="Ellipse">
+                        <Setter Property="Fill" Value="#00000000" />
+                        <Setter Property="Stroke" Value="#66FFFFFF" />
+                        <Setter Property="StrokeThickness" Value="1" />
+                        <Style.Triggers>
+                          <DataTrigger Binding="{Binding Connected}" Value="True">
+                            <Setter Property="Fill" Value="#FF6CCB5F" />
+                            <Setter Property="Stroke" Value="#FF6CCB5F" />
+                          </DataTrigger>
+                        </Style.Triggers>
+                      </Style>
+                    </Ellipse.Style>
+                  </Ellipse>
+
+                  <TextBlock Grid.Column="1" Text="{Binding Name}" Foreground="#FFE8E8EA"
+                             FontSize="12" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+
+                  <!-- só quem informa a bateria mostra esta coluna -->
+                  <TextBlock Grid.Column="2" Text="{Binding BatteryText}" Foreground="#FF9D9D9D"
+                             FontSize="11" VerticalAlignment="Center" Margin="8,0,0,0"
+                             Visibility="{Binding HasBattery, Converter={StaticResource BoolToVisible}}" />
+
+                  <!-- A cor NÃO pode vir como atributo aqui. Um valor local vence setter de
+                       gatilho de Style no WPF, então um `Foreground=...` no elemento deixaria
+                       a palavra cinza para sempre — o `Text` mudava (não é local) e a cor
+                       não. Era o caso antes, e passou despercebido porque o ponto ao lado do
+                       nome já dava o sinal. Cor padrão e cor de conectado saem as duas do
+                       Style, que é onde o gatilho alcança. -->
+                  <TextBlock Grid.Column="3" FontSize="11"
+                             VerticalAlignment="Center" Margin="8,0,0,0">
+                    <TextBlock.Style>
+                      <Style TargetType="TextBlock">
+                        <Setter Property="Text" Value="pareado" />
+                        <Setter Property="Foreground" Value="#FF9D9D9D" />
+                        <Style.Triggers>
+                          <DataTrigger Binding="{Binding Connected}" Value="True">
+                            <Setter Property="Text" Value="conectado" />
+                            <Setter Property="Foreground" Value="#FF6CCB5F" />
+                          </DataTrigger>
+                        </Style.Triggers>
+                      </Style>
+                    </TextBlock.Style>
+                  </TextBlock>
+
+                  <!-- tira este aparelho da lista da barra; ele continua pareado no Windows.
+                       Só aparece com o mouse na linha, para a lista ficar limpa. -->
+                  <Button x:Name="Hide" Grid.Column="4" Style="{StaticResource PanelButton}"
+                          Padding="6,0" Margin="6,0,0,0" Opacity="0"
+                          Click="OnHideBluetoothDevice" Tag="{Binding Name}"
+                          ToolTip="Não mostrar este aparelho na barra">
+                    <TextBlock Text="✕" Foreground="#FFE8E8EA" FontSize="11" />
+                  </Button>
+                </Grid>
+              </Border>
+
+              <DataTemplate.Triggers>
+                <Trigger SourceName="Row" Property="IsMouseOver" Value="True">
+                  <Setter TargetName="Row" Property="Background" Value="#14FFFFFF" />
+                  <Setter TargetName="Hide" Property="Opacity" Value="1" />
+                </Trigger>
+              </DataTemplate.Triggers>
+            </DataTemplate>
+          </Border.Resources>
+          <StackPanel Width="280">
+
+            <!-- cabeçalho: o que é, e o interruptor do rádio à direita -->
+            <Grid Margin="0,0,0,10">
               <StackPanel Orientation="Horizontal">
                 <ui:GlyphIcon Glyph="{Binding BluetoothGlyph}" Fill="#FFF2F2F2" Size="16"
                               VerticalAlignment="Center" Margin="0,0,10,0" />
                 <TextBlock Text="Bluetooth" Foreground="#FFF2F2F2" FontSize="14"
                            FontWeight="SemiBold" VerticalAlignment="Center" />
               </StackPanel>
-              <!-- Interruptor no desenho do Windows: clicar alterna o rádio. A alça desliza
-                   dentro do trilho (36 px de área interna, alça de 14 com 3 de folga de cada
-                   lado, logo um percurso de 16). Enquanto o rádio muda de estado o botão
-                   fica desabilitado, e a opacidade é o que mostra isso. -->
-              <Button HorizontalAlignment="Right" VerticalAlignment="Center"
-                      Background="Transparent" BorderThickness="0" Cursor="Hand"
+              <Button Style="{StaticResource RadioSwitch}" Tag="{Binding BluetoothOn}"
                       Click="OnToggleBluetooth" IsEnabled="{Binding BluetoothReady}"
-                      ToolTip="Ligar ou desligar o Bluetooth">
-                <Button.Template>
-                  <ControlTemplate TargetType="Button">
-                    <Border x:Name="Trilho" Width="38" Height="20" CornerRadius="10"
-                            Background="#00000000" BorderBrush="#8AFFFFFF" BorderThickness="1">
-                      <Ellipse x:Name="Alca" Width="14" Height="14" Fill="#FFD8D8DA"
-                               HorizontalAlignment="Left" VerticalAlignment="Center"
-                               Margin="3,0,0,0">
-                        <Ellipse.RenderTransform>
-                          <TranslateTransform x:Name="Desliza" X="0" />
-                        </Ellipse.RenderTransform>
-                      </Ellipse>
-                    </Border>
-
-                    <ControlTemplate.Triggers>
-                      <DataTrigger Binding="{Binding BluetoothOn}" Value="True">
-                        <Setter TargetName="Trilho" Property="Background" Value="#FF3FA34D" />
-                        <Setter TargetName="Trilho" Property="BorderBrush" Value="#FF3FA34D" />
-                        <Setter TargetName="Alca" Property="Fill" Value="#FFFFFFFF" />
-                        <DataTrigger.EnterActions>
-                          <BeginStoryboard>
-                            <Storyboard>
-                              <DoubleAnimation Storyboard.TargetName="Desliza"
-                                               Storyboard.TargetProperty="X"
-                                               To="16" Duration="0:0:0.12" />
-                            </Storyboard>
-                          </BeginStoryboard>
-                        </DataTrigger.EnterActions>
-                        <DataTrigger.ExitActions>
-                          <BeginStoryboard>
-                            <Storyboard>
-                              <DoubleAnimation Storyboard.TargetName="Desliza"
-                                               Storyboard.TargetProperty="X"
-                                               To="0" Duration="0:0:0.12" />
-                            </Storyboard>
-                          </BeginStoryboard>
-                        </DataTrigger.ExitActions>
-                      </DataTrigger>
-
-                      <!-- só a opacidade, que nenhum outro gatilho aqui disputa: mexer no
-                           tamanho da alça desalinharia o percurso, e mexer no fundo perderia
-                           para o verde do gatilho de cima -->
-                      <Trigger Property="IsMouseOver" Value="True">
-                        <Setter TargetName="Trilho" Property="Opacity" Value="0.82" />
-                      </Trigger>
-
-                      <!-- o rádio está mudando de estado: nada de um segundo clique. Vem por
-                           último de propósito, para vencer o realce do mouse -->
-                      <Trigger Property="IsEnabled" Value="False">
-                        <Setter TargetName="Trilho" Property="Opacity" Value="0.4" />
-                      </Trigger>
-                    </ControlTemplate.Triggers>
-                  </ControlTemplate>
-                </Button.Template>
-              </Button>
+                      ToolTip="Ligar ou desligar o Bluetooth" />
             </Grid>
 
-            <ItemsControl ItemsSource="{Binding BluetoothDevices}">
-              <ItemsControl.ItemTemplate>
-                <DataTemplate>
-                  <!-- o realce segue o mouse, como nas listas do Windows -->
-                  <Border x:Name="Row" Background="Transparent" CornerRadius="6" Padding="8,7" Margin="0,1">
-                    <Grid>
-                    <Grid.ColumnDefinitions>
-                      <ColumnDefinition Width="Auto" />
-                      <ColumnDefinition Width="*" />
-                      <ColumnDefinition Width="Auto" />
-                      <ColumnDefinition Width="Auto" />
-                      <ColumnDefinition Width="Auto" />
-                    </Grid.ColumnDefinitions>
+            <!-- Compacto: só quem está conectado agora, que é o que se quer saber de relance.
+                 Detalhado: todos os pareados, com o ✕ de esconder e os escondidos. -->
+            <StackPanel Visibility="{Binding BluetoothExpanded, Converter={StaticResource BoolToCollapsed}}">
+              <ItemsControl ItemsSource="{Binding BluetoothConnected}" ItemTemplate="{StaticResource BluetoothRow}" />
+              <TextBlock Foreground="#FF9D9D9D" FontSize="12" Margin="8,2,0,4"
+                         Visibility="{Binding HasNoBluetoothConnected, Converter={StaticResource BoolToVisible}}">
+                <TextBlock.Style>
+                  <Style TargetType="TextBlock">
+                    <Setter Property="Text" Value="Nenhum aparelho conectado" />
+                    <Style.Triggers>
+                      <DataTrigger Binding="{Binding BluetoothOn}" Value="False">
+                        <Setter Property="Text" Value="O Bluetooth está desligado" />
+                      </DataTrigger>
+                    </Style.Triggers>
+                  </Style>
+                </TextBlock.Style>
+              </TextBlock>
+            </StackPanel>
 
-                    <!-- verde quando conectado de verdade, so contorno quando apenas pareado -->
-                    <Ellipse Width="7" Height="7" VerticalAlignment="Center" Margin="0,0,8,0">
-                      <Ellipse.Style>
-                        <Style TargetType="Ellipse">
-                          <Setter Property="Fill" Value="#00000000" />
-                          <Setter Property="Stroke" Value="#66FFFFFF" />
-                          <Setter Property="StrokeThickness" Value="1" />
-                          <Style.Triggers>
-                            <DataTrigger Binding="{Binding Connected}" Value="True">
-                              <Setter Property="Fill" Value="#FF6CCB5F" />
-                              <Setter Property="Stroke" Value="#FF6CCB5F" />
-                            </DataTrigger>
-                          </Style.Triggers>
-                        </Style>
-                      </Ellipse.Style>
-                    </Ellipse>
+            <StackPanel Visibility="{Binding BluetoothExpanded, Converter={StaticResource BoolToVisible}}">
+              <ItemsControl ItemsSource="{Binding BluetoothDevices}" ItemTemplate="{StaticResource BluetoothRow}" />
 
-                    <TextBlock Grid.Column="1" Text="{Binding Name}" Foreground="#FFE8E8EA"
-                               FontSize="12" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+              <!-- so aparece quando ha algo escondido -->
+              <Button Style="{StaticResource PanelButton}" HorizontalContentAlignment="Left" Margin="0,4,0,0"
+                      Click="OnShowAllBluetooth"
+                      Visibility="{Binding HasHiddenBluetooth, Converter={StaticResource BoolToVisible}}">
+                <TextBlock Foreground="#FF9D9D9D" FontSize="12"
+                           Text="{Binding HiddenBluetoothCount, StringFormat='Mostrar {0} aparelho(s) oculto(s)'}" />
+              </Button>
+            </StackPanel>
 
-                    <!-- só quem informa a bateria mostra esta coluna -->
-                    <TextBlock Grid.Column="2" Text="{Binding BatteryText}" Foreground="#FF9D9D9D"
-                               FontSize="11" VerticalAlignment="Center" Margin="8,0,0,0"
-                               Visibility="{Binding HasBattery, Converter={StaticResource BoolToVisible}}" />
-
-                    <!-- A cor NÃO pode vir como atributo aqui. Um valor local vence setter de
-                         gatilho de Style no WPF, então um `Foreground=...` no elemento deixaria
-                         a palavra cinza para sempre — o `Text` mudava (não é local) e a cor
-                         não. Era o caso antes, e passou despercebido porque o ponto ao lado do
-                         nome já dava o sinal. Cor padrão e cor de conectado saem as duas do
-                         Style, que é onde o gatilho alcança. -->
-                    <TextBlock Grid.Column="3" FontSize="11"
-                               VerticalAlignment="Center" Margin="8,0,0,0">
-                      <TextBlock.Style>
-                        <Style TargetType="TextBlock">
-                          <Setter Property="Text" Value="pareado" />
-                          <Setter Property="Foreground" Value="#FF9D9D9D" />
-                          <Style.Triggers>
-                            <DataTrigger Binding="{Binding Connected}" Value="True">
-                              <Setter Property="Text" Value="conectado" />
-                              <Setter Property="Foreground" Value="#FF6CCB5F" />
-                            </DataTrigger>
-                          </Style.Triggers>
-                        </Style>
-                      </TextBlock.Style>
-                    </TextBlock>
-
-                    <!-- tira este aparelho da lista da barra; ele continua pareado no Windows.
-                         Só aparece com o mouse na linha, para a lista ficar limpa. -->
-                    <Button x:Name="Hide" Grid.Column="4" Style="{StaticResource PanelButton}"
-                            Padding="6,0" Margin="6,0,0,0" Opacity="0"
-                            Click="OnHideBluetoothDevice" Tag="{Binding Name}"
-                            ToolTip="Não mostrar este aparelho na barra">
-                      <TextBlock Text="✕" Foreground="#FFE8E8EA" FontSize="11" />
-                    </Button>
-                    </Grid>
-                  </Border>
-
-                  <DataTemplate.Triggers>
-                    <Trigger SourceName="Row" Property="IsMouseOver" Value="True">
-                      <Setter TargetName="Row" Property="Background" Value="#14FFFFFF" />
-                      <Setter TargetName="Hide" Property="Opacity" Value="1" />
-                    </Trigger>
-                  </DataTemplate.Triggers>
-                </DataTemplate>
-              </ItemsControl.ItemTemplate>
-            </ItemsControl>
-
-            <Border Height="1" Background="#22FFFFFF" Margin="0,10,0,8" />
-
-            <!-- so aparece quando ha algo escondido -->
-            <Button Style="{StaticResource PanelButton}" HorizontalContentAlignment="Left"
-                    Click="OnShowAllBluetooth"
-                    Visibility="{Binding HasHiddenBluetooth, Converter={StaticResource BoolToVisible}}">
-              <TextBlock Foreground="#FF9D9D9D" FontSize="12"
-                         Text="{Binding HiddenBluetoothCount, StringFormat='Mostrar {0} aparelho(s) oculto(s)'}" />
-            </Button>
-
-            <Button Style="{StaticResource PanelButton}" HorizontalContentAlignment="Left"
-                    Click="OnBluetoothSettings">
-              <TextBlock Text="Configurações de Bluetooth" Foreground="#FF4CC2FF" FontSize="12" />
-            </Button>
+            <!-- rodapé: as configurações do Windows à esquerda, a seta à direita -->
+            <Border Height="1" Background="#22FFFFFF" Margin="0,8,0,4" />
+            <Grid>
+              <Button Style="{StaticResource CardFooterButton}" HorizontalAlignment="Left"
+                      Click="OnBluetoothSettings">
+                <TextBlock Text="Configurações de Bluetooth" Foreground="#FF4CC2FF" FontSize="11" />
+              </Button>
+              <Button Style="{StaticResource CardFooterButton}" HorizontalAlignment="Right"
+                      Click="OnToggleCard" Tag="bluetooth" ToolTip="Mostrar ou esconder os pareados">
+                <ui:GlyphIcon Glyph="{Binding BluetoothExpanded, Converter={StaticResource ExpandGlyph}}"
+                              Fill="#FF9D9D9D" Size="11" />
+              </Button>
+            </Grid>
           </StackPanel>
         </Border>
       </Popup>
@@ -765,10 +980,39 @@
              Placement="Bottom" VerticalOffset="6" HorizontalOffset="-8"
              StaysOpen="True" AllowsTransparency="True" PopupAnimation="Fade">
         <Border Background="#F7242424" BorderBrush="#2EFFFFFF" BorderThickness="1"
-                CornerRadius="10" Padding="16,14" Margin="10">
+                CornerRadius="10" Padding="16,14,16,8" Margin="10" Style="{StaticResource CompactCard}">
           <Border.Effect>
             <DropShadowEffect BlurRadius="20" ShadowDepth="5" Opacity="0.55" Color="Black" />
           </Border.Effect>
+          <Border.Resources>
+            <!-- uma saída de áudio; clicar troca a padrão. A mesma no compacto (só a em uso) e no
+                 detalhado (todas) -->
+            <DataTemplate x:Key="AudioDeviceRow">
+              <Button Style="{StaticResource PanelButton}" HorizontalContentAlignment="Left"
+                      Click="OnAudioDevice" Tag="{Binding Id}" ToolTip="{Binding Name}">
+                <StackPanel Orientation="Horizontal">
+                  <!-- a bolinha marca qual esta em uso -->
+                  <Ellipse Width="7" Height="7" Margin="0,0,8,0" VerticalAlignment="Center">
+                    <Ellipse.Style>
+                      <Style TargetType="Ellipse">
+                        <Setter Property="Fill" Value="#00000000" />
+                        <Setter Property="Stroke" Value="#66FFFFFF" />
+                        <Setter Property="StrokeThickness" Value="1" />
+                        <Style.Triggers>
+                          <DataTrigger Binding="{Binding IsDefault}" Value="True">
+                            <Setter Property="Fill" Value="#FF4CC2FF" />
+                            <Setter Property="Stroke" Value="#FF4CC2FF" />
+                          </DataTrigger>
+                        </Style.Triggers>
+                      </Style>
+                    </Ellipse.Style>
+                  </Ellipse>
+                  <TextBlock Text="{Binding Name}" Foreground="#FFE8E8EA" FontSize="12"
+                             TextTrimming="CharacterEllipsis" MaxWidth="200" />
+                </StackPanel>
+              </Button>
+            </DataTemplate>
+          </Border.Resources>
           <StackPanel Width="280">
 
             <!-- mesmo cabeçalho do painel de bluetooth, para os dois combinarem -->
@@ -792,74 +1036,70 @@
                       Minimum="0" Maximum="100" Value="{Binding Volume, Mode=TwoWay}" />
             </StackPanel>
 
-            <!-- o mixer: um controle por programa com som, como no painel do Windows.
-                 A lista some quando nada está tocando — é o que o Windows também faz. -->
-            <StackPanel Visibility="{Binding HasAppSessions, Converter={StaticResource BoolToVisible}}">
-              <Border Height="1" Background="#22FFFFFF" Margin="0,12,0,8" />
-              <TextBlock Text="Aplicativos" Foreground="#FF9D9D9D" FontSize="11"
-                         FontWeight="SemiBold" Margin="2,0,0,4" />
-
-              <ItemsControl ItemsSource="{Binding AppSessions}">
-                <ItemsControl.ItemTemplate>
-                  <DataTemplate>
-                    <StackPanel Margin="0,4,0,2">
-                      <StackPanel Orientation="Horizontal" Margin="2,0,0,3">
-                        <Image Source="{Binding Icon}" Width="14" Height="14" VerticalAlignment="Center"
-                               Margin="0,0,7,0" RenderOptions.BitmapScalingMode="HighQuality"
-                               Visibility="{Binding HasIcon, Converter={StaticResource BoolToVisible}}" />
-                        <TextBlock Text="{Binding Name}" Foreground="#FFE8E8EA" FontSize="12"
-                                   VerticalAlignment="Center" TextTrimming="CharacterEllipsis" MaxWidth="185" />
-                        <TextBlock Text="{Binding Level, StringFormat='{}{0}%'}" Foreground="#FF9D9D9D"
-                                   FontSize="11" VerticalAlignment="Center" Margin="6,0,0,0" />
-                      </StackPanel>
-
-                      <StackPanel Orientation="Horizontal">
-                        <!-- o alto-falante de cada linha corta o som só daquele programa -->
-                        <Button Style="{StaticResource PanelButton}" Click="OnMuteApp" Tag="{Binding ProcessId}"
-                                Padding="6,2" ToolTip="Sem som para este aplicativo">
-                          <ui:GlyphIcon Glyph="{Binding Glyph}" Fill="#FFF2F2F2" Size="13"
-                                        VerticalAlignment="Center" />
-                        </Button>
-                        <Slider Style="{StaticResource FluentSlider}" Width="216" Margin="6,0,0,0"
-                                Minimum="0" Maximum="100" Value="{Binding Level, Mode=TwoWay}" />
-                      </StackPanel>
-                    </StackPanel>
-                  </DataTemplate>
-                </ItemsControl.ItemTemplate>
-              </ItemsControl>
+            <!-- Compacto: o volume e a saída em uso. Detalhado: o mixer e todas as saídas. -->
+            <StackPanel Visibility="{Binding VolumeExpanded, Converter={StaticResource BoolToCollapsed}}">
+              <Border Height="1" Background="#22FFFFFF" Margin="0,10,0,6" />
+              <ItemsControl ItemsSource="{Binding AudioDefault}" ItemTemplate="{StaticResource AudioDeviceRow}" />
             </StackPanel>
 
-            <!-- as saidas ligadas; clicar troca a padrao -->
-            <Border Height="1" Background="#22FFFFFF" Margin="0,10,0,8" />
-            <ItemsControl ItemsSource="{Binding AudioDevices}">
-              <ItemsControl.ItemTemplate>
-                <DataTemplate>
-                  <Button Style="{StaticResource PanelButton}" HorizontalContentAlignment="Left"
-                          Click="OnAudioDevice" Tag="{Binding Id}" ToolTip="{Binding Name}">
-                    <StackPanel Orientation="Horizontal">
-                      <!-- a bolinha marca qual esta em uso -->
-                      <Ellipse Width="7" Height="7" Margin="0,0,8,0" VerticalAlignment="Center">
-                        <Ellipse.Style>
-                          <Style TargetType="Ellipse">
-                            <Setter Property="Fill" Value="#00000000" />
-                            <Setter Property="Stroke" Value="#66FFFFFF" />
-                            <Setter Property="StrokeThickness" Value="1" />
-                            <Style.Triggers>
-                              <DataTrigger Binding="{Binding IsDefault}" Value="True">
-                                <Setter Property="Fill" Value="#FF4CC2FF" />
-                                <Setter Property="Stroke" Value="#FF4CC2FF" />
-                              </DataTrigger>
-                            </Style.Triggers>
-                          </Style>
-                        </Ellipse.Style>
-                      </Ellipse>
-                      <TextBlock Text="{Binding Name}" Foreground="#FFE8E8EA" FontSize="12"
-                                 TextTrimming="CharacterEllipsis" MaxWidth="200" />
-                    </StackPanel>
-                  </Button>
-                </DataTemplate>
-              </ItemsControl.ItemTemplate>
-            </ItemsControl>
+            <StackPanel Visibility="{Binding VolumeExpanded, Converter={StaticResource BoolToVisible}}">
+              <!-- o mixer: um controle por programa com som, como no painel do Windows.
+                   A lista some quando nada está tocando — é o que o Windows também faz. -->
+              <StackPanel Visibility="{Binding HasAppSessions, Converter={StaticResource BoolToVisible}}">
+                <Border Height="1" Background="#22FFFFFF" Margin="0,12,0,8" />
+                <TextBlock Text="Aplicativos" Foreground="#FF9D9D9D" FontSize="11"
+                           FontWeight="SemiBold" Margin="2,0,0,4" />
+
+                <ItemsControl ItemsSource="{Binding AppSessions}">
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                      <StackPanel Margin="0,4,0,2">
+                        <StackPanel Orientation="Horizontal" Margin="2,0,0,3">
+                          <Image Source="{Binding Icon}" Width="14" Height="14" VerticalAlignment="Center"
+                                 Margin="0,0,7,0" RenderOptions.BitmapScalingMode="HighQuality"
+                                 Visibility="{Binding HasIcon, Converter={StaticResource BoolToVisible}}" />
+                          <TextBlock Text="{Binding Name}" Foreground="#FFE8E8EA" FontSize="12"
+                                     VerticalAlignment="Center" TextTrimming="CharacterEllipsis" MaxWidth="185" />
+                          <TextBlock Text="{Binding Level, StringFormat='{}{0}%'}" Foreground="#FF9D9D9D"
+                                     FontSize="11" VerticalAlignment="Center" Margin="6,0,0,0" />
+                        </StackPanel>
+
+                        <StackPanel Orientation="Horizontal">
+                          <!-- o alto-falante de cada linha corta o som só daquele programa -->
+                          <Button Style="{StaticResource PanelButton}" Click="OnMuteApp" Tag="{Binding ProcessId}"
+                                  Padding="6,2" ToolTip="Sem som para este aplicativo">
+                            <ui:GlyphIcon Glyph="{Binding Glyph}" Fill="#FFF2F2F2" Size="13"
+                                          VerticalAlignment="Center" />
+                          </Button>
+                          <Slider Style="{StaticResource FluentSlider}" Width="216" Margin="6,0,0,0"
+                                  Minimum="0" Maximum="100" Value="{Binding Level, Mode=TwoWay}" />
+                        </StackPanel>
+                      </StackPanel>
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+              </StackPanel>
+
+              <!-- as saidas ligadas; clicar troca a padrao -->
+              <Border Height="1" Background="#22FFFFFF" Margin="0,10,0,8" />
+              <TextBlock Text="Saídas" Foreground="#FF9D9D9D" FontSize="11"
+                         FontWeight="SemiBold" Margin="2,0,0,2" />
+              <ItemsControl ItemsSource="{Binding AudioDevices}" ItemTemplate="{StaticResource AudioDeviceRow}" />
+            </StackPanel>
+
+            <!-- rodapé: as configurações de som à esquerda, a seta à direita -->
+            <Border Height="1" Background="#22FFFFFF" Margin="0,8,0,4" />
+            <Grid>
+              <Button Style="{StaticResource CardFooterButton}" HorizontalAlignment="Left"
+                      Click="OnSoundSettings">
+                <TextBlock Text="Configurações de som" Foreground="#FF4CC2FF" FontSize="11" />
+              </Button>
+              <Button Style="{StaticResource CardFooterButton}" HorizontalAlignment="Right"
+                      Click="OnToggleCard" Tag="volume" ToolTip="Mostrar ou esconder os aplicativos e as saídas">
+                <ui:GlyphIcon Glyph="{Binding VolumeExpanded, Converter={StaticResource ExpandGlyph}}"
+                              Fill="#FF9D9D9D" Size="11" />
+              </Button>
+            </Grid>
           </StackPanel>
         </Border>
       </Popup>
@@ -1015,9 +1255,23 @@
                 <ItemsControl.ItemTemplate>
                   <!-- cada uma num balão, como as tarefas: app e hora em cima, o título, e até
                        três linhas do texto — o resto fica na dica do mouse -->
+                  <!-- o balão inteiro é clicável: leva ao app, ou à aba do site, que mandou -->
                   <DataTemplate>
-                    <Border Background="#14FFFFFF" BorderBrush="#1AFFFFFF" BorderThickness="1"
-                            CornerRadius="8" Padding="8,6" Margin="0,2">
+                    <Button Click="OnOpenNotification" Cursor="Hand" ToolTip="Abrir"
+                            HorizontalContentAlignment="Stretch">
+                      <Button.Template>
+                        <ControlTemplate TargetType="Button">
+                          <Border x:Name="Balao" Background="#14FFFFFF" BorderBrush="#1AFFFFFF" BorderThickness="1"
+                                  CornerRadius="8" Padding="8,6" Margin="0,2">
+                            <ContentPresenter />
+                          </Border>
+                          <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                              <Setter TargetName="Balao" Property="Background" Value="#22FFFFFF" />
+                            </Trigger>
+                          </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                      </Button.Template>
                       <Grid>
                         <Grid.RowDefinitions>
                           <RowDefinition Height="Auto" />
@@ -1030,6 +1284,10 @@
                             <Image Source="{Binding Icon}" Width="14" Height="14" Margin="0,0,6,0"
                                    RenderOptions.BitmapScalingMode="HighQuality" VerticalAlignment="Center"
                                    Visibility="{Binding HasIcon, Converter={StaticResource BoolToVisible}}" />
+                            <!-- o desenho escolhido para a origem (Configurações › Itens da barra) -->
+                            <ui:GlyphIcon Glyph="{Binding Glyph}" Fill="{Binding GlyphFill}" Size="13" Weight="0.4"
+                                          Margin="0,0,6,0" VerticalAlignment="Center"
+                                          Visibility="{Binding HasGlyph, Converter={StaticResource BoolToVisible}}" />
                             <TextBlock Text="{Binding App}" Foreground="#FF9D9D9D" FontSize="11"
                                        TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
                             <TextBlock Text="{Binding When}" Foreground="#FF6A6A6A" FontSize="11"
@@ -1050,7 +1308,7 @@
                                    Margin="0,1,0,0" ToolTip="{Binding Body}"
                                    Visibility="{Binding HasBody, Converter={StaticResource BoolToVisible}}" />
                       </Grid>
-                    </Border>
+                    </Button>
                   </DataTemplate>
                 </ItemsControl.ItemTemplate>
               </ItemsControl>
@@ -1421,6 +1679,18 @@
             <ui:Sparkline Values="{Binding RamHistory}" Maximum="100" Height="34"
                           Stroke="#FFB08AE8" Margin="0,0,0,14" />
 
+            <!-- a placa de vídeo, em verde-água — cor que nenhum outro item da barra usa. Entra
+                 quando a primeira leitura chega (o contador leva um segundo para abrir) -->
+            <StackPanel Visibility="{Binding HasGpu, Converter={StaticResource BoolToVisible}}">
+              <Grid Margin="0,0,0,10">
+                <TextBlock Text="Placa de vídeo" Foreground="#FFD8D8DA" FontSize="12" />
+                <TextBlock Text="{Binding GpuText}" HorizontalAlignment="Right"
+                           Foreground="#FF9D9D9D" FontSize="12" />
+              </Grid>
+              <ui:Sparkline Values="{Binding GpuHistory}" Maximum="100" Height="34"
+                            Stroke="#FF4FD1C5" Margin="0,0,0,14" />
+            </StackPanel>
+
             <Grid Margin="0,0,0,10">
               <StackPanel Orientation="Horizontal">
                 <ui:GlyphIcon Glyph="&#xE896;" Fill="#FF7FD18B" Size="11" VerticalAlignment="Center"
@@ -1564,7 +1834,10 @@
           <Border.Effect>
             <DropShadowEffect BlurRadius="20" ShadowDepth="5" Opacity="0.55" Color="Black" />
           </Border.Effect>
-          <StackPanel Width="270">
+          <!-- O cartão do usuário: quem está na máquina e as ações, numa lista. A bateria e o
+               plano de energia moraram aqui na 1.0.0.37 e foram para o cartão da bateria, a
+               pedido — este voltou a ser só o "liga/desliga" -->
+          <StackPanel Width="235">
 
             <!-- Quem está usando a máquina, no espírito do menu do GNOME (EV22): a foto da
                  conta e o nome antes das opções. Sem foto configurada, as iniciais num
@@ -1594,108 +1867,29 @@
               </StackPanel>
             </StackPanel>
 
-            <!-- O estado da máquina, como no painel do Windows: a bateria (só onde há uma) e o
-                 plano de energia, que troca no clique. Lidos quando o cartão abre
-                 (RefreshPowerCard), sem relógio por trás. -->
-            <Border Background="#0FFFFFFF" CornerRadius="8" Padding="12,10" Margin="0,0,0,8"
-                    Visibility="{Binding HasBattery, Converter={StaticResource BoolToVisible}}">
-              <StackPanel>
-                <Grid>
-                  <StackPanel Orientation="Horizontal">
-                    <ui:GlyphIcon Glyph="&#xE83F;" Fill="{Binding BatteryBrush}" Size="14"
-                                  VerticalAlignment="Center" Margin="0,0,8,0" />
-                    <TextBlock Text="Bateria" Foreground="#FFE8E8EA" FontSize="12" VerticalAlignment="Center" />
-                  </StackPanel>
-                  <TextBlock Text="{Binding BatteryPercent, StringFormat='{}{0}%'}" HorizontalAlignment="Right"
-                             Foreground="#FFF2F2F2" FontSize="12" FontWeight="SemiBold" />
-                </Grid>
-                <!-- a barra: verde enquanto há folga, âmbar abaixo de 40%, vermelha abaixo de 20% -->
-                <Grid Height="4" Margin="0,8,0,6">
-                  <Border Background="#22FFFFFF" CornerRadius="2" />
-                  <Border CornerRadius="2" HorizontalAlignment="Left"
-                          Width="{Binding BatteryBarWidth}" Background="{Binding BatteryBarBrush}" />
-                </Grid>
-                <TextBlock Text="{Binding BatteryDetail}" Foreground="#FF9D9D9D" FontSize="11" />
-              </StackPanel>
-            </Border>
+            <Border Height="1" Background="#22FFFFFF" Margin="0,0,0,6" />
 
-            <Border Background="#0FFFFFFF" CornerRadius="8" Padding="12,10" Margin="0,0,0,10">
-              <StackPanel>
-                <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
-                  <ui:GlyphIcon Glyph="&#xE945;" Fill="#FFFFC857" Size="14" VerticalAlignment="Center" Margin="0,0,8,0" />
-                  <TextBlock Text="Plano de energia" Foreground="#FFE8E8EA" FontSize="12" VerticalAlignment="Center" />
-                </StackPanel>
-                <ItemsControl ItemsSource="{Binding PowerPlans}">
-                  <ItemsControl.ItemsPanel>
-                    <ItemsPanelTemplate>
-                      <WrapPanel />
-                    </ItemsPanelTemplate>
-                  </ItemsControl.ItemsPanel>
-                  <ItemsControl.ItemTemplate>
-                    <DataTemplate>
-                      <Button Click="OnPowerPlan" Tag="{Binding Id}" Cursor="Hand" Margin="0,0,6,6"
-                              ToolTip="Usar este plano">
-                        <Button.Template>
-                          <ControlTemplate TargetType="Button">
-                            <Border x:Name="Pill" CornerRadius="12" Padding="11,4" Background="#1AFFFFFF"
-                                    BorderThickness="1" BorderBrush="Transparent">
-                              <TextBlock x:Name="Nome" Text="{Binding Name}" FontSize="11" Foreground="#FFD8D8DA" />
-                            </Border>
-                            <ControlTemplate.Triggers>
-                              <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Pill" Property="Background" Value="#2EFFFFFF" />
-                              </Trigger>
-                              <DataTrigger Binding="{Binding Active}" Value="True">
-                                <Setter TargetName="Pill" Property="Background" Value="#334CC2FF" />
-                                <Setter TargetName="Pill" Property="BorderBrush" Value="#FF4CC2FF" />
-                                <Setter TargetName="Nome" Property="Foreground" Value="#FFFFFFFF" />
-                              </DataTrigger>
-                            </ControlTemplate.Triggers>
-                          </ControlTemplate>
-                        </Button.Template>
-                      </Button>
-                    </DataTemplate>
-                  </ItemsControl.ItemTemplate>
-                </ItemsControl>
-              </StackPanel>
-            </Border>
-
-            <!-- As ações em ladrilhos: o desenho na cor dela, num círculo da mesma cor bem clara.
-                 Frias as que mexem só na sessão, quentes as que mexem na máquina; a ordem vem do
-                 serviço, e o Desligar fecha a grade, no canto mais longe de onde o cursor chega. -->
+            <!-- a ordem vem do serviço: o que interrompe o trabalho fica embaixo, longe
+                 da borda de cima, onde o cursor chega primeiro -->
             <ItemsControl ItemsSource="{Binding PowerCommands}">
-              <ItemsControl.ItemsPanel>
-                <ItemsPanelTemplate>
-                  <UniformGrid Columns="3" />
-                </ItemsPanelTemplate>
-              </ItemsControl.ItemsPanel>
               <ItemsControl.ItemTemplate>
                 <DataTemplate>
-                  <Button Click="OnPowerCommand" Tag="{Binding Name}" ToolTip="{Binding Description}" Cursor="Hand">
-                    <Button.Template>
-                      <ControlTemplate TargetType="Button">
-                        <Border x:Name="Bg" Background="Transparent" CornerRadius="8" Padding="2,8,2,6" Margin="1">
-                          <StackPanel>
-                            <Border Width="38" Height="38" CornerRadius="19" HorizontalAlignment="Center"
-                                    Background="{Binding Tint, Converter={StaticResource HexBrush}}">
-                              <ui:GlyphIcon Glyph="{Binding Glyph}" Fill="{Binding Color, Converter={StaticResource HexBrush}}"
-                                            Size="16" HorizontalAlignment="Center" VerticalAlignment="Center" />
-                            </Border>
-                            <TextBlock Text="{Binding Name}" Foreground="#FFE8E8EA" FontSize="11" Margin="0,6,0,0"
-                                       TextAlignment="Center" TextWrapping="Wrap" HorizontalAlignment="Center" />
-                          </StackPanel>
-                        </Border>
-                        <ControlTemplate.Triggers>
-                          <Trigger Property="IsMouseOver" Value="True">
-                            <Setter TargetName="Bg" Property="Background" Value="#14FFFFFF" />
-                          </Trigger>
-                          <Trigger Property="IsPressed" Value="True">
-                            <Setter TargetName="Bg" Property="Background" Value="#26FFFFFF" />
-                          </Trigger>
-                        </ControlTemplate.Triggers>
-                      </ControlTemplate>
-                    </Button.Template>
-                  </Button>
+                  <StackPanel>
+                    <!-- a linha entre o que mexe na sessão e o que mexe na máquina; quem
+                         decide onde ela cai é o serviço, pelo StartsGroup -->
+                    <Border Height="1" Background="#22FFFFFF" Margin="8,5,8,6"
+                            Visibility="{Binding StartsGroup, Converter={StaticResource BoolToVisible}}" />
+
+                    <Button Style="{StaticResource PanelRow}" Click="OnPowerCommand" Tag="{Binding Name}"
+                            ToolTip="{Binding Description}">
+                      <StackPanel Orientation="Horizontal">
+                        <ui:GlyphIcon Glyph="{Binding Glyph}" Fill="{Binding Color, Converter={StaticResource HexBrush}}"
+                                      Size="15" VerticalAlignment="Center" Margin="2,0,12,0" />
+                        <TextBlock Text="{Binding Name}" Foreground="#FFE8E8EA" FontSize="13"
+                                   VerticalAlignment="Center" />
+                      </StackPanel>
+                    </Button>
+                  </StackPanel>
                 </DataTemplate>
               </ItemsControl.ItemTemplate>
             </ItemsControl>
@@ -1710,13 +1904,16 @@
              Placement="Bottom" VerticalOffset="6" HorizontalOffset="-8"
              StaysOpen="True" AllowsTransparency="True" PopupAnimation="Fade">
         <Border Background="#F7242424" BorderBrush="#2EFFFFFF" BorderThickness="1"
-                CornerRadius="10" Padding="16,14" Margin="10">
+                CornerRadius="10" Padding="16,14,16,8" Margin="10">
           <Border.Effect>
             <DropShadowEffect BlurRadius="20" ShadowDepth="5" Opacity="0.55" Color="Black" />
           </Border.Effect>
-          <StackPanel>
+          <!-- a largura é a do quadriculado, fixa também no compacto: abrir os detalhes cresce
+               para baixo, sem o cartão pular de lado -->
+          <StackPanel Width="290">
 
-            <Grid Margin="0,0,0,4">
+            <!-- Compacto: a carga, a barra e o estado — o que estava no cartão de energia -->
+            <Grid>
               <StackPanel Orientation="Horizontal">
                 <ui:GlyphIcon Glyph="&#xE83F;" Fill="{Binding BatteryBarBrush}" Size="16"
                               VerticalAlignment="Center" Margin="0,0,10,0" />
@@ -1726,35 +1923,96 @@
               <TextBlock Text="{Binding BatteryPercent, StringFormat='{}{0}%'}" HorizontalAlignment="Right"
                          VerticalAlignment="Center" Foreground="#FFF2F2F2" FontSize="14" FontWeight="SemiBold" />
             </Grid>
-            <TextBlock Text="{Binding BatteryDetail}" Foreground="#FF9D9D9D" FontSize="11" Margin="0,0,0,12" />
-
-            <TextBlock Text="Últimos 7 dias" Foreground="#FFD8D8DA" FontSize="12" Margin="0,0,0,8" />
-            <ui:BatteryGrid Samples="{Binding BatterySamples}" HorizontalAlignment="Left" />
-            <TextBlock Text="Lendo o histórico…" Foreground="#FF9D9D9D" FontSize="11" Margin="0,6,0,0"
-                       Visibility="{Binding BatteryLoading, Converter={StaticResource BoolToVisible}}" />
-
-            <!-- a legenda do GitHub, "menos ▪▪▪▪ mais", e o âmbar de quando esteve na bateria -->
-            <Grid Margin="0,8,0,0">
-              <StackPanel Orientation="Horizontal">
-                <Border Width="9" Height="9" CornerRadius="2" Background="#FFFFC857" VerticalAlignment="Center" />
-                <TextBlock Text="na bateria" Foreground="#FF9D9D9D" FontSize="10" Margin="5,0,0,0" VerticalAlignment="Center" />
-                <Border Width="9" Height="9" CornerRadius="2" Background="#1AFFFFFF" VerticalAlignment="Center" Margin="12,0,0,0" />
-                <TextBlock Text="desligado" Foreground="#FF9D9D9D" FontSize="10" Margin="5,0,0,0" VerticalAlignment="Center" />
-              </StackPanel>
-              <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-                <TextBlock Text="menos carga" Foreground="#FF9D9D9D" FontSize="10" Margin="0,0,5,0" VerticalAlignment="Center" />
-                <Border Width="9" Height="9" CornerRadius="2" Background="#597FD18B" Margin="0,0,2,0" />
-                <Border Width="9" Height="9" CornerRadius="2" Background="#8C7FD18B" Margin="0,0,2,0" />
-                <Border Width="9" Height="9" CornerRadius="2" Background="#C77FD18B" Margin="0,0,2,0" />
-                <Border Width="9" Height="9" CornerRadius="2" Background="#FF7FD18B" />
-                <TextBlock Text="mais" Foreground="#FF9D9D9D" FontSize="10" Margin="5,0,0,0" VerticalAlignment="Center" />
-              </StackPanel>
+            <!-- a barra: verde enquanto há folga, âmbar abaixo de 40%, vermelha abaixo de 20% -->
+            <Grid Height="4" Margin="0,10,0,6">
+              <Border Background="#22FFFFFF" CornerRadius="2" />
+              <Border CornerRadius="2" HorizontalAlignment="Left"
+                      Width="{Binding BatteryBarWidth}" Background="{Binding BatteryBarBrush}" />
             </Grid>
+            <TextBlock Text="{Binding BatteryDetail}" Foreground="#FF9D9D9D" FontSize="11" />
 
-            <Border Height="1" Background="#22FFFFFF" Margin="0,12,0,8" />
-            <TextBlock Text="{Binding BatteryHealth}" Foreground="#FF9D9D9D" FontSize="11"
-                       ToolTip="A saúde é a capacidade da bateria cheia hoje sobre a de fábrica"
-                       Visibility="{Binding BatteryHealth, Converter={StaticResource EmptyToCollapsed}}" />
+            <!-- Detalhado: o plano de energia e a semana no quadriculado -->
+            <StackPanel Visibility="{Binding BatteryExpanded, Converter={StaticResource BoolToVisible}}">
+              <Border Height="1" Background="#22FFFFFF" Margin="0,12,0,10" />
+
+              <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                <ui:GlyphIcon Glyph="&#xE945;" Fill="#FFFFC857" Size="13" VerticalAlignment="Center" Margin="0,0,8,0" />
+                <TextBlock Text="Plano de energia" Foreground="#FFD8D8DA" FontSize="12" VerticalAlignment="Center" />
+              </StackPanel>
+              <ItemsControl ItemsSource="{Binding PowerPlans}" Margin="0,0,0,6">
+                <ItemsControl.ItemsPanel>
+                  <ItemsPanelTemplate>
+                    <WrapPanel />
+                  </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate>
+                    <Button Click="OnPowerPlan" Tag="{Binding Id}" Cursor="Hand" Margin="0,0,6,6"
+                            ToolTip="Usar este plano">
+                      <Button.Template>
+                        <ControlTemplate TargetType="Button">
+                          <Border x:Name="Pill" CornerRadius="12" Padding="11,4" Background="#1AFFFFFF"
+                                  BorderThickness="1" BorderBrush="Transparent">
+                            <TextBlock x:Name="Nome" Text="{Binding Name}" FontSize="11" Foreground="#FFD8D8DA" />
+                          </Border>
+                          <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                              <Setter TargetName="Pill" Property="Background" Value="#2EFFFFFF" />
+                            </Trigger>
+                            <DataTrigger Binding="{Binding Active}" Value="True">
+                              <Setter TargetName="Pill" Property="Background" Value="#334CC2FF" />
+                              <Setter TargetName="Pill" Property="BorderBrush" Value="#FF4CC2FF" />
+                              <Setter TargetName="Nome" Property="Foreground" Value="#FFFFFFFF" />
+                            </DataTrigger>
+                          </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                      </Button.Template>
+                    </Button>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+
+              <TextBlock Text="Últimos 7 dias" Foreground="#FFD8D8DA" FontSize="12" Margin="0,0,0,8" />
+              <ui:BatteryGrid Samples="{Binding BatterySamples}" HorizontalAlignment="Left" />
+              <TextBlock Text="Lendo o histórico…" Foreground="#FF9D9D9D" FontSize="11" Margin="0,6,0,0"
+                         Visibility="{Binding BatteryLoading, Converter={StaticResource BoolToVisible}}" />
+
+              <!-- a legenda do GitHub, "menos ▪▪▪▪ mais", e o âmbar de quando esteve na bateria -->
+              <Grid Margin="0,8,0,0">
+                <StackPanel Orientation="Horizontal">
+                  <Border Width="9" Height="9" CornerRadius="2" Background="#FFFFC857" VerticalAlignment="Center" />
+                  <TextBlock Text="na bateria" Foreground="#FF9D9D9D" FontSize="10" Margin="5,0,0,0" VerticalAlignment="Center" />
+                  <Border Width="9" Height="9" CornerRadius="2" Background="#1AFFFFFF" VerticalAlignment="Center" Margin="12,0,0,0" />
+                  <TextBlock Text="desligado" Foreground="#FF9D9D9D" FontSize="10" Margin="5,0,0,0" VerticalAlignment="Center" />
+                </StackPanel>
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                  <TextBlock Text="menos carga" Foreground="#FF9D9D9D" FontSize="10" Margin="0,0,5,0" VerticalAlignment="Center" />
+                  <Border Width="9" Height="9" CornerRadius="2" Background="#597FD18B" Margin="0,0,2,0" />
+                  <Border Width="9" Height="9" CornerRadius="2" Background="#8C7FD18B" Margin="0,0,2,0" />
+                  <Border Width="9" Height="9" CornerRadius="2" Background="#C77FD18B" Margin="0,0,2,0" />
+                  <Border Width="9" Height="9" CornerRadius="2" Background="#FF7FD18B" />
+                  <TextBlock Text="mais" Foreground="#FF9D9D9D" FontSize="10" Margin="5,0,0,0" VerticalAlignment="Center" />
+                </StackPanel>
+              </Grid>
+
+              <TextBlock Text="{Binding BatteryHealth}" Foreground="#FF9D9D9D" FontSize="11" Margin="0,10,0,0"
+                         ToolTip="A saúde é a capacidade da bateria cheia hoje sobre a de fábrica"
+                         Visibility="{Binding BatteryHealth, Converter={StaticResource EmptyToCollapsed}}" />
+            </StackPanel>
+
+            <!-- rodapé: as opções de energia do Windows à esquerda, a seta à direita -->
+            <Border Height="1" Background="#22FFFFFF" Margin="0,10,0,4" />
+            <Grid>
+              <Button Style="{StaticResource CardFooterButton}" HorizontalAlignment="Left"
+                      Click="OnPowerSettings">
+                <TextBlock Text="Configurações de energia" Foreground="#FF4CC2FF" FontSize="11" />
+              </Button>
+              <Button Style="{StaticResource CardFooterButton}" HorizontalAlignment="Right"
+                      Click="OnToggleCard" Tag="bateria" ToolTip="Mostrar ou esconder o plano e o histórico">
+                <ui:GlyphIcon Glyph="{Binding BatteryExpanded, Converter={StaticResource ExpandGlyph}}"
+                              Fill="#FF9D9D9D" Size="11" />
+              </Button>
+            </Grid>
           </StackPanel>
         </Border>
       </Popup>

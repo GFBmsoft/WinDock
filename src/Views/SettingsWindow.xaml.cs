@@ -36,6 +36,8 @@ public partial class SettingsWindow : Window
         LoadAiAccounts();
         ToolsList.ItemsSource = _tools;
         foreach (var t in _config.Tools) Track(t);
+        NotificationSourcesList.ItemsSource = _sources;
+        foreach (var s in _config.NotificationSources) TrackSource(s);
         ExcludedAppsList.ItemsSource = _excludedApps;
 
         FloatingSizesList.ItemsSource = _floatingSizes;
@@ -137,6 +139,37 @@ public partial class SettingsWindow : Window
         _excludedApps.Remove(name);
         _config.TilingExcludedApps.Remove(name);
         _config.NotifyTilingExcludedAppsChanged();
+    }
+
+    // ── origens de notificação ───────────────────────────────
+
+    /// <summary>Espelha <see cref="DockConfig.NotificationSources"/> para a tela.</summary>
+    private readonly ObservableCollection<NotificationSource> _sources = new();
+
+    /// <summary>Desenho, cor e as caixas mudam por clique: a barra fica sabendo na hora, como nas ferramentas.</summary>
+    private void TrackSource(NotificationSource s)
+    {
+        s.PropertyChanged += OnSourceLookChanged;
+        _sources.Add(s);
+    }
+
+    private void OnSourceLookChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName is not (nameof(NotificationSource.Glyph) or nameof(NotificationSource.Color)
+                              or nameof(NotificationSource.Show) or nameof(NotificationSource.Popup))) return;
+        _config.Save();
+        _config.NotifyNotificationSourcesChanged();
+    }
+
+    private void OnNotificationSourceRemove(object sender, RoutedEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.Tag is not NotificationSource s) return;
+
+        s.PropertyChanged -= OnSourceLookChanged;
+        _sources.Remove(s);
+        _config.NotificationSources.Remove(s);
+        _config.Save();
+        _config.NotifyNotificationSourcesChanged();
     }
 
     // ── ferramentas ──────────────────────────────────────────

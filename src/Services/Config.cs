@@ -274,11 +274,79 @@ public sealed class FloatingSize
 }
 
 /// <summary>
+/// Quem tem um desenho escolhível nas Configurações — uma ferramenta, uma origem de notificação.
+/// O <c>GlyphPicker</c> escreve em <see cref="Glyph"/> e <see cref="Color"/> (vazios = automático)
+/// e mostra o que vale de fato, em <see cref="LookGlyph"/> e <see cref="LookFill"/>.
+/// </summary>
+public interface IGlyphChoice : INotifyPropertyChanged
+{
+    string Glyph { get; set; }
+    string Color { get; set; }
+    string LookGlyph { get; }
+    System.Windows.Media.Brush LookFill { get; }
+}
+
+/// <summary>
+/// De onde vem uma notificação, e o desenho dela no cartão do sino. A chave é o site, para o que
+/// chega pelo navegador ("web.whatsapp.com" — o Chrome entrega tudo como "Google Chrome"), ou o
+/// AppUserModelID, para um app.
+///
+/// <para>O nome é só o que a pessoa lê nas Configurações. Desenho e cor vazios: o automático, que
+/// para os sites conhecidos (<c>NotificationService.Known</c>) é o deles e para o resto é o ícone
+/// do app.</para>
+/// </summary>
+public sealed class NotificationSource : IGlyphChoice
+{
+    public string Key { get; set; } = string.Empty;
+    public string Name { get; set; } = string.Empty;
+
+    private bool _show = true;
+    /// <summary>
+    /// Entra no sino (número e cartão). Desmarcada, a origem some só da dock: a notificação
+    /// continua na Central do Windows, que é dela.
+    /// </summary>
+    public bool Show { get => _show; set { if (_show != value) { _show = value; Raise(nameof(Show)); } } }
+
+    private bool _popup = true;
+    /// <summary>Ganha o balão breve ao chegar (com <c>DockConfig.NotificationPopup</c> ligado).</summary>
+    public bool Popup { get => _popup; set { if (_popup != value) { _popup = value; Raise(nameof(Popup)); } } }
+
+    private string _glyph = string.Empty;
+    public string Glyph
+    {
+        get => _glyph;
+        set { if (Set(ref _glyph, value)) { Raise(nameof(LookGlyph)); Raise(nameof(LookFill)); } }
+    }
+
+    private string _color = string.Empty;
+    public string Color
+    {
+        get => _color;
+        set { if (Set(ref _color, value)) Raise(nameof(LookFill)); }
+    }
+
+    // sem desenho, o cartão usa o ícone do app; aqui no seletor isso aparece como o sino
+    [JsonIgnore] public string LookGlyph => NotificationService.Look(this).Glyph is { Length: > 0 } g ? g : "";
+    [JsonIgnore] public System.Windows.Media.Brush LookFill => NotificationService.Look(this).Fill;
+
+    public event PropertyChangedEventHandler? PropertyChanged;
+    private void Raise(string name) => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
+    private bool Set(ref string field, string value, [CallerMemberName] string? name = null)
+    {
+        value ??= string.Empty;
+        if (field == value) return false;
+        field = value;
+        Raise(name!);
+        return true;
+    }
+}
+
+/// <summary>
 /// Um comando do botão de ferramentas da barra: o nome que aparece no cartão e a linha de
 /// comando que ele roda, como se digitada no Executar (Win+R) — "devmgmt.msc",
 /// "control inetcpl.cpl", "mstsc /v:servidor".
 /// </summary>
-public sealed class ToolCommand : INotifyPropertyChanged
+public sealed class ToolCommand : IGlyphChoice
 {
     private string _name = string.Empty;
     public string Name { get => _name; set => Set(ref _name, value); }
@@ -594,6 +662,43 @@ public sealed class DockConfig : INotifyPropertyChanged
     public void NotifyToolsChanged() =>
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Tools)));
 
+    /// <summary>
+    /// As origens de notificação já vistas, com o desenho de cada uma no cartão do sino. A dock
+    /// acrescenta sozinha cada origem nova que aparece na Central; WhatsApp e Gmail vêm de fábrica
+    /// porque são as do pedido (02/10/2026) e assim dá para escolher antes da primeira mensagem.
+    /// </summary>
+    public List<NotificationSource> NotificationSources { get; set; } =
+    [
+        new() { Key = "web.whatsapp.com", Name = "WhatsApp" },
+        new() { Key = "mail.google.com", Name = "Gmail" },
+    ];
+
+    private bool _notificationPopup = true;
+    /// <summary>
+    /// Um balão breve embaixo do sino quando chega uma notificação nova — o que a faixa do Windows
+    /// faz, mas no lugar da barra e com o desenho da origem. Ligado de fábrica porque foi pedido
+    /// (02/10/2026); quem deixa a faixa do Windows ligada vê as duas e pode desligar um.
+    /// </summary>
+    public bool NotificationPopup { get => _notificationPopup; set => Set(ref _notificationPopup, value); }
+
+    private int _notificationPopupSeconds = 6;
+    /// <summary>Quanto tempo o balão fica, em segundos; com o mouse em cima ele espera.</summary>
+    public int NotificationPopupSeconds
+    {
+        get => _notificationPopupSeconds;
+        set => Set(ref _notificationPopupSeconds, Clamp(value, 2, 60));
+    }
+
+    private bool _notificationPopupText = true;
+    /// <summary>
+    /// O balão mostra quem mandou e o texto. Desligado, só a origem e "nova mensagem" — para a
+    /// tela que outra pessoa pode estar vendo.
+    /// </summary>
+    public bool NotificationPopupText { get => _notificationPopupText; set => Set(ref _notificationPopupText, value); }
+
+    public void NotifyNotificationSourcesChanged() =>
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(NotificationSources)));
+
     private bool _panelSelfUpdate = true;
     /// <summary>
     /// Avisar na barra quando sai uma Release nova do WinDock — o ícone só existe enquanto houver
@@ -646,6 +751,13 @@ public sealed class DockConfig : INotifyPropertyChanged
     /// escolher fica — é preferência de leitura, não estado de sessão.
     /// </summary>
     public bool AiUsageExpanded { get => _aiUsageExpanded; set => Set(ref _aiUsageExpanded, value); }
+
+    /// <summary>
+    /// Os cartões da barra que a pessoa deixou detalhados, pela chave do item ("volume", "wifi",
+    /// "bluetooth", "bateria"). Fora da lista, o cartão abre compacto — o mesmo jeito do da cota,
+    /// numa lista só porque são quatro e podem vir mais.
+    /// </summary>
+    public List<string> CardsExpanded { get; set; } = new();
 
     /// <summary>
     /// Avisa que a lista acima mudou. A lista é um objeto só, então trocar o conteúdo dela

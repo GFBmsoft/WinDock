@@ -14,19 +14,20 @@ namespace WinDock.Ui;
 /// cor. Pedido de 01/10/2026: o automático acerta os comandos do Windows que a dock conhece, mas
 /// um programa portátil qualquer caía no desenho genérico de aplicativo, sem jeito de trocar.
 ///
-/// Escreve direto no <see cref="ToolCommand"/> da linha (<see cref="Tool"/>), e se redesenha
+/// Escreve direto no <see cref="IGlyphChoice"/> da linha (<see cref="Tool"/>) — uma ferramenta ou,
+/// desde 02/10/2026, uma origem de notificação —, e se redesenha
 /// quando ele muda — inclusive quando é o comando que muda e o automático escolhe outro desenho.
 /// Feito em código pelo mesmo motivo do <see cref="ColorPicker"/>: um arquivo só.
 /// </summary>
 public sealed class GlyphPicker : Button
 {
     public static readonly DependencyProperty ToolProperty = DependencyProperty.Register(
-        nameof(Tool), typeof(ToolCommand), typeof(GlyphPicker),
-        new PropertyMetadata(null, (d, e) => ((GlyphPicker)d).OnToolChanged(e.OldValue as ToolCommand, e.NewValue as ToolCommand)));
+        nameof(Tool), typeof(IGlyphChoice), typeof(GlyphPicker),
+        new PropertyMetadata(null, (d, e) => ((GlyphPicker)d).OnToolChanged(e.OldValue as IGlyphChoice, e.NewValue as IGlyphChoice)));
 
-    public ToolCommand? Tool
+    public IGlyphChoice? Tool
     {
-        get => (ToolCommand?)GetValue(ToolProperty);
+        get => (IGlyphChoice?)GetValue(ToolProperty);
         set => SetValue(ToolProperty, value);
     }
 
@@ -62,7 +63,7 @@ public sealed class GlyphPicker : Button
         var auto = new Button { Content = "Automático", Margin = new Thickness(0, 8, 0, 0), HorizontalAlignment = HorizontalAlignment.Left };
         auto.SetResourceReference(StyleProperty, "FluentButton");
         auto.Height = 26;
-        auto.ToolTip = "O desenho e a cor que a dock escolhe pelo comando";
+        auto.ToolTip = "O desenho e a cor que a dock escolhe sozinha";
         auto.Click += (_, _) =>
         {
             if (Tool is null) return;
@@ -90,7 +91,7 @@ public sealed class GlyphPicker : Button
         Click += (_, _) => { Repaint(); _popup.IsOpen = !_popup.IsOpen; };
     }
 
-    private void OnToolChanged(ToolCommand? antes, ToolCommand? agora)
+    private void OnToolChanged(IGlyphChoice? antes, IGlyphChoice? agora)
     {
         if (antes is not null) antes.PropertyChanged -= OnToolPropertyChanged;
         if (agora is not null) agora.PropertyChanged += OnToolPropertyChanged;

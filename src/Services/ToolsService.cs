@@ -234,6 +234,8 @@ public static class ToolsService
         "E8D7", "E72E", "E943", "E756", "EBE8", "E81C", "E896", "E7E8",
         "EC50", "ED25", "E8A5", "E70B", "E8EF", "E721", "E715", "E77B",
         "ECAA", "E768", "E8D6", "E8B9", "E790", "EA80", "E701", "EB51",
+        // conversa, telefone, pessoas, sino, estrela, envelope aberto, arroba: os das notificações
+        "E8BD", "E8F2", "E717", "E716", "EA8F", "E734", "E8C3", "E910",
     ];
 
     /// <summary>As cores do seletor — as mesmas da barra e dos gráficos.</summary>

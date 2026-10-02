@@ -167,9 +167,16 @@ houver alguma esperando (veja [Atualizações esperando](#atualizações-esperan
 boca** das ferramentas (veja [Ferramentas](#ferramentas)).
 Se preferir a barra mais curta, **Configurações > Ícones compactos** diminui os ícones para o tamanho
 dos de CPU e memória e os junta, com metade do espaço entre eles — e a data e a hora passam para
-o tamanho dos números de CPU e memória, em seminegrito. O cartão do calendário encolhe junto, a 90%.
+o tamanho dos números de CPU e memória, em seminegrito. Os cartões do calendário, das ferramentas,
+do volume, do wi-fi e do bluetooth encolhem junto, a 90%.
 **A ordem é sua** — veja
 [Ordem dos itens](#ordem-dos-itens-da-barra).
+
+**Cartões compactos.** Os de volume, wi-fi, bluetooth e bateria abrem só com o essencial — o
+volume e a saída em uso; a rede de agora; os aparelhos conectados; a carga. A **seta no rodapé**
+abre o resto (o mixer e as saídas; as redes ao alcance; os pareados; o plano e a semana da
+bateria), como no cartão da cota, e cada cartão lembra como você o deixou. No rodapé fica também o
+atalho para a página do Windows daquele assunto.
 
 | ação | como |
 |---|---|
@@ -180,14 +187,19 @@ o tamanho dos números de CPU e memória, em seminegrito. O cartão do calendár
 | Abrir um programa da bandeja | clique no ícone dele |
 | Menu de um programa da bandeja (Sair, etc.) | botão direito no ícone dele |
 | Ajustar o volume sem abrir nada | role a roda do mouse sobre o alto-falante |
-| Volume de um programa só | clique no alto-falante > seção **Aplicativos** |
+| Volume de um programa só | clique no alto-falante > a seta do rodapé > seção **Aplicativos** |
+| Ligar ou desligar o wi-fi, ver a rede e o sinal | clique nas ondas do wi-fi (veja [Wi-Fi](#wi-fi)) |
 | Pausar, avançar, voltar a faixa | os botões ao lado do nome da música |
 | Ver a faixa inteira, com capa | clique no nome da música |
 | Ver as notificações (WhatsApp Web, Discord, Outlook…) | clique no sino, rosa com o número quando há alguma (veja [Notificações](#notificações)) |
+| Ir ao app ou à aba que mandou a notificação | clique na notificação, dentro do cartão do sino |
+| Trocar o ícone das notificações do WhatsApp, do Gmail… | **Configurações > Itens da barra > Notificações** |
+| Escolher quais apps entram no sino e ganham o balão | a mesma página, colunas **no sino** e **balão** |
+| Ver o plano de energia e a semana da bateria | clique na pilha > a seta do rodapé |
 | Desligar, reiniciar, hibernar, bloquear, sair | o botão de energia |
 | Brilho do monitor | clique no ícone de brilho, ou role a roda do mouse sobre ele |
 | Abrir a limpeza de disco, o gerenciador de dispositivos e outros comandos seus | a chave de boca (veja [Ferramentas](#ferramentas)) |
-| Ver o último minuto de processador, memória e rede | clique no CPU (veja [CPU, memória e rede](#cpu-memória-e-rede)) |
+| Ver o último minuto de processador, memória, placa de vídeo e rede | clique no CPU (veja [CPU, memória e rede](#cpu-memória-e-rede)) |
 | Quanto da cota do Claude já foi usada | clique no robô (veja [Cota de IA](#cota-de-ia)) |
 | Perguntar a cota de novo, agora | o `↻` no rodapé do cartão de cota |
 | Ver o que há para atualizar | clique na seta com o número (veja [Atualizações esperando](#atualizações-esperando)) |
@@ -284,20 +296,41 @@ Pelo teclado, de qualquer programa: `Alt+Shift+←` volta a faixa, `Alt+Shift+�
 ![O card de volume](img/card-volume.png)
 
 A barra muda de cor conforme o nível: verde abaixo de 30%, amarelo até 70%, vermelho acima —
-e cinza quando está mudo. Cada programa com som ganha o próprio controle; um programa aparece
-uma vez só, mesmo abrindo vários fluxos de áudio (o Discord abre dois).
+e cinza quando está mudo. Compacto, o cartão mostra o volume e a saída em uso; a seta do rodapé
+abre o mixer — cada programa com som ganha o próprio controle, e um programa aparece uma vez só,
+mesmo abrindo vários fluxos de áudio (o Discord abre dois) — e todas as saídas, para trocar.
+
+#### Wi-Fi
+
+As ondas na barra seguem o sinal, como na barra do Windows, e ficam apagadas com o wi-fi
+desligado. O clique abre o cartão: o interruptor que liga e desliga o rádio e a rede de agora,
+com o sinal e se há internet. A seta do rodapé procura as **redes ao alcance**; uma rede salva ou
+aberta conecta com um clique, e a que pede senha nova vai para o painel do Windows, que pergunta.
+O **Painel do Windows**, no rodapé, é o de antes deste cartão.
+
+Para listar as redes, o Windows exige a **localização**: desde o 24H2, saber quais redes estão
+por perto é tratado como saber onde a máquina está, e sem a permissão nem o `netsh` lista. Com a
+localização desligada, o cartão diz isso e leva direto à página dela (**Permitir que apps da área
+de trabalho acessem sua localização**). A rede de agora, o sinal e o interruptor funcionam sem
+ela.
 
 #### Bateria
 
-O clique na pilha (só em notebook) abre a bateria: a carga de agora, se está na tomada ou quanto
-ainda dura, e **os últimos 7 dias num quadriculado**, como o das contribuições do GitHub — uma
-linha por dia (hoje embaixo), uma casa por hora. **Verde** é hora na tomada, **âmbar** é hora
-que passou pela bateria, e o tom fica mais forte quanto mais carga havia; a casa vazia é hora com
-a máquina desligada ou dormindo. A dica do mouse diz o dia, a hora e a carga. Embaixo, a
-**saúde** da bateria (a capacidade cheia de hoje sobre a de fábrica) e quanto ela dura cheia.
+O clique na pilha (só em notebook) abre a bateria, compacta: a carga de agora numa barra (verde,
+âmbar abaixo de 40%, vermelha abaixo de 20%) e se está na tomada ou quanto ainda dura. A seta do
+rodapé abre o resto:
+
+- o **plano de energia**: os planos da máquina (Equilibrado, Alto desempenho...), o ativo em azul;
+  o clique troca o plano na hora, como nas Opções de Energia do Windows;
+- **os últimos 7 dias num quadriculado**, como o das contribuições do GitHub — uma linha por dia
+  (hoje embaixo), uma casa por hora. **Verde** é hora na tomada, **âmbar** é hora que passou pela
+  bateria, e o tom fica mais forte quanto mais carga havia; a casa vazia é hora com a máquina
+  desligada ou dormindo. A dica do mouse diz o dia, a hora e a carga;
+- a **saúde** da bateria (a capacidade cheia de hoje sobre a de fábrica) e quanto ela dura cheia.
 
 O histórico é o mesmo que o Windows usa no gráfico dele (`powercfg /batteryreport`), e começa
-antes da dock: a semana inteira aparece já no primeiro clique.
+antes da dock: a semana inteira aparece já no primeiro clique. Ele só é lido com o cartão
+detalhado — custa meio segundo, e o compacto não o mostra.
 
 #### Ferramentas
 
@@ -334,7 +367,10 @@ com o desenho de um chip e de um pente de memória no lugar das palavras. O chip
 junto, mas não ocupa lugar na barra: ela aparece na dica do mouse e no cartão.
 
 O clique abre o cartão com o **último minuto** de cada medida em gráfico — processador, memória,
-o que está **entrando** e o que está **saindo**. A rede soma todas as conexões de pé (cabo e
+**placa de vídeo** (em verde-água), o que está **entrando** e o que está **saindo**. A placa de
+vídeo é contada como no Gerenciador de Tarefas: o motor mais ocupado (3D, vídeo, cópia), e não a
+média deles — um vídeo tocando aparece. Ela entra no cartão um segundo depois de a dock abrir, que
+é o que o Windows leva para abrir o contador dela. A rede soma todas as conexões de pé (cabo e
 wi-fi ligados ao mesmo tempo contam juntos) e deixa de fora o tráfego que não sai da máquina.
 Processador e memória têm escala fixa de 0 a 100%; a da rede acompanha o maior valor do próprio
 minuto, porque não existe teto conhecido para ela.
@@ -371,16 +407,47 @@ incomodar** na mesma página (ou desmarque as faixas na página de cada app): as
 continuam indo para a Central, e o sino continua contando. No WhatsApp Web, o site também precisa
 de permissão no navegador e a aba precisa estar aberta.
 
-Uma notificação nova aparece no sino em até 5 segundos. Clicar nela não abre a conversa: isso o
-Windows só deixa para quem a mandou.
+Uma notificação nova aparece no sino em até 5 segundos.
+
+**De onde veio.** O Chrome e o Edge entregam a notificação de qualquer site no nome deles; o cartão
+mostra o **site** no lugar — "WhatsApp", "Gmail", ou o endereço, para um site que a dock não
+conhece —, e não "Google Chrome".
+
+**O clique leva a quem mandou.** Do navegador, a dock traz para a frente a janela cujo título tem o
+nome do site (o WhatsApp Web, a aba do Gmail) e, sem ela, abre o endereço; de um app, a janela
+dele, ou o app de novo. A notificação sai da Central, como no clique do Windows. A conversa certa
+não abre: isso o Windows só deixa para quem a mandou. E uma aba que não está na frente da janela
+dela não tem como ser achada pelo título — aí o endereço abre numa aba nova.
+
+**Balão ao chegar.** Uma notificação nova aparece por alguns segundos num balão embaixo do sino,
+com o desenho da origem, quem mandou e o texto. O clique leva ao app ou à aba, como no cartão; o
+`✕` só fecha; com o mouse em cima ele espera. Vêm no máximo três empilhados, e com o cartão do sino
+aberto não há balão. Em **Configurações > Itens da barra > Notificações > Balão ao chegar** ficam o
+liga/desliga, os **segundos na tela** e **Mostrar o texto da mensagem** — desmarcado, o balão diz
+só de onde veio, para quando outra pessoa pode estar vendo a tela. Se a faixa do próprio Windows
+continuar ligada, as duas aparecem: desligue uma.
+
+**Origens.** Na mesma página, cada app ou site que já mandou notificação tem uma linha, como nas
+ferramentas:
+
+- o **desenho**, no quadradinho — o mesmo seletor das ferramentas, com os de conversa, telefone e
+  e-mail no fim. WhatsApp (verde) e Gmail (vermelho) já vêm com o deles; **Automático** devolve a
+  escolha à dock, que para um site que ela não conhece usa o ícone do app;
+- **no sino** — desmarcado, a origem sai do número e do cartão; a notificação continua na Central
+  do Windows, que é dela, e o **Limpar** não a toca;
+- **balão** — se ela ganha o balão breve;
+- o `✕` tira a linha (ela volta na próxima notificação dessa origem).
+
+Toda origem nova entra na lista sozinha na primeira notificação.
 
 #### Bluetooth
 
 ![O card de bluetooth](img/card-bluetooth.png)
 
-O interruptor no cabeçalho liga e desliga o rádio. Cada aparelho mostra a **bateria**, quando
-ele informa (em geral os Bluetooth LE), e "conectado" em verde quando está em uso de verdade —
-não apenas pareado. O `✕` que aparece ao passar o mouse esconde o aparelho da lista sem
+O interruptor no cabeçalho liga e desliga o rádio. Compacto, o cartão mostra só os aparelhos
+**conectados agora**; a seta do rodapé abre todos os pareados. Cada aparelho mostra a **bateria**,
+quando ele informa (em geral os Bluetooth LE), e "conectado" em verde quando está em uso de
+verdade — não apenas pareado. O `✕` que aparece ao passar o mouse esconde o aparelho da lista sem
 despareá-lo no Windows.
 
 #### Brilho
@@ -423,7 +490,9 @@ Quanto da sua cota do Claude já foi usada — a janela de **5 horas**, a de **7
 houver por modelo —, cada uma com o quanto falta para zerar. É o mesmo número que o `/usage` do
 Claude Code mostra.
 
-**O robô na barra muda de cor** conforme o medidor mais cheio de todas as contas: **verde até
+**O robô na barra traz a porcentagem ao lado**, no jeito do processador e da memória, e **muda de
+cor** conforme o medidor mais cheio de todas as contas — o número é esse mesmo medidor, para número
+e cor nunca discordarem: **verde até
 70%**, **amarelo de 70% a 95%** e **vermelho a partir de 95%** — as mesmas faixas das barras do
 cartão. Vale o mais cheio, e
 não a janela de 5 horas que a dica do mouse mostra — qualquer uma que estoure interrompe o
@@ -545,17 +614,11 @@ Vem ligado, em **Configurações > Atualizações esperando**. Desligado, o íco
 
 ![O menu de energia](img/card-energia.png)
 
-Sua foto e o nome da conta no topo, com há quanto tempo a máquina está ligada. Embaixo, o estado
-dela, como no painel do Windows:
-
-- **Bateria** (só em notebook): a porcentagem, uma barra verde, âmbar abaixo de 40% e vermelha
-  abaixo de 20%, e se está na tomada ou quanto tempo ainda dura;
-- **Plano de energia**: os planos da máquina (Equilibrado, Alto desempenho...), o ativo em azul. O
-  clique troca o plano na hora, como nas Opções de Energia do Windows.
-
-As ações vêm em ladrilhos coloridos — frias as que mexem só na sua sessão (bloquear, encerrar
-sessão), quentes as que mexem na máquina inteira —, e o **Desligar**, vermelho como o botão na
-barra, fecha a grade, longe de onde o cursor chega primeiro.
+Sua foto e o nome da conta no topo, com há quanto tempo a máquina está ligada. Embaixo, as ações
+numa lista, cada uma com o desenho na cor dela: primeiro as que mexem só na sua sessão (bloquear,
+encerrar sessão), e depois de uma linha as que mexem na máquina inteira — o **Desligar**,
+vermelho como o botão na barra, por último, longe de onde o cursor chega primeiro. A bateria e o
+plano de energia ficam no [cartão da bateria](#bateria).
 
 ### Buscar aplicativos (`Alt+Espaço`)
 

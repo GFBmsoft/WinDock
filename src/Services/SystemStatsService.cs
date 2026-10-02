@@ -5,7 +5,7 @@ using static WinDock.Interop.Native;
 namespace WinDock.Services;
 
 /// <summary>
-/// Quanto a máquina está trabalhando: CPU, memória e o que passa pela rede.
+/// Quanto a máquina está trabalhando: CPU, memória, placa de vídeo e o que passa pela rede.
 ///
 /// Uma amostra por segundo, pedida pelo relógio que a barra já tem — este serviço não sobe
 /// relógio nenhum. Guarda os últimos 60 segundos de cada medida, que é o que o cartão
@@ -26,6 +26,8 @@ public sealed class SystemStatsService
     private readonly double[] _ram = new double[Window];
     private readonly double[] _down = new double[Window];
     private readonly double[] _up = new double[Window];
+    private readonly double[] _gpu = new double[Window];
+    private readonly GpuMeter _gpuMeter = new();
 
     /// <summary>Quantas amostras já entraram — abaixo de <see cref="Window"/> o gráfico ainda está enchendo.</summary>
     private int _count;
@@ -39,6 +41,12 @@ public sealed class SystemStatsService
 
     /// <summary>Memória física em uso, de 0 a 100.</summary>
     public double Ram { get; private set; }
+
+    /// <summary>Uso da placa de vídeo, de 0 a 100 — o motor mais ocupado, como no Gerenciador de Tarefas.</summary>
+    public double Gpu { get; private set; }
+
+    /// <summary>Já há leitura da placa de vídeo. Nos primeiros segundos da dock, e numa máquina sem o contador, não há.</summary>
+    public bool HasGpu => _gpuMeter.Ready;
 
     /// <summary>Bytes por segundo que entraram e que saíram, na última amostra.</summary>
     public double Down { get; private set; }
@@ -55,6 +63,7 @@ public sealed class SystemStatsService
     public double[] RamHistory => Snapshot(_ram);
     public double[] DownHistory => Snapshot(_down);
     public double[] UpHistory => Snapshot(_up);
+    public double[] GpuHistory => Snapshot(_gpu);
 
     private double[] Snapshot(double[] origem)
     {
@@ -80,6 +89,7 @@ public sealed class SystemStatsService
         MeasureCpu(primeira);
         MeasureRam();
         MeasureNetwork(primeira, segundos);
+        Gpu = _gpuMeter.Sample() ?? Gpu;
 
         if (primeira) return;
 
@@ -87,6 +97,7 @@ public sealed class SystemStatsService
         Push(_ram, Ram);
         Push(_down, Down);
         Push(_up, Up);
+        Push(_gpu, Gpu);
         _count++;
     }
 

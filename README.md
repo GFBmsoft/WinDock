@@ -52,8 +52,10 @@ os pixels reservados e a área de trabalho volta ao tamanho normal.
   Windows escondida — o clique abre o programa, o botão direito abre o menu dele
 - **Volume por aplicativo**, um controle para cada programa com som
 - **CPU e memória** na barra, em dois ícones apertados, e um cartão com o gráfico do último
-  minuto de **processador, memória e rede** — as medidas vêm do kernel uma vez por segundo, sem
-  contador de performance
+  minuto de **processador, memória, placa de vídeo e rede** — CPU e memória vêm do kernel uma vez
+  por segundo, a placa de vídeo do PDH, como no Gerenciador de Tarefas
+- **Cartões compactos** de volume, wi-fi, bluetooth e bateria: o essencial primeiro, e a seta do
+  rodapé abre o resto
 - **O nome da faixa rola** quando não cabe na barra, em vez de terminar em reticências
 - **Menu de energia** e **calendário do mês**, na própria barra, com **feriados nacionais**,
   **tarefas por dia** — cada uma num balão, com hora e **aviso na hora marcada** — e edição do
@@ -236,9 +238,14 @@ tentar imitar o que o Windows já faz bem:
   (fica guardado em `BluetoothHidden`, e um link devolve os ocultos);
 - **notificações**: o sino conta o que está na Central do Windows (rosa quando há alguma) e abre um
   cartão com elas, lidas pelo `UserNotificationListener` — que funciona sem pacote, apesar de a
-  documentação tratá-lo como coisa de app de loja. Sem acesso, o sino volta a abrir a Central;
-- **wi-fi**, que abre o painel do próprio Windows: `ms-availablenetworks:`. O ↗ do cartão de
-  notificações abre a Central com `ms-actioncenter:`. Mandar as teclas `Win+A` e `Win+N` parecia
+  documentação tratá-lo como coisa de app de loja. O que vem do navegador aparece pelo site
+  (WhatsApp, Gmail), com um desenho escolhível por origem, e o clique leva à janela de quem mandou.
+  Sem acesso, o sino volta a abrir a Central;
+- **wi-fi**, com as ondas pelo sinal e um cartão próprio: o rádio (`Windows.Devices.Radios`), a rede
+  de agora (`NetworkInformation`) e as redes ao alcance (`WiFiAdapter`) — estas só com a
+  localização ligada, que o Windows exige desde o 24H2. O painel do Windows continua a um clique,
+  em `ms-availablenetworks:`, e o ↗ do cartão de notificações abre a Central com
+  `ms-actioncenter:`. Mandar as teclas `Win+A` e `Win+N` parecia
   mais direto e **não funciona** — clicar na barra deixa o foco na barra de tarefas escondida, e
   nesse estado o atalho só foca a barra em vez de abrir o painel; o endereço não depende de foco nenhum.
 
@@ -666,6 +673,9 @@ e os testes em `tests/`.
 | `src/Views/AiUsageCard.xaml` | o cartão da cota — separado para poder ser montado sozinho num harness |
 | `src/Services/AiCard.cs` | uma conta do cartão, com o texto já montado, para o XAML não decidir nada |
 | `src/Services/BluetoothService.cs` | o rádio e os aparelhos pareados |
+| `src/Services/WifiService.cs` | o rádio do wi-fi, a rede de agora e as redes ao alcance |
+| `src/Services/GpuMeter.cs` | o uso da placa de vídeo, pelos contadores do PDH |
+| `src/Services/NotificationPayload.cs` | o XML inteiro da notificação, do banco da Central — o site que a API não devolve |
 | `src/Services/MediaService.cs` | o que está tocando, pelos controles de mídia do Windows |
 | `src/Services/PowerService.cs` | as opções do menu de energia, as mesmas que a busca usa |
 | `src/Services/MonthCalendar.cs` | o mês do calendário, com feriados, tarefas, hora e aviso |

@@ -889,6 +889,89 @@
           </StackPanel>
         </Border>
 
+        <TextBlock Text="Notificações" Style="{StaticResource FluentSection}" />
+
+        <!-- O balão breve quando chega uma notificação: ligado, o tempo e se mostra o texto -->
+        <Border Style="{StaticResource FluentCardBorderStyle}">
+          <StackPanel>
+            <Grid>
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+              </Grid.ColumnDefinitions>
+              <StackPanel VerticalAlignment="Center">
+                <TextBlock Text="Balão ao chegar" Style="{StaticResource FluentTitle}" />
+                <TextBlock Text="Um balão breve embaixo do sino quando chega uma notificação nova, com o desenho da origem. O clique leva ao app ou à aba que mandou; com o mouse em cima ele espera. Se a faixa do próprio Windows também estiver ligada, as duas aparecem — desligue uma (a do Windows fica em Configurações › Sistema › Notificações)."
+                           Style="{StaticResource FluentCaption}" TextWrapping="Wrap" />
+              </StackPanel>
+              <CheckBox Grid.Column="1" Style="{StaticResource FluentToggle}"
+                        AutomationProperties.Name="Balão ao chegar"
+                        IsChecked="{Binding NotificationPopup, Mode=TwoWay}" />
+            </Grid>
+
+            <StackPanel Orientation="Horizontal" Margin="0,12,0,0"
+                        Visibility="{Binding NotificationPopup, Converter={StaticResource BoolToVisible}}">
+              <StackPanel Margin="0,0,20,0">
+                <TextBlock Text="Segundos na tela" Style="{StaticResource FluentCaption}" Margin="2,0,0,4" />
+                <TextBox Style="{StaticResource FluentTextBox}" Width="70" HorizontalAlignment="Left"
+                         Text="{Binding NotificationPopupSeconds, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" />
+              </StackPanel>
+              <CheckBox Content="Mostrar o texto da mensagem" VerticalAlignment="Bottom" Margin="0,0,0,6"
+                        Foreground="{StaticResource FluentText}" FontSize="12"
+                        ToolTip="Desmarcado, o balão diz só de onde veio — para quando outra pessoa pode estar vendo a tela"
+                        IsChecked="{Binding NotificationPopupText, Mode=TwoWay}" />
+            </StackPanel>
+          </StackPanel>
+        </Border>
+
+        <!-- Cada origem: o desenho no cartão, se entra no sino e se ganha balão. A lista se
+             preenche sozinha com o que aparece na Central; o que chega pelo navegador vem pelo
+             site, e não como "Chrome". -->
+        <Border Style="{StaticResource FluentCardBorderStyle}">
+          <StackPanel>
+            <TextBlock Text="Origens" Style="{StaticResource FluentTitle}" />
+            <TextBlock Text="Cada app ou site que já mandou notificação. O desenho é o do cartão do sino; desmarcar &quot;no sino&quot; tira a origem do número e do cartão (ela continua na Central do Windows), e &quot;balão&quot; decide se ela ganha o balão breve. Origens novas entram aqui sozinhas na primeira notificação; no automático, os sites conhecidos têm o desenho deles e o resto usa o ícone do app."
+                       Style="{StaticResource FluentCaption}" TextWrapping="Wrap" />
+
+            <ItemsControl x:Name="NotificationSourcesList" Margin="0,10,0,0">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate>
+                  <Grid Margin="0,0,0,4">
+                    <Grid.ColumnDefinitions>
+                      <ColumnDefinition Width="38" />
+                      <ColumnDefinition Width="140" />
+                      <ColumnDefinition Width="*" />
+                      <ColumnDefinition Width="Auto" />
+                      <ColumnDefinition Width="Auto" />
+                      <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <ui:GlyphPicker Tool="{Binding}" HorizontalAlignment="Left" />
+                    <TextBlock Grid.Column="1" Text="{Binding Name}" Style="{StaticResource FluentTitle}"
+                               VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                    <TextBlock Grid.Column="2" Text="{Binding Key}" Style="{StaticResource FluentCaption}"
+                               VerticalAlignment="Center" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" Margin="6,0,0,0"
+                               ToolTip="{Binding Key}" />
+                    <CheckBox Grid.Column="3" Content="no sino" FontSize="11" Margin="10,0,0,0"
+                              Foreground="{StaticResource FluentTextDim}" VerticalAlignment="Center"
+                              ToolTip="Conta no número do sino e aparece no cartão"
+                              IsChecked="{Binding Show, Mode=TwoWay}" />
+                    <CheckBox Grid.Column="4" Content="balão" FontSize="11" Margin="10,0,0,0"
+                              Foreground="{StaticResource FluentTextDim}" VerticalAlignment="Center"
+                              ToolTip="Ganha o balão breve quando chega"
+                              IsChecked="{Binding Popup, Mode=TwoWay}"
+                              IsEnabled="{Binding Show}" />
+                    <Button Grid.Column="5" Style="{StaticResource FluentButton}" Padding="7,1" Height="28"
+                            Margin="10,0,0,0" Click="OnNotificationSourceRemove" Tag="{Binding}"
+                            ToolTip="Tirar da lista (volta se chegar outra notificação dela)">
+                      <TextBlock Text="&#x2715;" FontSize="11" />
+                    </Button>
+                  </Grid>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </StackPanel>
+        </Border>
+
         <TextBlock Text="Sistema" Style="{StaticResource FluentSection}" />
 
         <Border Style="{StaticResource FluentCardBorderStyle}">
@@ -899,7 +982,7 @@
             </Grid.ColumnDefinitions>
             <StackPanel VerticalAlignment="Center">
               <TextBlock Text="CPU e memória" Style="{StaticResource FluentTitle}" />
-              <TextBlock Text="Quanto do processador e da memória estão em uso, em porcentagem. O clique abre o cartão com o último minuto de processador, memória e rede em gráfico. A medida vem do kernel uma vez por segundo — não pesa na máquina que ela mede."
+              <TextBlock Text="Quanto do processador e da memória estão em uso, em porcentagem. O clique abre o cartão com o último minuto de processador, memória, placa de vídeo e rede em gráfico. A medida vem do kernel uma vez por segundo — não pesa na máquina que ela mede."
                          Style="{StaticResource FluentCaption}" TextWrapping="Wrap" />
             </StackPanel>
             <CheckBox Grid.Column="1" Style="{StaticResource FluentToggle}"

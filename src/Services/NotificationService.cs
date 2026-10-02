@@ -7,16 +7,29 @@ using Windows.UI.Notifications.Management;
 namespace WinDock.Services;
 
 /// <summary>Uma notificação da Central, como o cartão do sino precisa ver.</summary>
+/// <remarks><see cref="App"/> é o nome que o cartão mostra: o do site quando a notificação veio pelo
+/// navegador ("WhatsApp", e não "Google Chrome"). <see cref="SourceKey"/> é a chave da origem nas
+/// Configurações; <see cref="Site"/>, o endereço, quando há um; <see cref="Aumid"/>, o app que a
+/// mandou — é com eles que o clique leva de volta.</remarks>
 public sealed record NotificationItem(
     uint Id,
     string App,
     string Title,
     string Body,
     DateTime Time,
-    ImageSource? Icon)
+    ImageSource? Icon,
+    string SourceKey = "",
+    string Site = "",
+    string Aumid = "")
 {
     public bool HasBody => Body.Length > 0;
-    public bool HasIcon => Icon is not null;
+
+    /// <summary>O desenho escolhido para a origem (ou o de fábrica dela); vazio usa o ícone do app.</summary>
+    public string Glyph { get; init; } = "";
+    public Brush? GlyphFill { get; init; }
+
+    public bool HasGlyph => Glyph.Length > 0;
+    public bool HasIcon => Icon is not null && !HasGlyph;
 
     /// <summary>"16:29" se foi hoje, "ontem" ou "28/09" se não — o mesmo jeito da Central.</summary>
     public string When
@@ -158,16 +171,95 @@ public sealed class NotificationService
             foreach (var t in binding.GetTextElements())
                 if (!string.IsNullOrWhiteSpace(t.Text)) textos.Add(t.Text.Trim());
 
-        var titulo = textos.Count > 0 ? textos[0] : app;
+        // Do navegador, a origem é o site: o endereço sai do corpo (ele vira o nome lá em cima) e
+        // passa a ser a chave. De app, a chave é o próprio app.
+        var navegador = IsBrowser(app, aumid);
+        var site = navegador ? textos.Skip(1).Select(SiteOf).LastOrDefault(s => s.Length > 0) ?? "" : "";
+        if (site.Length > 0) textos.RemoveAll(t => SiteOf(t) == site);
+
+        // O Chrome escreve o site como atribuição, e essa a API não devolve (EV26, 02/10/2026):
+        // ele vem do XML guardado pelo Windows
+        else if (navegador) site = NotificationPayload.SiteOf(n.Id, SiteOf);
+
+        var nome = string.IsNullOrEmpty(app) ? "Notificação" : app;
+        if (site.Length > 0) nome = Known.TryGetValue(site, out var conhecido) ? conhecido.Name : site;
+
+        var titulo = textos.Count > 0 ? textos[0] : nome;
         var corpo = string.Join("\n", textos.Skip(1));
 
         return new NotificationItem(
             n.Id,
-            string.IsNullOrEmpty(app) ? "Notificação" : app,
+            nome,
             titulo,
             corpo,
             n.CreationTime.LocalDateTime,
-            await IconOf(n, aumid));
+            await IconOf(n, aumid),
+            site.Length > 0 ? site : aumid,
+            site,
+            aumid);
+    }
+
+    /// <summary>Os navegadores — que entregam a notificação de qualquer site no nome deles.</summary>
+    private static bool IsBrowser(string app, string aumid) =>
+        new[] { "Chrome", "Edge", "Brave", "Firefox", "Opera", "Vivaldi" }
+            .Any(b => app.Contains(b, StringComparison.OrdinalIgnoreCase) ||
+                      aumid.StartsWith(b, StringComparison.OrdinalIgnoreCase) ||
+                      aumid.StartsWith("MS" + b, StringComparison.OrdinalIgnoreCase));
+
+    /// <summary>"web.whatsapp.com" de "web.whatsapp.com" ou "https://www.web.whatsapp.com/…"; vazio se o texto não é um endereço.</summary>
+    internal static string SiteOf(string texto)
+    {
+        var m = SiteRegex.Match(texto);
+        if (!m.Success) return "";
+        var host = m.Groups[1].Value.ToLowerInvariant();
+        return host.StartsWith("www.", StringComparison.Ordinal) ? host[4..] : host;
+    }
+
+    private static readonly System.Text.RegularExpressions.Regex SiteRegex = new(
+        @"^(?:https?://)?((?:[a-z0-9-]+\.)+[a-z]{2,})(?::\d+)?(?:/\S*)?$",
+        System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.Compiled);
+
+    /// <summary>
+    /// Os sites que já vêm com nome e desenho. O resto mostra o endereço e o ícone do navegador
+    /// até a pessoa escolher um desenho nas Configurações.
+    /// </summary>
+    public static readonly Dictionary<string, (string Name, string Glyph, string Color)> Known =
+        new(StringComparer.OrdinalIgnoreCase)
+        {
+            ["web.whatsapp.com"] = ("WhatsApp", "E8BD", "#FF7FD18B"),
+            ["mail.google.com"] = ("Gmail", "E715", "#FFFF6B6B"),
+            ["outlook.live.com"] = ("Outlook", "E715", "#FF6CB6FF"),
+            ["outlook.office.com"] = ("Outlook", "E715", "#FF6CB6FF"),
+            ["teams.microsoft.com"] = ("Teams", "E8F2", "#FFB08AE8"),
+            ["discord.com"] = ("Discord", "E8F2", "#FFB08AE8"),
+            ["web.telegram.org"] = ("Telegram", "E724", "#FF6CB6FF"),
+        };
+
+    private static readonly Brush Cinza = Frozen("#FFC8C8CC");
+
+    /// <summary>
+    /// O desenho de uma origem: o escolhido, senão o de fábrica do site, senão nenhum — e aí o
+    /// cartão usa o ícone do app. A cor escolhida vale mesmo sem desenho escolhido.
+    /// </summary>
+    public static (string Glyph, Brush Fill) Look(NotificationSource source)
+    {
+        Known.TryGetValue(source.Key, out var conhecido);
+
+        var glifo = ToolsService.ParseGlyph(source.Glyph) ?? ToolsService.ParseGlyph(conhecido.Glyph) ?? "";
+        var cor = !string.IsNullOrWhiteSpace(source.Color) ? source.Color
+                : !string.IsNullOrEmpty(conhecido.Color) ? conhecido.Color
+                : "";
+
+        return (glifo, cor.Length > 0 ? Frozen(cor) : Cinza);
+    }
+
+    private static Brush Frozen(string hex)
+    {
+        Brush brush;
+        try { brush = new SolidColorBrush((Color)ColorConverter.ConvertFromString(hex)!); }
+        catch { brush = new SolidColorBrush(Color.FromRgb(0xC8, 0xC8, 0xCC)); }
+        brush.Freeze();
+        return brush;
     }
 
     private async Task<ImageSource?> IconOf(UserNotification n, string aumid)
