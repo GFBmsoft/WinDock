@@ -670,7 +670,7 @@
                         IsChecked="{Binding PanelSearch, Mode=TwoWay}" />
             </Grid>
 
-            <!-- onde a busca aberta pela lupa aparece; o Alt+Espaço fica sempre no meio -->
+            <!-- onde a busca aparece, pela lupa e pelo Alt+Espaço -->
             <Grid Margin="0,12,0,0"
                   Visibility="{Binding PanelSearch, Converter={StaticResource BoolToVisible}}">
               <Grid.ColumnDefinitions>
@@ -679,7 +679,7 @@
               </Grid.ColumnDefinitions>
               <StackPanel VerticalAlignment="Center" Margin="0,0,12,0">
                 <TextBlock Text="Onde a busca aparece" Style="{StaticResource FluentTitle}" />
-                <TextBlock Text="Ao clicar na lupa. Compacta: logo abaixo dela, mais estreita. O Alt+Espaço continua abrindo no meio da tela."
+                <TextBlock Text="Pela lupa e pelo Alt+Espaço. Compacta: logo abaixo da lupa, mais estreita — com a lupa desligada, abre no meio."
                            Style="{StaticResource FluentCaption}" TextWrapping="Wrap" />
               </StackPanel>
               <ComboBox Grid.Column="1" Width="190" Style="{StaticResource FluentCombo}"

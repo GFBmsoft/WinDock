@@ -465,8 +465,10 @@ public enum SearchStyle
     Center,
 
     /// <summary>
-    /// Compacta, logo abaixo da lupa da barra. Só para o clique na lupa: o Alt+Espaço continua no
-    /// meio, onde o olho está quando não se olhou para a barra.
+    /// Compacta, logo abaixo da lupa da barra — pela lupa e pelo Alt+Espaço. O Alt+Espaço já
+    /// ficou no meio da tela neste modo, "onde o olho está"; o usuário pediu que ele seguisse a
+    /// escolha (02/10/2026): quem pôs a busca no canto quer ela lá. Sem a lupa na barra, os dois
+    /// abrem no meio.
     ///
     /// <para>Houve um terceiro, em faixa sobre a barra como o dmenu do Linux (02/10/2026). Mesmo
     /// com ícone e poucos resultados, o usuário preferiu ficar só com estes dois.</para>

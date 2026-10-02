@@ -535,12 +535,16 @@ public partial class MainWindow : Window
             $"{i.Title} = {HotkeyCatalog.Display(HotkeyCatalog.Of(_config.Hotkeys, i.Action), i.Arrows)} ({estados[i.Action]})")));
     }
 
-    /// <summary>Abre a busca; a janela e criada uma vez e depois so escondida e mostrada.</summary>
-    private void OpenLauncher() => OpenLauncher(null);
+    /// <summary>
+    /// O Alt+Espaço (e o "Buscar aplicativos" do menu): no canto da lupa, se é lá que a pessoa
+    /// escolheu a busca; senão, no meio da tela.
+    /// </summary>
+    private void OpenLauncher() => OpenLauncher(_panel?.SearchAnchor());
 
     /// <summary>
-    /// A busca aberta pela lupa da barra. <paramref name="below"/>, em pixels da tela: o canto
-    /// onde ela abre, compacta, em vez do meio da tela — veja <c>DockConfig.SearchAtButton</c>.
+    /// Abre a busca; a janela e criada uma vez e depois so escondida e mostrada.
+    /// <paramref name="below"/>, em pixels da tela: o canto onde ela abre, compacta, em vez do
+    /// meio da tela — veja <c>DockConfig.SearchStyle</c>.
     /// </summary>
     internal void OpenLauncher(Point? below)
     {

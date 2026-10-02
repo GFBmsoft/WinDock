@@ -791,16 +791,25 @@ public partial class PanelWindow : Window
     private void OnSearch(object sender, RoutedEventArgs e)
     {
         CloseAllPopups();
+        Application.Current.Windows.OfType<MainWindow>().FirstOrDefault()?.OpenLauncher(SearchAnchor());
+    }
 
-        Point? junto = null;
-        if (_config.SearchStyle == SearchStyle.Button)
-        {
-            var botao = SearchButton.PointToScreen(new Point(0, 0));
-            var baixo = PointToScreen(new Point(0, ActualHeight));
-            junto = new Point(botao.X, baixo.Y);
-        }
+    /// <summary>
+    /// Onde a busca compacta abre: embaixo da lupa, encostada à esquerda dela — o ponto de baixo
+    /// da barra, em pixels da tela. Nulo quando a busca é a do meio da tela, ou quando a lupa
+    /// não está na barra (desligada, ou a barra escondida pela tela cheia): sem ela não há onde
+    /// encostar, e a busca abre no meio.
+    ///
+    /// Serve à lupa e ao Alt+Espaço: quem escolheu a busca no canto quer ela lá pelos dois
+    /// caminhos (pedido de 02/10/2026).
+    /// </summary>
+    internal Point? SearchAnchor()
+    {
+        if (_config.SearchStyle != SearchStyle.Button || !IsVisible || !SearchButton.IsVisible) return null;
 
-        Application.Current.Windows.OfType<MainWindow>().FirstOrDefault()?.OpenLauncher(junto);
+        var botao = SearchButton.PointToScreen(new Point(0, 0));
+        var baixo = PointToScreen(new Point(0, ActualHeight));
+        return new Point(botao.X, baixo.Y);
     }
 
     private bool _placesWasOpen;
