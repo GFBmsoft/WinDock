@@ -13,13 +13,15 @@ namespace WinDock.Services;
 /// </summary>
 public sealed class AiCard
 {
-    public AiCard(AiAccountUsage leitura, bool primeira)
+    public AiCard(AiAccountUsage leitura, bool primeira, bool padrao = false)
     {
         var perfil = leitura.Perfil;
 
+        Id = perfil.Id;
         Titulo = perfil.Titulo;
         Gauges = leitura.Gauges;
         Primeira = primeira;
+        Padrao = padrao;
 
         // O e-mail sai quando ele já é o título — repetir a mesma linha duas vezes gasta a
         // altura do cartão sem dizer nada.
@@ -42,10 +44,12 @@ public sealed class AiCard
 
         Linha = string.Join("  ·  ", partes);
 
-        // a API manda "max"; o cartão mostra "Max"
-        Plano = string.IsNullOrWhiteSpace(leitura.Plano)
-                ? string.Empty
-                : CultureInfo.CurrentCulture.TextInfo.ToTitleCase(leitura.Plano.Replace('_', ' '));
+        // O do perfil primeiro, que já vem pronto ("Max 5x") e acompanha a troca de plano — veja
+        // `AiUsageService.NomeDoPlano`. O da credencial ("max", que o cartão mostra "Max") fica
+        // para quando o perfil não diz nada.
+        Plano = !string.IsNullOrWhiteSpace(perfil.Plano) ? perfil.Plano!
+              : string.IsNullOrWhiteSpace(leitura.Plano) ? string.Empty
+              : CultureInfo.CurrentCulture.TextInfo.ToTitleCase(leitura.Plano.Replace('_', ' '));
 
         Mensagem = leitura.State switch
         {
@@ -66,6 +70,15 @@ public sealed class AiCard
 
     /// <summary>Aviso discreto embaixo das barras quando elas são de uma leitura anterior.</summary>
     public string Nota { get; } = string.Empty;
+
+    /// <summary>A pasta da conta (".claude"), que é como a configuração a conhece.</summary>
+    public string Id { get; }
+
+    /// <summary>
+    /// É a conta padrão — a do número e da cor do robô na barra? O cartão a marca com uma
+    /// estrela, e só quando há outra ao lado: com uma conta só não há o que distinguir.
+    /// </summary>
+    public bool Padrao { get; }
 
     public string Titulo { get; }
     public string Linha { get; }

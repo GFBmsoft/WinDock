@@ -1811,22 +1811,40 @@ public sealed class PanelModel : INotifyPropertyChanged, IDisposable
     }
 
     /// <summary>
-    /// O número ao lado do robô, no jeito do processador e da memória: o medidor mais cheio de
-    /// todas as contas — o mesmo que decide a cor, para o número e a cor nunca discordarem (um
-    /// "12%" vermelho, com a semana em 96%, seria pior que número nenhum). Qual janela é, a dica
-    /// do mouse e o cartão dizem. Vazio antes da primeira leitura.
+    /// O número ao lado do robô, no jeito do processador e da memória: o medidor mais cheio
+    /// <b>da conta padrão</b> — o mesmo que decide a cor, para o número e a cor nunca
+    /// discordarem (um "12%" vermelho, com a semana em 96%, seria pior que número nenhum). Qual
+    /// janela é, a dica do mouse e o cartão dizem. Vazio antes da primeira leitura.
     /// </summary>
     public string AiPercentText
     {
         get
         {
-            var medidores = AiCards.SelectMany(c => c.Gauges).Select(g => g.Percent).ToList();
+            var medidores = AiDaBarra();
             return medidores.Count == 0 ? string.Empty : $"{medidores.Max():0}%";
         }
     }
 
     /// <summary>
-    /// Uma entrada por conta, na ordem em que vieram — a padrão primeiro.
+    /// Os medidores que a barra resume: os da conta padrão, quando a pessoa escolheu uma e ela
+    /// está no cartão; senão os de todas, como era antes de existir a escolha.
+    ///
+    /// A conta padrão sem leitura (sessão expirada, rede fora) devolve vazio de propósito, e o
+    /// robô fica branco: cair para a outra conta nessa hora seria justamente o número de uma
+    /// aparecendo como se fosse da outra, que é o que a escolha existe para impedir.
+    /// </summary>
+    private IReadOnlyList<double> AiDaBarra()
+    {
+        var cartoes = AiCards;
+        var padrao = cartoes.FirstOrDefault(c => c.Id.Equals(_config.AiUsageDefault, StringComparison.OrdinalIgnoreCase));
+
+        return (padrao is null ? cartoes : new[] { padrao })
+               .SelectMany(c => c.Gauges).Select(g => g.Percent).ToList();
+    }
+
+    /// <summary>
+    /// Uma entrada por conta: a que a pessoa marcou como padrão primeiro, e as outras na ordem
+    /// em que vieram (a pasta <c>.claude</c>, depois as demais).
     ///
     /// Enquanto a primeira leitura não chega, sai uma entrada por conta encontrada, cada uma
     /// dizendo "Consultando…": o cartão nasce com o tamanho e os nomes certos, em vez de
@@ -1843,7 +1861,13 @@ public sealed class PanelModel : INotifyPropertyChanged, IDisposable
                     .Select(p => new AiAccountUsage(p, AiUsageState.Unknown, Array.Empty<AiGauge>(), null))
                     .ToList();
 
-            return leituras.Select((c, i) => new AiCard(c, i == 0)).ToList();
+            bool Padrao(AiAccountUsage c) =>
+                c.Perfil.Id.Equals(_config.AiUsageDefault, StringComparison.OrdinalIgnoreCase);
+
+            // o OrderBy é estável: fora a padrão, que sobe, ninguém troca de lugar
+            return leituras.OrderBy(c => Padrao(c) ? 0 : 1)
+                           .Select((c, i) => new AiCard(c, i == 0, leituras.Count > 1 && Padrao(c)))
+                           .ToList();
         }
     }
 
@@ -1852,10 +1876,10 @@ public sealed class PanelModel : INotifyPropertyChanged, IDisposable
     /// (pedido em 01/10/2026; antes era branco, âmbar a partir de 60% e vermelho de 90%).
     /// O verde diz "li, e sobra" — o branco ficou só para quando ainda não há leitura.
     ///
-    /// Vale <b>o medidor mais cheio de todas as contas</b>, e não o de cinco horas que a dica
-    /// do mouse mostra: qualquer janela que estourar interrompe o trabalho do mesmo jeito, e
-    /// um ícone branco com a semana em 95% seria um aviso que chega quando não dá mais para
-    /// fazer nada com ele.
+    /// Vale <b>o medidor mais cheio da conta padrão</b> (de todas, se nenhuma foi escolhida —
+    /// veja <see cref="AiDaBarra"/>), e não o de cinco horas que a dica do mouse mostra:
+    /// qualquer janela que estourar interrompe o trabalho do mesmo jeito, e um ícone branco com
+    /// a semana em 95% seria um aviso que chega quando não dá mais para fazer nada com ele.
     ///
     /// Sem leitura nenhuma o robô fica branco — "não sei" não é "está tudo bem", mas pintar
     /// de vermelho o que não se sabe é pior: o cartão, a um clique, é quem diz o que houve.
@@ -1864,7 +1888,7 @@ public sealed class PanelModel : INotifyPropertyChanged, IDisposable
     {
         get
         {
-            var medidores = AiCards.SelectMany(c => c.Gauges).Select(g => g.Percent).ToList();
+            var medidores = AiDaBarra();
             if (medidores.Count == 0) return AiSemLeitura;
 
             var cheio = medidores.Max();
@@ -2493,6 +2517,16 @@ public sealed class PanelModel : INotifyPropertyChanged, IDisposable
         {
             OnChanged(nameof(AiCards));
             RefreshAiUsage();
+        }
+
+        // trocar a conta padrão não pede leitura nova: os números já estão aqui, só muda de
+        // qual deles a barra fala e quem vem primeiro no cartão
+        if (e.PropertyName is nameof(DockConfig.AiUsageDefault))
+        {
+            OnChanged(nameof(AiCards));
+            OnChanged(nameof(AiTooltip));
+            OnChanged(nameof(AiBrush));
+            OnChanged(nameof(AiPercentText));
         }
 
         // marcar ou desmarcar um programa reavalia qual sessão a barra segue, na hora

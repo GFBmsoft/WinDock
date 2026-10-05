@@ -844,6 +844,17 @@ public sealed class DockConfig : INotifyPropertyChanged
     /// </summary>
     public List<string> AiUsageAccounts { get; set; } = new();
 
+    private string _aiUsageDefault = string.Empty;
+    /// <summary>
+    /// A conta padrão, pelo nome da pasta: é dela, e só dela, o número e a cor do robô na
+    /// barra. As outras continuam no cartão.
+    ///
+    /// Vazia quer dizer que ninguém escolheu, e aí vale o medidor mais cheio de todas — que
+    /// era a única regra até 05/10/2026 e confundia quem tem duas contas: o número da barra
+    /// pulava de uma para a outra conforme qual estivesse mais gasta, sem dizer de qual era.
+    /// </summary>
+    public string AiUsageDefault { get => _aiUsageDefault; set => Set(ref _aiUsageDefault, value ?? string.Empty); }
+
     private bool _aiUsageExpanded;
     /// <summary>
     /// O cartão da cota mostra tudo (cada barra com a conta, o prazo e a hora em que zera) ou

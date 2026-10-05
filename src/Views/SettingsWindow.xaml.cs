@@ -687,6 +687,15 @@ public partial class SettingsWindow : Window
         public required string Titulo { get; init; }
         public required string Detalhe { get; init; }
         public bool Marcada { get; set; }
+
+        /// <summary>É a conta padrão, a do número da barra?</summary>
+        public bool Padrao { get; init; }
+
+        // estrela cheia e estrela vazada da Segoe
+        public string PadraoGlifo => Padrao ? "" : "";
+        public string PadraoDica => Padrao
+            ? "É a conta padrão — clique para a barra voltar a olhar todas"
+            : "Tornar esta a conta padrão: o número da barra passa a ser só dela";
     }
 
     /// <summary>
@@ -715,8 +724,34 @@ public partial class SettingsWindow : Window
             // a pasta vai junto porque é o que separa as contas de verdade — dois logins
             // podem ter o mesmo nome, e a pasta é o que a configuração guarda
             Detalhe = string.IsNullOrWhiteSpace(c.Email) ? c.Id : $"{c.Email}  ·  {c.Id}",
-            Marcada = escolhidas.Count == 0 || escolhidas.Contains(c.Id, StringComparer.OrdinalIgnoreCase)
+            Marcada = escolhidas.Count == 0 || escolhidas.Contains(c.Id, StringComparer.OrdinalIgnoreCase),
+            Padrao = c.Id.Equals(_config.AiUsageDefault, StringComparison.OrdinalIgnoreCase)
         }).ToList();
+    }
+
+    /// <summary>
+    /// A estrela de uma conta: torna-a a padrão, ou desfaz a escolha se ela já era.
+    ///
+    /// A conta escolhida passa a estar marcada para o cartão também, se não estava — uma
+    /// padrão que o cartão não mostra não teria número para dar à barra. E a lista é remontada
+    /// inteira: as linhas não avisam mudança, e são duas ou três.
+    /// </summary>
+    private void OnAiAccountDefault(object sender, RoutedEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.Tag is not string id) return;
+
+        var era = id.Equals(_config.AiUsageDefault, StringComparison.OrdinalIgnoreCase);
+        _config.AiUsageDefault = era ? string.Empty : id;
+
+        var escolhidas = _config.AiUsageAccounts;
+        if (!era && escolhidas.Count > 0 && !escolhidas.Contains(id, StringComparer.OrdinalIgnoreCase))
+        {
+            escolhidas.Add(id);
+            _config.NotifyAiUsageAccountsChanged();
+        }
+
+        _config.Save();
+        LoadAiAccounts();
     }
 
     /// <summary>

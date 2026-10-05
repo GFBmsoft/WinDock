@@ -41,8 +41,11 @@ public enum AiUsageState
 /// </summary>
 /// <param name="Id">O nome da pasta (".claude", ".claude-bm"). É o que a configuração guarda.</param>
 /// <param name="Pasta">O caminho completo dela.</param>
+/// <param name="Plano">
+/// O plano como o cartão mostra ("Max 5x"), do <c>.claude.json</c>; nulo quando ele não diz.
+/// </param>
 public sealed record AiProfile(string Id, string Pasta, string? Nome, string? Email,
-                               string? Organizacao, string? Papel)
+                               string? Organizacao, string? Papel, string? Plano = null)
 {
     /// <summary>O nome que a pessoa reconhece: o dela, senão a conta, senão a pasta.</summary>
     public string Titulo => !string.IsNullOrWhiteSpace(Nome) ? Nome!
@@ -194,7 +197,8 @@ public sealed class AiUsageService
             var perfil = new AiProfile(id, pasta,
                                        Primeiro(oauth?.DisplayName, oauth?.FullName),
                                        oauth?.EmailAddress, oauth?.OrganizationName,
-                                       oauth?.OrganizationRole);
+                                       oauth?.OrganizationRole,
+                                       NomeDoPlano(oauth?.OrganizationType, oauth?.OrganizationRateLimitTier));
 
             _identidades[caminho] = (carimbo, perfil);
             return perfil;
@@ -210,6 +214,29 @@ public sealed class AiUsageService
 
     private static string? Primeiro(params string?[] valores) =>
         valores.FirstOrDefault(v => !string.IsNullOrWhiteSpace(v));
+
+    /// <summary>
+    /// O plano, do jeito que se lê: "claude_max" com "default_claude_max_5x" vira "Max 5x".
+    ///
+    /// <para><b>Vem do <c>.claude.json</c>, e não da credencial, porque a credencial mente
+    /// depois de uma troca de plano.</b> O <c>subscriptionType</c> do
+    /// <c>.credentials.json</c> é gravado no login e sobrevive às renovações do token: em
+    /// 05/10/2026 a conta padrão desta máquina já era Max 5x havia dias, o token tinha sido
+    /// renovado naquela manhã, e o campo seguia dizendo "pro". O perfil do
+    /// <c>.claude.json</c> é rebuscado pelo Claude Code a cada uso, e trazia o plano
+    /// certo.</para>
+    /// </summary>
+    private static string? NomeDoPlano(string? tipo, string? faixa)
+    {
+        if (string.IsNullOrWhiteSpace(tipo)) return null;
+
+        var nome = tipo.StartsWith("claude_", StringComparison.OrdinalIgnoreCase) ? tipo[7..] : tipo;
+        nome = System.Globalization.CultureInfo.InvariantCulture.TextInfo.ToTitleCase(nome.Replace('_', ' '));
+
+        // o multiplicador é o fim da faixa ("…_max_5x", "…_max_20x"); as outras não têm um
+        var vezes = System.Text.RegularExpressions.Regex.Match(faixa ?? string.Empty, @"_(\d+x)$");
+        return vezes.Success ? $"{nome} {vezes.Groups[1].Value}" : nome;
+    }
 
     /// <summary>
     /// Há alguma conta do Claude Code aqui? É o que decide se o ícone aparece na barra.
@@ -296,6 +323,10 @@ public sealed class AiUsageService
         }
 
         var agora = DateTime.Now;
+
+        // os números guardados valem, mas a identidade é a de agora: quem trocou de plano ou
+        // de login não espera a próxima ida à rede para ver o cabeçalho mudar
+        if (estado.Ultima is not null) estado.Ultima = estado.Ultima with { Perfil = perfil };
 
         if (estado.Ultima is { } guardada)
         {
@@ -523,6 +554,8 @@ public sealed class AiUsageService
         [JsonPropertyName("fullName")] public string? FullName { get; set; }
         [JsonPropertyName("organizationName")] public string? OrganizationName { get; set; }
         [JsonPropertyName("organizationRole")] public string? OrganizationRole { get; set; }
+        [JsonPropertyName("organizationType")] public string? OrganizationType { get; set; }
+        [JsonPropertyName("organizationRateLimitTier")] public string? OrganizationRateLimitTier { get; set; }
     }
 
     private sealed class OauthCreds

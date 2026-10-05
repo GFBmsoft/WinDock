@@ -33,9 +33,18 @@
                       Glyph="{Binding DataContext.AiGlyph,
                                       RelativeSource={RelativeSource AncestorType=UserControl}}" />
 
-        <TextBlock Grid.Column="1" Text="{Binding Titulo}" Foreground="#FFF2F2F2"
-                   FontSize="14" FontWeight="SemiBold" VerticalAlignment="Center"
-                   TextTrimming="CharacterEllipsis" Margin="0,0,8,0" />
+        <!-- A estrela marca a conta padrão — a do número da barra — e fica dentro da coluna do
+             nome, num DockPanel: encostada à direita ela não disputa largura com a cápsula, e o
+             nome continua truncando no que sobra. -->
+        <DockPanel Grid.Column="1" VerticalAlignment="Center" Margin="0,0,8,0">
+          <ui:GlyphIcon DockPanel.Dock="Right" Glyph="&#xE735;" Fill="#FFFFB900" Size="11"
+                        VerticalAlignment="Center" Margin="6,0,0,0"
+                        ToolTip="Conta padrão: é dela o número na barra"
+                        Visibility="{Binding Padrao, Converter={StaticResource BoolToVisible}}" />
+          <TextBlock Text="{Binding Titulo}" Foreground="#FFF2F2F2"
+                     FontSize="14" FontWeight="SemiBold" VerticalAlignment="Center"
+                     HorizontalAlignment="Left" TextTrimming="CharacterEllipsis" />
+        </DockPanel>
 
         <!-- a cápsula do plano: o mesmo realce das barras, em fundo lavado -->
         <Border Grid.Column="2" VerticalAlignment="Center"

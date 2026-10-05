@@ -500,8 +500,9 @@ trabalho do mesmo jeito. Sem leitura nenhuma ele fica branco: "não sei" não é
 alarme nem para o verde de "está tranquilo", e o cartão, a um clique, diz o que houve.
 
 No topo de cada bloco fica **de quem é essa cota**: o nome, a conta, a organização e o papel nela
-quando houver, e o plano na cápsula à direita. Nome, e-mail e organização saem do `.claude.json`,
-o arquivo onde o Claude Code guarda quem está logado; o plano vem da credencial.
+quando houver, e o plano na cápsula à direita ("Max 5x"). Tudo isso sai do `.claude.json`, o
+arquivo onde o Claude Code guarda quem está logado — o plano inclusive: o que a credencial
+guarda é o do dia do login, e continua dizendo "Pro" depois de você mudar para o Max.
 
 **Mais de uma conta.** O Claude Code usa uma conta por vez, mas a variável `CLAUDE_CONFIG_DIR`
 permite apontá-lo para outra pasta — é assim que se mantém a conta pessoal e a da empresa lado a
@@ -513,6 +514,12 @@ Havendo mais de uma, aparece em **Configurações > Contas no cartão de cota** 
 escolher quais acompanhar. Sem nenhuma marcada, o cartão mostra todas — inclusive as que
 passarem a existir depois. Com uma conta só, esse cartão de configuração nem aparece: não há o
 que escolher.
+
+**A conta padrão.** Na mesma lista, a **estrela** de cada conta a torna a padrão: o número e a
+cor do robô na barra passam a ser **só dela**, e ela vem primeiro no cartão, com a estrela ao
+lado do plano. Clicar de novo na estrela cheia desfaz a escolha, e aí a barra volta a mostrar o
+medidor mais cheio de todas as contas. Se a conta padrão estiver sem leitura (sessão expirada,
+rede fora), o robô fica branco — ele não empresta o número da outra.
 
 **Quando o número é lido.** Ao abrir o cartão, e de dez em dez minutos enquanto a dock roda —
 cada volta é uma ida à rede, uma por conta. O **`↻` do rodapé pergunta de novo, na hora**: é

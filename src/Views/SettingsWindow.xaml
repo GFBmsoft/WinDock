@@ -1227,7 +1227,7 @@
                 Visibility="Collapsed">
           <StackPanel>
             <TextBlock Text="Contas no cartão de cota" Style="{StaticResource FluentTitle}" />
-            <TextBlock Text="Você tem mais de uma conta do Claude Code nesta máquina. Marque as que o cartão deve mostrar, uma embaixo da outra. Sem nenhuma marcada, ele mostra todas."
+            <TextBlock Text="Você tem mais de uma conta do Claude Code nesta máquina. Marque as que o cartão deve mostrar, uma embaixo da outra. Sem nenhuma marcada, ele mostra todas. A estrela escolhe a conta padrão: o número e a cor do robô na barra passam a ser só dela, e ela vem primeiro no cartão. Sem estrela, a barra mostra o medidor mais cheio de todas."
                        Style="{StaticResource FluentCaption}" TextWrapping="Wrap" />
 
             <ItemsControl x:Name="AiAccountList" Margin="0,12,0,0">
@@ -1240,6 +1240,7 @@
                       <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
                       </Grid.ColumnDefinitions>
 
                       <StackPanel VerticalAlignment="Center">
@@ -1251,7 +1252,29 @@
                                    TextTrimming="CharacterEllipsis" />
                       </StackPanel>
 
-                      <CheckBox Grid.Column="1" Style="{StaticResource FluentToggle}"
+                      <!-- A estrela escolhe a conta padrão: cheia e âmbar na escolhida, vazada
+                           nas outras. Clicar na cheia desfaz a escolha — é botão, e não
+                           RadioButton, justamente para "nenhuma" continuar possível. -->
+                      <Button Grid.Column="1" Style="{StaticResource FluentButton}" Padding="8,2"
+                              Margin="8,0,10,0" Click="OnAiAccountDefault" Tag="{Binding Id}"
+                              ToolTip="{Binding PadraoDica}"
+                              AutomationProperties.Name="{Binding PadraoDica}">
+                        <TextBlock Text="{Binding PadraoGlifo}" FontSize="13"
+                                   FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets">
+                          <TextBlock.Style>
+                            <Style TargetType="TextBlock">
+                              <Setter Property="Foreground" Value="{StaticResource FluentTextDim}" />
+                              <Style.Triggers>
+                                <DataTrigger Binding="{Binding Padrao}" Value="True">
+                                  <Setter Property="Foreground" Value="#FFFFB900" />
+                                </DataTrigger>
+                              </Style.Triggers>
+                            </Style>
+                          </TextBlock.Style>
+                        </TextBlock>
+                      </Button>
+
+                      <CheckBox Grid.Column="2" Style="{StaticResource FluentToggle}"
                                 AutomationProperties.Name="{Binding Titulo}"
                                 Tag="{Binding Id}" IsChecked="{Binding Marcada, Mode=TwoWay}"
                                 Checked="OnAiAccountToggled" Unchecked="OnAiAccountToggled" />
