@@ -153,10 +153,31 @@ public static class IconService
     private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, bool> Existing =
         new(StringComparer.OrdinalIgnoreCase);
 
+    /// <summary>
+    /// De qual arquivo saiu o icone guardado por <see cref="For"/> e como esse arquivo estava.
+    ///
+    /// O cache so por caminho segurava o icone para sempre: um programa republicado no mesmo
+    /// lugar com icone novo (ou que ainda nao tinha icone quando a dock o viu pela primeira
+    /// vez) ficava com o desenho antigo — o generico do Windows, no caso — ate a dock ser
+    /// reiniciada. Guardando a data de modificacao, o icone e relido quando o arquivo muda.
+    /// Sao duas datas porque num atalho mudam coisas diferentes: a do .lnk quando ele passa a
+    /// apontar para outro lugar, a do alvo quando o programa e trocado.
+    /// </summary>
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, (string Alvo, long Caminho, long DoAlvo)> Origens =
+        new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>Data de modificacao do arquivo; 0 quando ele nao existe (ou nao e arquivo).</summary>
+    private static long Carimbo(string file)
+    {
+        try { return File.Exists(file) ? File.GetLastWriteTimeUtc(file).Ticks : 0; }
+        catch { return 0; }
+    }
+
     public static BitmapSource? For(string path)
     {
         if (string.IsNullOrEmpty(path)) return null;
-        if (Cache.TryGetValue(path, out var cached)) return cached;
+        if (Cache.TryGetValue(path, out var cached) && Origens.TryGetValue(path, out var origem) &&
+            origem.Caminho == Carimbo(path) && origem.DoAlvo == Carimbo(origem.Alvo)) return cached;
 
         // Num .lnk o shell devolve o icone com a setinha de atalho colada. Numa dock isso
         // fica ruim, entao o icone vem do que o atalho aponta: o .ico proprio quando ele
@@ -201,6 +222,7 @@ public static class IconService
         catch { result = null; }
 
         Cache[path] = result;
+        Origens[path] = (exePath, Carimbo(path), Carimbo(exePath));
         return result;
     }
 
