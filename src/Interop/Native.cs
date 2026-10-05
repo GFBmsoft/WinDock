@@ -216,6 +216,7 @@ internal static class Native
     public const uint EVENT_OBJECT_HIDE         = 0x8003;
     public const uint EVENT_OBJECT_LOCATIONCHANGE = 0x800B;
     public const uint EVENT_OBJECT_NAMECHANGE   = 0x800C;
+    public const uint EVENT_OBJECT_UNCLOAKED    = 0x8018;
     public const uint WINEVENT_OUTOFCONTEXT     = 0x0000;
     public const uint WINEVENT_SKIPOWNPROCESS   = 0x0002;
 

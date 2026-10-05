@@ -151,6 +151,10 @@ public sealed class TilingService : IDisposable
             _hooks.Add(SetWinEventHook(min, max, 0, _proc, 0, 0, WINEVENT_OUTOFCONTEXT | WINEVENT_SKIPOWNPROCESS));
 
         Hook(EVENT_OBJECT_CREATE, EVENT_OBJECT_HIDE);
+        // as duas coisas que faltam a uma janela recém-mostrada para ela passar no Concerns —
+        // veja o tratamento delas no OnWinEvent
+        Hook(EVENT_OBJECT_NAMECHANGE, EVENT_OBJECT_NAMECHANGE);
+        Hook(EVENT_OBJECT_UNCLOAKED, EVENT_OBJECT_UNCLOAKED);
         Hook(EVENT_SYSTEM_MINIMIZESTART, EVENT_SYSTEM_MINIMIZEEND);
         Hook(EVENT_SYSTEM_FOREGROUND, EVENT_SYSTEM_FOREGROUND);
         Hook(EVENT_SYSTEM_MOVESIZESTART, EVENT_SYSTEM_MOVESIZEEND);
@@ -240,6 +244,26 @@ public sealed class TilingService : IDisposable
         if (ev == EVENT_OBJECT_LOCATIONCHANGE)
         {
             if (hWnd == _draggedHwnd) _dispatcher.InvokeAsync(UpdateBorder, DispatcherPriority.Send);
+            return;
+        }
+
+        // O título chegou, ou a janela deixou de estar "cloaked": são as duas coisas que o
+        // Concerns exige e que muito programa só resolve depois de se mostrar. Sem ouvir isto, a
+        // janela era recusada no SHOW e ficava esperando outro evento qualquer — o de foco, se
+        // viesse depois do título, ou alguém abrir ou fechar outra coisa — para só então ir
+        // para o lugar: o "aparece, espera e depois centraliza". Medido em 05/10/2026 com uma
+        // janela cujo título chegava 150 ms depois de aparecer: nunca era recolhida sozinha.
+        //
+        // Só interessa quem o mosaico ainda não conhece. O título de uma janela muda o tempo
+        // todo (a aba do navegador, o terminal), e deixar isso seguir adiante seria recalcular o
+        // grid inteiro a cada mudança; as três consultas a conjuntos vêm primeiro por isso.
+        if (ev is EVENT_OBJECT_NAMECHANGE or EVENT_OBJECT_UNCLOAKED)
+        {
+            if (_tree.Contains(hWnd) || _floating.Contains(hWnd) || _stubborn.Contains(hWnd)) return;
+            if (!Concerns(hWnd) || !IsResizable(hWnd) || IsExcluded(hWnd)) return;
+
+            if (_pending is not { Status: DispatcherOperationStatus.Pending })
+                _pending = _dispatcher.InvokeAsync(Refresh, DispatcherPriority.Background);
             return;
         }
 
