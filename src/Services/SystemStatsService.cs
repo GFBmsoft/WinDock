@@ -144,15 +144,20 @@ public sealed class SystemStatsService
     /// </summary>
     private void MeasureNetwork(bool primeira, double segundos)
     {
+        RefreshAdapters();
+
+        // a lista trocou: os contadores somados são de outro conjunto, e a diferença para a
+        // soma anterior seria um pico (ou um buraco) que ninguém baixou
+        var adaptadores = _adaptadores;
+        var trocou = !ReferenceEquals(adaptadores, _medidos);
+        _medidos = adaptadores;
+
         long recebido = 0, enviado = 0;
 
         try
         {
-            foreach (var nic in NetworkInterface.GetAllNetworkInterfaces())
+            foreach (var nic in adaptadores)
             {
-                if (nic.OperationalStatus != OperationalStatus.Up) continue;
-                if (nic.NetworkInterfaceType is NetworkInterfaceType.Loopback or NetworkInterfaceType.Tunnel) continue;
-
                 var s = nic.GetIPStatistics();
                 recebido += s.BytesReceived;
                 enviado += s.BytesSent;
@@ -160,8 +165,9 @@ public sealed class SystemStatsService
         }
         catch (NetworkInformationException)
         {
-            // adaptador sumindo no meio da enumeração (VPN subindo, cabo saindo): a amostra
-            // desta volta se perde, a próxima vem inteira
+            // adaptador que sumiu desde a última enumeração (VPN caindo, cabo saindo): a amostra
+            // desta volta se perde, e a lista é refeita já
+            _adaptadoresEm = default;
             return;
         }
 
@@ -171,12 +177,55 @@ public sealed class SystemStatsService
         _recebidoAnterior = recebido;
         _enviadoAnterior = enviado;
 
-        if (primeira || segundos <= 0) return;
+        if (primeira || trocou || segundos <= 0) return;
 
         // negativo acontece: um adaptador que some leva o contador dele junto, e a soma
         // desta volta fica menor que a anterior sem ninguém ter recebido menos que nada
         Down = Math.Max(0, dRecebido / segundos);
         Up = Math.Max(0, dEnviado / segundos);
+    }
+
+    /// <summary>Os adaptadores de pé, fora loopback e túneis — a lista que a medição soma.</summary>
+    private volatile NetworkInterface[] _adaptadores = [];
+    private NetworkInterface[]? _medidos;
+    private DateTime _adaptadoresEm;
+    private int _enumerando;
+
+    /// <summary>De quanto em quanto tempo a lista de adaptadores é refeita.</summary>
+    private static readonly TimeSpan AdapterRefresh = TimeSpan.FromSeconds(30);
+
+    /// <summary>
+    /// Refaz a lista de adaptadores de tempos em tempos, e fora da thread de quem mede.
+    ///
+    /// <para><b>Era o item mais caro da barra inteira.</b> O <c>GetAllNetworkInterfaces</c> monta,
+    /// para cada adaptador, endereços, DNS e gateway — 16 ms nesta máquina, que tem 36 (medido em
+    /// 06/10/2026) —, e isto rodava a cada segundo na thread da interface: um quadro perdido por
+    /// segundo, o dia inteiro, para ler dois contadores. Os contadores em si
+    /// (<c>GetIPStatistics</c>) custam centésimos de milissegundo por adaptador.</para>
+    ///
+    /// <para>Trinta segundos é o atraso máximo para um adaptador novo entrar na soma — uma VPN
+    /// que sobe, um cabo que entra. O que sai é percebido na hora: a leitura dele falha, e a
+    /// lista é refeita em seguida.</para>
+    /// </summary>
+    private void RefreshAdapters()
+    {
+        if (DateTime.UtcNow - _adaptadoresEm < AdapterRefresh) return;
+        if (Interlocked.Exchange(ref _enumerando, 1) == 1) return;
+
+        _adaptadoresEm = DateTime.UtcNow;
+
+        _ = Task.Run(() =>
+        {
+            try
+            {
+                _adaptadores = NetworkInterface.GetAllNetworkInterfaces()
+                    .Where(n => n.OperationalStatus == OperationalStatus.Up &&
+                                n.NetworkInterfaceType is not (NetworkInterfaceType.Loopback or NetworkInterfaceType.Tunnel))
+                    .ToArray();
+            }
+            catch (NetworkInformationException) { /* fica a lista anterior; a próxima volta tenta de novo */ }
+            finally { Volatile.Write(ref _enumerando, 0); }
+        });
     }
 
     /// <summary>

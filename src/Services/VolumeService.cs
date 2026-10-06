@@ -32,8 +32,31 @@ public static class VolumeService
 
             var scalar = Math.Clamp(value, 0, 100) / 100f;
             var context = Guid.Empty;
-            endpoint.SetMasterVolumeLevelScalar(scalar, ref context);
+            if (endpoint.SetMasterVolumeLevelScalar(scalar, ref context) < 0) Reset();
         }
+    }
+
+    /// <summary>
+    /// Volume e mudo numa ida so ao dispositivo — e o que o relogio da barra pede a cada segundo.
+    /// Falso quando nao ha saida de audio.
+    /// </summary>
+    public static bool TryRead(out int level, out bool muted)
+    {
+        level = 0;
+        muted = false;
+
+        var endpoint = Endpoint();
+        if (endpoint is null) return false;
+
+        if (endpoint.GetMasterVolumeLevelScalar(out var scalar) < 0 || endpoint.GetMute(out muted) < 0)
+        {
+            Reset();
+            muted = false;
+            return false;
+        }
+
+        level = (int)Math.Round(scalar * 100);
+        return true;
     }
 
     public static bool Muted
@@ -49,7 +72,9 @@ public static class VolumeService
             if (endpoint is null) return;
 
             var context = Guid.Empty;
-            endpoint.SetMute(value, ref context);
+
+            // S_FALSE (1) e "ja estava assim", e nao erro: so o negativo derruba o que esta guardado
+            if (endpoint.SetMute(value, ref context) < 0) Reset();
         }
     }
 
@@ -99,6 +124,9 @@ public static class VolumeService
                 policy.SetDefaultEndpoint(id, role);
         }
         catch { /* versao do Windows sem essa interface: nada muda */ }
+
+        // o controle guardado e o da saida antiga: o proximo uso pergunta de novo
+        Reset();
     }
 
     private static string FriendlyName(IMMDevice device)
@@ -402,23 +430,82 @@ public static class VolumeService
     }
 
     /// <summary>
-    /// O dispositivo padrao pode trocar (fone que entra, monitor que sai), entao ele e
-    /// buscado a cada uso em vez de guardado. A chamada e barata.
+    /// O controle de volume da saida padrao.
+    ///
+    /// O dispositivo padrao pode trocar (fone que entra, monitor que sai), entao <b>qual</b> e o
+    /// padrao e perguntado a cada uso — mas o enumerador e o controle ficam guardados enquanto a
+    /// resposta for a mesma. Ja foi tudo recriado a cada chamada, com um comentario dizendo que
+    /// era barato; medido em 06/10/2026, eram 1,9 ms por chamada, duas por segundo na thread da
+    /// interface, quase tudo no <c>CoCreateInstance</c> e no <c>Activate</c>.
     /// </summary>
     private static IAudioEndpointVolume? Endpoint()
     {
-        try
+        lock (EndpointGate)
         {
-            var enumerator = (IMMDeviceEnumerator)new MMDeviceEnumerator();
-            if (enumerator.GetDefaultAudioEndpoint(DataFlowRender, RoleMultimedia, out var device) != 0)
-                return null;
+            // perguntar qual é o padrão também custa (é uma ida ao serviço de áudio): a resposta
+            // vale por dois segundos, e quem troca a saída por aqui (SetDefault) a derruba na hora
+            var agora = Environment.TickCount64;
+            if (_endpoint is not null && agora - _endpointAt < 2000) return _endpoint;
 
-            var iid = typeof(IAudioEndpointVolume).GUID;
-            return device.Activate(ref iid, ClsCtxAll, 0, out var control) == 0
-                ? control as IAudioEndpointVolume : null;
+            try
+            {
+                _endpointAt = agora;
+                _enumerator ??= (IMMDeviceEnumerator)new MMDeviceEnumerator();
+                if (_enumerator.GetDefaultAudioEndpoint(DataFlowRender, RoleMultimedia, out var device) != 0 ||
+                    device.GetId(out var id) != 0)
+                {
+                    // sem saida de audio — ou o enumerador morreu junto com o servico de audio,
+                    // e daqui nao da para saber qual dos dois: o proximo uso cria outro
+                    Reset();
+                    return null;
+                }
+
+                if (_endpoint is not null && id == _endpointId) return _endpoint;
+
+                Forget();
+                var iid = typeof(IAudioEndpointVolume).GUID;
+                if (device.Activate(ref iid, ClsCtxAll, 0, out var control) != 0) return null;
+
+                _endpoint = control as IAudioEndpointVolume;
+                _endpointId = _endpoint is null ? null : id;
+                return _endpoint;
+            }
+            catch
+            {
+                // o servico de audio reiniciou, ou o dispositivo saiu no meio: o que estava
+                // guardado nao vale mais, e a proxima chamada comeca do zero
+                Reset();
+                return null;
+            }
         }
-        catch { return null; }
     }
+
+    private static void Forget()
+    {
+        _endpoint = null;
+        _endpointId = null;
+    }
+
+    /// <summary>
+    /// Joga fora tudo o que estava guardado. Chamado tambem por quem recebe erro do controle:
+    /// as interfaces sao <c>PreserveSig</c>, entao um controle que morreu (o servico de audio
+    /// reiniciado, com o mesmo dispositivo padrao) responde codigo de erro, e nao excecao — sem
+    /// isto ele ficaria guardado para sempre, respondendo erro.
+    /// </summary>
+    private static void Reset()
+    {
+        lock (EndpointGate)
+        {
+            Forget();
+            _enumerator = null;
+        }
+    }
+
+    private static readonly object EndpointGate = new();
+    private static IMMDeviceEnumerator? _enumerator;
+    private static IAudioEndpointVolume? _endpoint;
+    private static string? _endpointId;
+    private static long _endpointAt;
 
     private const int DataFlowRender = 0;    // saida de audio
     private const int RoleMultimedia = 1;

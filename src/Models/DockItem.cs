@@ -53,6 +53,12 @@ public sealed class DockItem : INotifyPropertyChanged
         get => _windows;
         set
         {
+            // As mesmas janelas, com os mesmos títulos, não mudam nada na tela — e a dock se
+            // atualiza de três em três segundos, mais a cada janela que nasce ou troca de nome em
+            // qualquer programa. Sem esta pergunta, cada atualização refazia as bolinhas de todos
+            // os botões: medido em 06/10/2026, mais da metade do tempo do Refresh era isso.
+            if (_windows.SequenceEqual(value)) { _windows = value; return; }
+
             _windows = value;
             OnChanged(nameof(Windows));
             OnChanged(nameof(WindowCount));

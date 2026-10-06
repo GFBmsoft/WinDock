@@ -707,16 +707,18 @@
           </StackPanel>
         </Button>
 
-        <!-- a roda do mouse sobe e desce o volume, como na barra do Windows -->
+        <!-- a roda do mouse sobe e desce o volume, como na barra do Windows; o clique do meio
+             liga e desliga o mudo, sem abrir o cartão -->
         <Button Tag="volume" x:Name="VolumeButton" Style="{StaticResource PanelButton}" Click="OnVolume"
-                PreviewMouseWheel="OnVolumeWheel">
+                PreviewMouseWheel="OnVolumeWheel" PreviewMouseDown="OnVolumeMouseDown">
           <!-- A dica é um objeto com nome, e não um texto solto, só para poder ser FECHADA
                ao rolar a roda. `ToolTipService.SetIsEnabled(false)` impede a próxima mas não
                tira da tela a que já está aberta — e ela sempre está, porque o cursor ficou
                parado sobre o ícone tempo suficiente para abri-la. O resultado era a dica
-               aparecendo por baixo do mostrador, dois cartões empilhados. -->
+               aparecendo por baixo do mostrador, dois cartões empilhados.
+               A que ainda ia abrir quando a roda girou é barrada no `OnBarToolTipOpening`. -->
           <Button.ToolTip>
-            <ToolTip x:Name="VolumeTip" Content="Volume — role para ajustar" />
+            <ToolTip x:Name="VolumeTip" Content="Volume — role para ajustar, clique do meio para o mudo" />
           </Button.ToolTip>
           <ui:GlyphIcon Glyph="{Binding VolumeGlyph}" Fill="#FFF2F2F2" Style="{StaticResource BarGlyph}" VerticalAlignment="Center" />
         </Button>
@@ -1081,7 +1083,7 @@
                 <TextBlock Text="Volume" Foreground="#FFF2F2F2" FontSize="14"
                            FontWeight="SemiBold" VerticalAlignment="Center" />
               </StackPanel>
-              <TextBlock Text="{Binding Volume, StringFormat='{}{0}%'}" HorizontalAlignment="Right"
+              <TextBlock Text="{Binding VolumeText}" HorizontalAlignment="Right"
                          VerticalAlignment="Center" Foreground="#FF9D9D9D" FontSize="12" />
             </Grid>
 
@@ -1915,7 +1917,7 @@
             <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
               <ui:GlyphIcon Glyph="{Binding VolumeGlyph}" Fill="#FFF2F2F2" Size="16"
                             VerticalAlignment="Center" Margin="0,0,10,0" />
-              <TextBlock Text="{Binding Volume, StringFormat='{}{0}%'}" Foreground="#FFF2F2F2"
+              <TextBlock Text="{Binding VolumeText}" Foreground="#FFF2F2F2"
                          FontSize="15" FontWeight="SemiBold" VerticalAlignment="Center" />
             </StackPanel>
 

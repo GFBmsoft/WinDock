@@ -32,7 +32,7 @@ public static class WindowService
             GetWindowThreadProcessId(hWnd, out var pid);
             if (pid == self) return true;                     // a propria dock nao entra
 
-            var exe = ProcessPath(pid);
+            var exe = PathOf(hWnd, pid);
             if (string.IsNullOrEmpty(exe)) return true;
 
             list.Add(new TaskWindow(hWnd, TitleOf(hWnd), exe, AppUserModelId(hWnd), IsIconic(hWnd)));
@@ -41,6 +41,38 @@ public static class WindowService
 
         return list;
     }
+
+    /// <summary>
+    /// O executável de uma janela, guardado enquanto ela existir.
+    ///
+    /// A janela não troca de processo, e o processo não troca de executável — mas a pergunta era
+    /// refeita para todas as janelas a cada varredura (de três em três segundos, e a cada janela
+    /// que nasce ou muda de título), abrindo o processo de cada uma. Medido em 06/10/2026: era
+    /// quase metade do <see cref="Enumerate"/>.
+    ///
+    /// A chave é o par janela + processo: um identificador de janela reaproveitado pelo Windows
+    /// vem com outro processo, e não acha a resposta da janela que morreu.
+    /// </summary>
+    private static string PathOf(nint hWnd, uint pid)
+    {
+        lock (Paths)
+        {
+            if (Paths.TryGetValue((hWnd, pid), out var guardado)) return guardado;
+        }
+
+        var exe = ProcessPath(pid);
+        if (exe.Length == 0) return exe;   // pode ser só o instante: o processo ainda subindo
+
+        lock (Paths)
+        {
+            if (Paths.Count >= 512) Paths.Clear();   // janelas mortas se acumulam; recomeçar é barato
+            Paths[(hWnd, pid)] = exe;
+        }
+
+        return exe;
+    }
+
+    private static readonly Dictionary<(nint, uint), string> Paths = new();
 
     /// <summary>O mesmo <see cref="TaskWindow"/> que o <see cref="Enumerate"/> montaria, mas de
     /// uma janela só. Serve a quem já tem o hwnd na mão (o mosaico, ao receber um evento) e só

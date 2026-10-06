@@ -608,13 +608,33 @@ public sealed class PanelModel : INotifyPropertyChanged, IDisposable
         get => _volume;
         set
         {
+            var subiu = value > _volume;
             if (!Set(ref _volume, value)) return;
             VolumeService.Level = value;
-            OnChanged(nameof(VolumeGlyph));
-            OnChanged(nameof(VolumeBrush));
-            OnChanged(nameof(VolumeFill));
+            RaiseVolume();
+
+            // subir o volume devolve o som, como no controle do Windows: arrastar a barra para
+            // cima e continuar sem ouvir nada, por causa de um mudo dado antes, parece defeito
+            if (subiu && _muted) Muted = false;
         }
     }
+
+    /// <summary>Tudo o que se desenha a partir do volume e do mudo — os dois mexem nos mesmos lugares.</summary>
+    private void RaiseVolume()
+    {
+        OnChanged(nameof(VolumeGlyph));
+        OnChanged(nameof(VolumeBrush));
+        OnChanged(nameof(VolumeFill));
+        OnChanged(nameof(VolumeText));
+    }
+
+    /// <summary>
+    /// "42%", ou "Mudo" — o texto do mostrador e do cartão.
+    ///
+    /// Existe porque o desenho sozinho não distingue: com o volume em zero o alto-falante já
+    /// aparece cortado, com ou sem mudo, e clicar no mudo ali não mudava nada na tela.
+    /// </summary>
+    public string VolumeText => _muted ? "Mudo" : $"{_volume}%";
 
     /// <summary>
     /// A cor da barra de volume, no mesmo espirito da pilha: so muda quando a cor diz alguma
@@ -652,11 +672,31 @@ public sealed class PanelModel : INotifyPropertyChanged, IDisposable
         set
         {
             if (!Set(ref _muted, value)) return;
-            VolumeService.Muted = value;
-            OnChanged(nameof(VolumeGlyph));
-            OnChanged(nameof(VolumeBrush));
+            WriteMute(value);
+            RaiseVolume();
         }
     }
+
+    /// <summary>
+    /// Manda o mudo para o dispositivo fora da thread da interface, um pedido de cada vez.
+    ///
+    /// O driver pode levar um quarto de segundo para silenciar a saída — medido em 06/10/2026
+    /// nos alto-falantes Realtek desta máquina: 276 ms num <c>SetMute</c>, contra 1 ms no
+    /// volume. Feito daqui, era a barra inteira parada nesse tempo, com o mostrador aparecendo
+    /// atrasado. Encadeados, dois cliques seguidos chegam ao dispositivo na ordem em que foram
+    /// dados; e enquanto houver pedido em curso o relógio não acredita no que lê
+    /// (<see cref="UpdateVolume"/>), senão o desenho voltaria ao estado antigo por um segundo.
+    /// </summary>
+    private void WriteMute(bool value)
+    {
+        _muteWrites++;
+        _muteWrite = _muteWrite
+            .ContinueWith(_ => VolumeService.Muted = value, TaskScheduler.Default)
+            .ContinueWith(_ => _dispatcher.InvokeAsync(() => _muteWrites--), TaskScheduler.Default);
+    }
+
+    private Task _muteWrite = Task.CompletedTask;
+    private int _muteWrites;
 
     /// <summary>
     /// Glifos da Segoe Fluent Icons, a fonte de icones do proprio Windows 11: assim o
@@ -2262,18 +2302,24 @@ public sealed class PanelModel : INotifyPropertyChanged, IDisposable
 
     /// <summary>Os Ids já vistos: só o que nunca passou por aqui ganha balão.</summary>
     private readonly HashSet<uint> _seenNotifications = new();
-    private bool _notificationsPrimed;
+
+    /// <summary>
+    /// Quando a dock abriu: o que é de antes disso já estava na Central, e não é novidade.
+    ///
+    /// Já foi "a primeira leitura não conta", e a regra falhava justamente com a Central vazia:
+    /// lista vazia é igual à lista vazia de partida, a leitura nem chegava aqui, e quem perdia o
+    /// balão era a primeira notificação do dia — tomada pela tal primeira leitura.
+    /// </summary>
+    private readonly DateTime _notificationsSince = DateTime.Now;
 
     /// <summary>
     /// Uma notificação nova chegou e pede balão — a barra mostra (veja <c>NotificationBalloon</c>).
-    /// A primeira leitura não conta: o que já estava na Central quando a dock abriu não é novidade.
     /// </summary>
     public event Action<NotificationItem>? NotificationArrived;
 
     private void Announce(IReadOnlyList<NotificationItem> lidas)
     {
-        var novas = lidas.Where(n => _seenNotifications.Add(n.Id)).ToList();
-        if (!_notificationsPrimed) { _notificationsPrimed = true; return; }
+        var novas = lidas.Where(n => _seenNotifications.Add(n.Id) && n.Time >= _notificationsSince).ToList();
         if (!_config.NotificationPopup) return;
 
         // da mais velha para a mais nova, para a mais nova ficar em cima da pilha
@@ -2599,9 +2645,12 @@ public sealed class PanelModel : INotifyPropertyChanged, IDisposable
         HasBattery = (power.BatteryFlag & 128) == 0 && power.BatteryLifePercent != 255;
         if (!HasBattery) return;
 
+        var antes = (_charging, _batteryPercent);
         Charging = power.ACLineStatus == 1;
         BatteryPercent = power.BatteryLifePercent;
-        OnChanged(nameof(BatteryTooltip));
+
+        // só quando mudou: isto roda de segundo em segundo, e a dica era refeita em todos eles
+        if (antes != (_charging, _batteryPercent)) OnChanged(nameof(BatteryTooltip));
     }
 
     /// <summary>
@@ -2610,22 +2659,18 @@ public sealed class PanelModel : INotifyPropertyChanged, IDisposable
     /// </summary>
     private void UpdateVolume()
     {
-        var level = VolumeService.Level;
-        var muted = VolumeService.Muted;
+        // um mudo ainda a caminho do dispositivo: o que se leria é o estado de antes dele — e a
+        // leitura ainda esperaria, na thread da interface, o driver terminar o que está fazendo
+        if (_muteWrites > 0) return;
 
-        if (level != _volume)
-        {
-            _volume = level;
-            OnChanged(nameof(Volume));
-            OnChanged(nameof(VolumeGlyph));
-        }
+        VolumeService.TryRead(out var level, out var muted);
+        if (level == _volume && muted == _muted) return;
 
-        if (muted != _muted)
-        {
-            _muted = muted;
-            OnChanged(nameof(Muted));
-            OnChanged(nameof(VolumeGlyph));
-        }
+        // a cor e a largura da barra vão junto: antes só o desenho era avisado, e o volume
+        // mudado por fora (a tecla do teclado) deixava o mostrador com a barra do valor antigo
+        if (level != _volume) { _volume = level; OnChanged(nameof(Volume)); }
+        if (muted != _muted) { _muted = muted; OnChanged(nameof(Muted)); }
+        RaiseVolume();
     }
 
     /// <summary>Painel de wi-fi, bluetooth, volume e brilho (o mesmo do Win+A).</summary>

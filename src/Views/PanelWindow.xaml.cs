@@ -22,6 +22,36 @@ public partial class PanelWindow : Window
     private readonly PanelModel _model;
     private AppBar? _appBar;
 
+    static PanelWindow()
+    {
+        // por classe, e não na janela: o ToolTipOpening é um evento direto, que não sobe a árvore
+        EventManager.RegisterClassHandler(typeof(FrameworkElement), ToolTipService.ToolTipOpeningEvent,
+                                          new ToolTipEventHandler(OnBarToolTipOpening));
+    }
+
+    /// <summary>
+    /// Com um cartão aberto (ou o mostrador de volume), os ícones da barra não mostram dica.
+    ///
+    /// <para>A dica nasce embaixo do cursor, e embaixo da barra é exatamente onde os cartões
+    /// abrem: ela aparecia por cima do cartão, ou o cartão por cima dela. O clique que abre o
+    /// cartão fecha a dica que estava na tela, mas basta o mouse passar do desenho para a borda
+    /// do mesmo botão para o WPF abrir outra; e a dica que ainda estava <b>para abrir</b> quando
+    /// a roda girou no volume abre do mesmo jeito, por cima do mostrador — desabilitar a dica do
+    /// botão (<c>ToolTipService.IsEnabled</c>) só é consultado quando a espera começa, não quando
+    /// termina. Este evento é a última pergunta antes de a dica ir para a tela, e cancelá-lo
+    /// cobre os dois casos, em qualquer botão.</para>
+    ///
+    /// <para>Só os ícones da barra: as dicas de dentro de um cartão são do cartão, e continuam.
+    /// O que separa os dois é de quem é a janela — o conteúdo de um <c>Popup</c> mora em outra.</para>
+    /// </summary>
+    private static void OnBarToolTipOpening(object sender, ToolTipEventArgs e)
+    {
+        if (sender is not Visual elemento) return;
+        if (PresentationSource.FromVisual(elemento)?.RootVisual is not PanelWindow barra) return;
+
+        if (barra.AnyPopupOpen || barra.VolumeOsd.IsOpen) e.Handled = true;
+    }
+
     public PanelWindow(DockConfig config)
     {
         _config = config;
@@ -63,6 +93,11 @@ public partial class PanelWindow : Window
         _model.PropertyChanged += OnModelChanged;
 
         SourceInitialized += OnSourceInitialized;
+
+        // a barra some quando algo ocupa a tela inteira (veja MainWindow.OnFullScreenChanged), e
+        // um cartão aberto ficaria de pé sozinho, por cima de quem pediu a tela
+        IsVisibleChanged += (_, _) => { if (!IsVisible) CloseAllPopups(); };
+
         Closed += (_, _) =>
         {
             _outsideClick.Stop();
@@ -324,12 +359,25 @@ public partial class PanelWindow : Window
     /// </summary>
     private void StackBalloons()
     {
-        if (_balloons.Count == 0 || !BellButton.IsVisible) return;
+        if (_balloons.Count == 0) return;
 
-        var sino = BellButton.PointToScreen(new Point(BellButton.ActualWidth, BellButton.ActualHeight));
-        var deTela = PresentationSource.FromVisual(this)?.CompositionTarget?.TransformFromDevice ?? Matrix.Identity;
-        var canto = deTela.Transform(sino);
-        var tela = deTela.Transform(PointToScreen(new Point(ActualWidth, 0)));
+        // Sem o sino à vista — desligado nas Configurações, ou a barra inteira escondida por um
+        // app em tela cheia — o balão vai para o canto direito, na altura em que a barra fica.
+        // Antes este caso saía sem posicionar nada, e o balão nascia onde o Windows põe uma
+        // janela nova qualquer: no meio da tela, em cascata.
+        Point canto, tela;
+        if (BellButton.IsVisible)
+        {
+            var sino = BellButton.PointToScreen(new Point(BellButton.ActualWidth, BellButton.ActualHeight));
+            var deTela = PresentationSource.FromVisual(this)?.CompositionTarget?.TransformFromDevice ?? Matrix.Identity;
+            canto = deTela.Transform(sino);
+            tela = deTela.Transform(PointToScreen(new Point(ActualWidth, 0)));
+        }
+        else
+        {
+            tela = new Point(Left + Width, Top);
+            canto = new Point(tela.X, Top + Height);
+        }
 
         var y = canto.Y - 4;   // o balão tem 10 de margem por dentro: a sombra encosta na barra
         foreach (var balao in Enumerable.Reverse(_balloons))
@@ -1141,20 +1189,26 @@ public partial class PanelWindow : Window
         return false;
     }
 
-    private static bool Contains(System.Windows.Controls.Primitives.Popup popup, Point screenPoint)
-    {
-        if (!popup.IsOpen || popup.Child is not FrameworkElement child) return false;
+    private static bool Contains(System.Windows.Controls.Primitives.Popup popup, Point screenPoint) =>
+        popup.IsOpen && popup.Child is FrameworkElement child && Over(child, screenPoint);
 
-        var origin = child.PointToScreen(new Point(0, 0));
-        return screenPoint.X >= origin.X && screenPoint.X <= origin.X + child.ActualWidth &&
-               screenPoint.Y >= origin.Y && screenPoint.Y <= origin.Y + child.ActualHeight;
-    }
+    private bool ContainsBar(Point screenPoint) => Over(this, screenPoint);
 
-    private bool ContainsBar(Point screenPoint)
+    /// <summary>
+    /// Se o ponto da tela cai dentro do elemento.
+    ///
+    /// O ponto é trazido para as medidas do elemento, e não o contrário. A conta já foi o canto
+    /// do elemento na tela mais o <c>ActualWidth</c> dele — pixels somados a unidades do WPF, que
+    /// só são a mesma coisa com a tela em 100% e o cartão sem escala. Numa tela a 150% o cartão
+    /// "acabava" a dois terços da largura, e um clique no resto dele o fechava; e com os ícones
+    /// compactos (cartão a 90%) sobrava uma faixa fora dele que ainda contava como dentro.
+    /// </summary>
+    private static bool Over(FrameworkElement element, Point screenPoint)
     {
-        var origin = PointToScreen(new Point(0, 0));
-        return screenPoint.X >= origin.X && screenPoint.X <= origin.X + ActualWidth &&
-               screenPoint.Y >= origin.Y && screenPoint.Y <= origin.Y + ActualHeight;
+        if (PresentationSource.FromVisual(element) is null) return false;
+
+        var p = element.PointFromScreen(screenPoint);
+        return p.X >= 0 && p.X <= element.ActualWidth && p.Y >= 0 && p.Y <= element.ActualHeight;
     }
 
     /// <summary>
@@ -1418,6 +1472,20 @@ public partial class PanelWindow : Window
         new() { Interval = TimeSpan.FromMilliseconds(1200) };
 
     private void OnMute(object sender, RoutedEventArgs e) => _model.Muted = !_model.Muted;
+
+    /// <summary>
+    /// Clique do meio no alto-falante da barra: liga e desliga o mudo, sem abrir o cartão
+    /// (pedido de 06/10/2026 — até aqui só dava para silenciar por dentro dele). O mostrador
+    /// aparece dizendo como ficou; com o volume em zero o desenho do ícone não mudaria.
+    /// </summary>
+    private void OnVolumeMouseDown(object sender, MouseButtonEventArgs e)
+    {
+        if (e.ChangedButton != MouseButton.Middle) return;
+
+        _model.Muted = !_model.Muted;
+        ShowVolumeOsd();
+        e.Handled = true;
+    }
 
     /// <summary>Corta o som de um programa só, sem mexer no volume geral.</summary>
     private void OnMuteApp(object sender, RoutedEventArgs e)

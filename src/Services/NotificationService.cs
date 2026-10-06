@@ -137,9 +137,16 @@ public sealed class NotificationService
         var itens = new List<NotificationItem>(lidas.Count);
         foreach (var n in lidas)
         {
+            // a que já foi lida não é lida de novo: a pergunta se repete de cinco em cinco
+            // segundos, a resposta quase sempre é a mesma, e montar cada uma custa os textos, o
+            // ícone e — nas do navegador — uma ida ao banco de notificações do Windows
+            if (_lidas.TryGetValue(n.Id, out var pronta)) { itens.Add(pronta); continue; }
+
             try
             {
-                itens.Add(await ToItem(n));
+                var item = await ToItem(n);
+                _lidas[n.Id] = item;
+                itens.Add(item);
             }
             catch (Exception ex)
             {
@@ -148,8 +155,18 @@ public sealed class NotificationService
             }
         }
 
+        // as que saíram da Central saem daqui também, senão isto cresceria o dia inteiro
+        if (_lidas.Count > itens.Count)
+        {
+            var vivas = itens.Select(i => i.Id).ToHashSet();
+            foreach (var id in _lidas.Keys.Where(k => !vivas.Contains(k)).ToList()) _lidas.Remove(id);
+        }
+
         return itens.OrderByDescending(i => i.Time).ToList();
     }
+
+    /// <summary>As notificações já montadas, pelo Id — veja o <see cref="ReadAsync"/>.</summary>
+    private readonly Dictionary<uint, NotificationItem> _lidas = new();
 
     private async Task<NotificationItem> ToItem(UserNotification n)
     {
