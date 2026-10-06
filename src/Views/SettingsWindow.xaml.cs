@@ -385,9 +385,26 @@ public partial class SettingsWindow : Window
 
     private void ShowPage(string nome)
     {
-        foreach (var pagina in new[] { PageDock, PageBar, PageItems, PageTiling, PageGeneral })
+        if (nome == PageNotes.Name) LoadNotes();
+
+        foreach (var pagina in new[] { PageDock, PageBar, PageItems, PageTiling, PageGeneral, PageNotes })
             pagina.Visibility = pagina.Name == nome ? Visibility.Visible : Visibility.Collapsed;
         Scroller.ScrollToTop();
+    }
+
+    /// <summary>
+    /// Monta as notas da versão na primeira vez que a página é aberta: são dezenas de cartões que
+    /// quase ninguém olha a cada visita às Configurações, e não precisam pesar na abertura dela.
+    /// </summary>
+    private void LoadNotes()
+    {
+        if (NotesList.ItemsSource is not null) return;
+
+        var notas = ReleaseNotes.All;
+        NotesList.ItemsSource = notas;
+        NotesCurrent.Text = notas.Count == 0
+            ? "O histórico não veio junto com este executável."
+            : $"Você está na {SelfUpdateService.CurrentVersion}. Da mais nova para a mais antiga.";
     }
 
     /// <summary>Escolhe a página por código, marcando também o item dela na coluna.</summary>

@@ -115,6 +115,7 @@
         <RadioButton Style="{StaticResource NavItem}" Tag="PageItems" Content="Itens da barra" ui:NavGlyph.Glyph="&#xE71D;" Checked="OnNav" />
         <RadioButton Style="{StaticResource NavItem}" Tag="PageTiling" Content="Mosaico" ui:NavGlyph.Glyph="&#xF0E2;" Checked="OnNav" />
         <RadioButton Style="{StaticResource NavItem}" Tag="PageGeneral" Content="Geral" ui:NavGlyph.Glyph="&#xE713;" Checked="OnNav" />
+        <RadioButton Style="{StaticResource NavItem}" Tag="PageNotes" Content="Notas da versão" ui:NavGlyph.Glyph="&#xE81C;" Checked="OnNav" />
       </StackPanel>
 
     <ScrollViewer x:Name="Scroller" Grid.Column="1" VerticalScrollBarVisibility="Auto"
@@ -1624,6 +1625,53 @@
                       IsChecked="{Binding Trace, Mode=TwoWay}" />
           </Grid>
         </Border>
+
+      </StackPanel>
+
+      <!-- O histórico de versões (pedido de 06/10/2026): o que mudou em cada uma, da mais nova
+           para a mais velha. Vem do docs/NOTAS.md embutido no executável — veja o ReleaseNotes.
+           A lista é montada na primeira vez que a página abre, e não com a janela. -->
+      <StackPanel x:Name="PageNotes" Visibility="Collapsed">
+
+        <TextBlock Text="Notas da versão" Style="{StaticResource FluentSection}" Margin="2,0,0,2" />
+        <TextBlock x:Name="NotesCurrent" Style="{StaticResource FluentCaption}" Margin="2,0,0,10" />
+
+        <ItemsControl x:Name="NotesList">
+          <ItemsControl.ItemTemplate>
+            <DataTemplate>
+              <Border Style="{StaticResource FluentCardBorderStyle}">
+                <StackPanel>
+                  <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
+                    <TextBlock Text="{Binding Version}" Style="{StaticResource FluentTitle}" FontWeight="SemiBold" />
+                    <TextBlock Text="{Binding Date}" Style="{StaticResource FluentCaption}"
+                               Margin="10,0,0,0" VerticalAlignment="Center" />
+                    <Border Background="#334CC2FF" CornerRadius="8" Padding="8,1" Margin="10,0,0,0"
+                            VerticalAlignment="Center"
+                            Visibility="{Binding IsCurrent, Converter={StaticResource BoolToVisible}}">
+                      <TextBlock Text="em uso" Foreground="{StaticResource FluentAccent}" FontSize="11" />
+                    </Border>
+                  </StackPanel>
+
+                  <ItemsControl ItemsSource="{Binding Items}">
+                    <ItemsControl.ItemTemplate>
+                      <DataTemplate>
+                        <Grid Margin="0,2,0,2">
+                          <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="14" />
+                            <ColumnDefinition Width="*" />
+                          </Grid.ColumnDefinitions>
+                          <TextBlock Text="•" Foreground="{StaticResource FluentTextDim}" FontSize="12" />
+                          <TextBlock Grid.Column="1" Text="{Binding}" Foreground="#FFD6D6D6" FontSize="12"
+                                     TextWrapping="Wrap" />
+                        </Grid>
+                      </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                  </ItemsControl>
+                </StackPanel>
+              </Border>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
 
       </StackPanel>
 
