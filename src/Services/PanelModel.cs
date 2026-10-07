@@ -1924,35 +1924,7 @@ public sealed class PanelModel : INotifyPropertyChanged, IDisposable
     /// Sem leitura nenhuma o robô fica branco — "não sei" não é "está tudo bem", mas pintar
     /// de vermelho o que não se sabe é pior: o cartão, a um clique, é quem diz o que houve.
     /// </summary>
-    public Brush AiBrush
-    {
-        get
-        {
-            var medidores = AiDaBarra();
-            if (medidores.Count == 0) return AiSemLeitura;
-
-            var cheio = medidores.Max();
-            return cheio >= 95 ? AiFim : cheio >= 70 ? AiAtencao : AiCalmo;
-        }
-    }
-
-    /// <summary>
-    /// As cores do robô. Amarelo e vermelho são os do <c>UsageBrush</c>, que pinta as barras do
-    /// cartão, nas mesmas faixas. O verde é o de sucesso do Windows 11 sobre fundo escuro — e
-    /// substitui o branco de antes, que deixava o robô igual aos outros ícones: a pessoa pediu
-    /// que ele dissesse "está tranquilo" também, e não só quando aperta.
-    /// </summary>
-    private static readonly Brush AiSemLeitura = Congelado(0xF2, 0xF2, 0xF2);
-    private static readonly Brush AiCalmo = Congelado(0x6C, 0xCB, 0x5F);
-    private static readonly Brush AiAtencao = Congelado(0xFF, 0xB9, 0x00);
-    private static readonly Brush AiFim = Congelado(0xFF, 0x60, 0x5C);
-
-    private static Brush Congelado(byte r, byte g, byte b)
-    {
-        var brush = new SolidColorBrush(Color.FromRgb(r, g, b));
-        brush.Freeze();
-        return brush;
-    }
+    public Brush AiBrush => AiCard.CorDoUso(AiDaBarra());
 
     /// <summary>
     /// Já houve uma leitura nesta sessão? É o que decide o "atualizado às" do rodapé: antes

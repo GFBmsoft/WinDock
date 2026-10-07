@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Windows.Media;
 
 namespace WinDock.Services;
 
@@ -22,6 +23,7 @@ public sealed class AiCard
         Gauges = leitura.Gauges;
         Primeira = primeira;
         Padrao = padrao;
+        Cor = CorDoUso(Gauges.Select(g => g.Percent).ToList());
 
         // O e-mail sai quando ele já é o título — repetir a mesma linha duas vezes gasta a
         // altura do cartão sem dizer nada.
@@ -79,6 +81,43 @@ public sealed class AiCard
     /// estrela, e só quando há outra ao lado: com uma conta só não há o que distinguir.
     /// </summary>
     public bool Padrao { get; }
+
+    /// <summary>
+    /// A cor do robô desta conta no cartão, pela regra do robô da barra: o medidor mais cheio
+    /// dela. Na conta padrão dá a mesma cor que está na barra (pedido em 07/10/2026; antes o
+    /// robô do cartão era sempre branco, e a cor da barra não tinha par lá dentro).
+    /// </summary>
+    public Brush Cor { get; }
+
+    /// <summary>
+    /// A cor de um conjunto de medidores: verde até 70%, amarelo de 70 a 95%, vermelho a partir
+    /// de 95%, pelo mais cheio. Sem medidor nenhum, branco.
+    /// </summary>
+    public static Brush CorDoUso(IReadOnlyCollection<double> medidores)
+    {
+        if (medidores.Count == 0) return SemLeitura;
+
+        var cheio = medidores.Max();
+        return cheio >= 95 ? Fim : cheio >= 70 ? Atencao : Calmo;
+    }
+
+    /// <summary>
+    /// As cores do robô. Amarelo e vermelho são os do <c>UsageBrush</c>, que pinta as barras do
+    /// cartão, nas mesmas faixas. O verde é o de sucesso do Windows 11 sobre fundo escuro — e
+    /// substitui o branco de antes, que deixava o robô igual aos outros ícones: a pessoa pediu
+    /// que ele dissesse "está tranquilo" também, e não só quando aperta.
+    /// </summary>
+    private static readonly Brush SemLeitura = Congelado(0xF2, 0xF2, 0xF2);
+    private static readonly Brush Calmo = Congelado(0x6C, 0xCB, 0x5F);
+    private static readonly Brush Atencao = Congelado(0xFF, 0xB9, 0x00);
+    private static readonly Brush Fim = Congelado(0xFF, 0x60, 0x5C);
+
+    private static Brush Congelado(byte r, byte g, byte b)
+    {
+        var brush = new SolidColorBrush(Color.FromRgb(r, g, b));
+        brush.Freeze();
+        return brush;
+    }
 
     public string Titulo { get; }
     public string Linha { get; }

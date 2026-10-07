@@ -128,7 +128,8 @@ public sealed class AiUsageService
     /// apontar. A identidade está num <c>.claude.json</c> cujo lugar **muda com o caso**, e
     /// isso foi medido nesta máquina: para uma pasta alternativa ele fica **dentro** dela
     /// (<c>~/.claude-bm/.claude.json</c>); para a padrão, fica no home
-    /// (<c>~/.claude.json</c>), ao lado da pasta. Os dois lugares são tentados, nessa ordem.</para>
+    /// (<c>~/.claude.json</c>), ao lado da pasta. Os dois lugares são lidos, e quando os dois
+    /// existem vale o gravado por último.</para>
     /// </summary>
     public static IReadOnlyList<AiProfile> Profiles()
     {
@@ -176,17 +177,37 @@ public sealed class AiUsageService
     {
         var id = Path.GetFileName(pasta.TrimEnd(Path.DirectorySeparatorChar));
 
-        // o de dentro primeiro: é onde ele fica quando a pasta veio do CLAUDE_CONFIG_DIR
-        var caminho = new[] { Path.Combine(pasta, ".claude.json"), Path.Combine(Home, $"{id}.json") }
-            .FirstOrDefault(File.Exists);
+        // **Os dois lugares podem existir ao mesmo tempo, e aí vale o gravado por último.** Em
+        // 07/10/2026 a pasta padrão desta máquina tinha um `.claude.json` dentro dela, parado
+        // desde a véspera e sem o tipo da organização, ao lado do `~/.claude.json` vivo, que
+        // dizia "claude_max". Pegar "o de dentro primeiro" achava o parado, ficava sem plano e
+        // caía no "pro" da credencial — veja `NomeDoPlano` para o porquê de ela não servir.
+        var lidos = new[] { Path.Combine(pasta, ".claude.json"), Path.Combine(Home, $"{id}.json") }
+            .Where(File.Exists)
+            .OrderByDescending(File.GetLastWriteTimeUtc)
+            .Select(c => Ler(c, id, pasta))
+            .Where(p => p is not null)
+            .ToList();
 
-        if (caminho is null) return new AiProfile(id, pasta, null, null, null, null);
+        if (lidos.Count == 0) return new AiProfile(id, pasta, null, null, null, null);
 
+        var perfil = lidos[0]!;
+        if (perfil.Plano is not null) return perfil;
+
+        // o mais novo não diz o plano: vale o do outro, desde que seja da mesma conta
+        var plano = lidos.Skip(1).FirstOrDefault(p => p!.Plano is not null &&
+                        string.Equals(p.Email, perfil.Email, StringComparison.OrdinalIgnoreCase))?.Plano;
+        return perfil with { Plano = plano };
+    }
+
+    /// <summary>O perfil de um <c>.claude.json</c>; nulo quando ele não traz conta ou não abre.</summary>
+    private static AiProfile? Ler(string caminho, string id, string pasta)
+    {
         try
         {
             var carimbo = File.GetLastWriteTimeUtc(caminho);
             if (_identidades.TryGetValue(caminho, out var guardada) && guardada.Quando == carimbo)
-                return guardada.Perfil with { Id = id, Pasta = pasta };
+                return guardada.Perfil is null ? null : guardada.Perfil with { Id = id, Pasta = pasta };
 
             using var fluxo = new FileStream(caminho, FileMode.Open, FileAccess.Read,
                                              FileShare.ReadWrite | FileShare.Delete);
@@ -194,11 +215,12 @@ public sealed class AiUsageService
 
             // `fullName` é o nome completo e `displayName` costuma ser o primeiro nome; o
             // cartão é estreito, então o curto vem primeiro quando existe.
-            var perfil = new AiProfile(id, pasta,
-                                       Primeiro(oauth?.DisplayName, oauth?.FullName),
-                                       oauth?.EmailAddress, oauth?.OrganizationName,
-                                       oauth?.OrganizationRole,
-                                       NomeDoPlano(oauth?.OrganizationType, oauth?.OrganizationRateLimitTier));
+            var perfil = oauth is null ? null
+                       : new AiProfile(id, pasta,
+                                       Primeiro(oauth.DisplayName, oauth.FullName),
+                                       oauth.EmailAddress, oauth.OrganizationName,
+                                       oauth.OrganizationRole,
+                                       NomeDoPlano(oauth.OrganizationType, oauth.OrganizationRateLimitTier));
 
             _identidades[caminho] = (carimbo, perfil);
             return perfil;
@@ -206,11 +228,11 @@ public sealed class AiUsageService
         catch (Exception ex)
         {
             Log.Write($"cota de IA: não deu para ler a conta em {id} ({ex.GetType().Name})");
-            return new AiProfile(id, pasta, null, null, null, null);
+            return null;
         }
     }
 
-    private static readonly Dictionary<string, (DateTime Quando, AiProfile Perfil)> _identidades = new();
+    private static readonly Dictionary<string, (DateTime Quando, AiProfile? Perfil)> _identidades = new();
 
     private static string? Primeiro(params string?[] valores) =>
         valores.FirstOrDefault(v => !string.IsNullOrWhiteSpace(v));

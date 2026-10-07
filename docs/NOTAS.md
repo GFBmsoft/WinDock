@@ -11,6 +11,10 @@
   tag que leva a nota junto. Escrito para quem usa a dock: o que mudou na tela, e não no código.
 -->
 
+## 1.0.0.45 — 07/10/2026
+- Cota de IA: o plano da conta padrão não aparece mais como "Pro" quando ela é Max.
+- O robô de cada conta no cartão ganha a cor do uso dela — na conta padrão, a mesma cor da barra.
+
 ## 1.0.0.44 — 06/10/2026
 - Notas da versão nas Configurações: o histórico do que mudou em cada versão.
 - Clique do meio no alto-falante da barra liga e desliga o mudo, sem abrir o cartão; o mostrador e o cartão dizem "Mudo".

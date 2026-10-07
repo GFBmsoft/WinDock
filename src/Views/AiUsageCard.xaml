@@ -28,8 +28,8 @@
         </Grid.ColumnDefinitions>
 
         <!-- o glifo é do modelo da barra, e não do item: cada bloco é uma conta, e o robô é o
-             mesmo para todas -->
-        <ui:GlyphIcon Fill="#FFF2F2F2" Size="17" VerticalAlignment="Center" Margin="0,0,9,0"
+             mesmo para todas. A cor é da conta: o medidor mais cheio dela, na regra da barra -->
+        <ui:GlyphIcon Fill="{Binding Cor}" Size="17" VerticalAlignment="Center" Margin="0,0,9,0"
                       Glyph="{Binding DataContext.AiGlyph,
                                       RelativeSource={RelativeSource AncestorType=UserControl}}" />
 
