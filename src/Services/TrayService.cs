@@ -1446,9 +1446,25 @@ public static class TrayService
         // achando que o painel dele já está aberto — é o que fica depois de um menu de ícone,
         // que obriga a esconder o painel em vez de fechá-lo pelo Esc (veja o `HideOverflow`).
         // Nesse caso o primeiro acionamento só desfaz o engano, e é o segundo que abre.
+        var rebuscou = false;
         for (var attempt = 1; attempt <= 2; attempt++)
         {
-            ((InvokePattern)chevron.GetCurrentPattern(InvokePattern.Pattern)).Invoke();
+            try
+            {
+                ((InvokePattern)chevron.GetCurrentPattern(InvokePattern.Pattern)).Invoke();
+            }
+            catch (Exception ex) when (!rebuscou && ex is InvalidOperationException or ElementNotAvailableException)
+            {
+                // a seta foi refeita entre a checagem e o clique: busca a nova e tenta de novo,
+                // sem gastar uma das duas tentativas (a segunda existe para outra coisa)
+                Log.Trace($"a seta do Windows foi refeita ({ex.GetType().Name}); buscando de novo");
+                rebuscou = true;
+                _chevron = null;
+                chevron = WaitForChevron(taskbar);
+                if (chevron is null) return false;
+                attempt--;
+                continue;
+            }
 
             for (var waited = TimeSpan.Zero; waited < Attempt; waited += Poll)
             {
@@ -1640,14 +1656,18 @@ public static class TrayService
 
     private static AutomationElement? WaitForChevron(nint taskbar)
     {
+        // Vivo quer dizer **acionável**, e não só com nome. O shell refaz a seta de vez em
+        // quando (visto logo depois do logon e no meio do dia, em 09/10 e 14/10), e o elemento
+        // antigo continua respondendo o nome mas não aceita mais o clique: "Padrão sem-suporte"
+        // em toda leitura, até a dock ser reiniciada — a bandeja parava de atualizar.
         if (_chevron is not null)
         {
             try
             {
-                _ = _chevron.Current.Name;
-                return _chevron;
+                if (_chevron.TryGetCurrentPattern(InvokePattern.Pattern, out _)) return _chevron;
             }
-            catch { _chevron = null; }
+            catch { }
+            _chevron = null;
         }
 
         // A primeira busca da sessão tem prazo folgado, e as seguintes não.

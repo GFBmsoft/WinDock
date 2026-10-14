@@ -11,6 +11,9 @@
   tag que leva a nota junto. Escrito para quem usa a dock: o que mudou na tela, e não no código.
 -->
 
+## 1.0.0.46 — 14/10/2026
+- A bandeja não para mais de atualizar quando o Windows refaz o botão de ícones ocultos — antes só voltava reiniciando a dock.
+
 ## 1.0.0.45 — 07/10/2026
 - Cota de IA: o plano da conta padrão não aparece mais como "Pro" quando ela é Max.
 - O robô de cada conta no cartão ganha a cor do uso dela — na conta padrão, a mesma cor da barra.
