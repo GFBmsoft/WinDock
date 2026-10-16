@@ -11,6 +11,10 @@
   tag que leva a nota junto. Escrito para quem usa a dock: o que mudou na tela, e não no código.
 -->
 
+## 1.0.0.47 — 16/10/2026
+- Backup das configurações, em Configurações › Geral: uma cópia com data e hora na pasta que você escolher, e um botão para restaurar a partir dela.
+- A configuração não se perde mais quando o Windows cai no meio de uma gravação: a dock grava ao lado e só depois troca, e guarda a versão anterior. Se o arquivo vier estragado, ela abre com essa anterior em vez de voltar ao padrão.
+
 ## 1.0.0.46 — 14/10/2026
 - A bandeja não para mais de atualizar quando o Windows refaz o botão de ícones ocultos — antes só voltava reiniciando a dock.
 

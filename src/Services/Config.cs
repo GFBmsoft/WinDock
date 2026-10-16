@@ -1145,6 +1145,14 @@ public sealed class DockConfig : INotifyPropertyChanged
         set => Set(ref _calendarDoneRetentionDays, Clamp(value, 0, 365));
     }
 
+    private string _backupFolder = string.Empty;
+    /// <summary>Para onde vai o backup do config (botão nas Configurações › Geral). Vazio: Documentos.</summary>
+    public string BackupFolder
+    {
+        get => _backupFolder;
+        set => Set(ref _backupFolder, value ?? string.Empty);
+    }
+
     /// <summary>Apps fixados, na ordem em que aparecem.</summary>
     public List<PinnedApp> Pinned { get; set; } = new();
 
@@ -1160,25 +1168,46 @@ public sealed class DockConfig : INotifyPropertyChanged
         Converters = { new JsonStringEnumConverter() }
     };
 
+    /// <summary>A gravação anterior: o <see cref="Save"/> a guarda a cada troca, e o <see cref="Load"/>
+    /// volta para ela quando o config.json vem ilegível.</summary>
+    public static readonly string BackupPath = FilePath + ".bak";
+
+    /// <summary>
+    /// Lê o config.json; ilegível, tenta o <c>.bak</c> antes de cair no padrão. O ilegível fica
+    /// copiado como <c>.ilegivel</c>, porque a próxima gravação o tira do lugar.
+    /// </summary>
     public static DockConfig Load()
+    {
+        var config = TryRead(FilePath);
+        if (config is null && File.Exists(FilePath))
+        {
+            try { File.Copy(FilePath, FilePath + ".ilegivel", overwrite: true); } catch { }
+            config = TryRead(BackupPath);
+            Log.Write(config is null
+                ? "config.json ilegível e sem .bak que sirva: a dock abriu com o padrão"
+                : "config.json ilegível: a dock abriu com o .bak da gravação anterior");
+        }
+        if (config is null) return new DockConfig();
+
+        config.MigrateEdgeMargin();
+
+        // Daqui em diante quem manda no rastro é a configuração, mesmo quando o JSON não
+        // traz a chave: sem isto, uma config sem "Trace" deixaria valendo o arquivo
+        // "rastrear", e o interruptor do painel apareceria desligado com o rastro ligado.
+        Log.Tracing = config.Trace;
+        return config;
+    }
+
+    /// <summary>O config num caminho, ou nulo se não existe ou não se lê.</summary>
+    private static DockConfig? TryRead(string path)
     {
         try
         {
-            if (File.Exists(FilePath))
-            {
-                var config = JsonSerializer.Deserialize<DockConfig>(File.ReadAllText(FilePath), Opts)
-                             ?? new DockConfig();
-                config.MigrateEdgeMargin();
-
-                // Daqui em diante quem manda no rastro é a configuração, mesmo quando o JSON não
-                // traz a chave: sem isto, uma config sem "Trace" deixaria valendo o arquivo
-                // "rastrear", e o interruptor do painel apareceria desligado com o rastro ligado.
-                Log.Tracing = config.Trace;
-                return config;
-            }
+            return File.Exists(path)
+                ? JsonSerializer.Deserialize<DockConfig>(File.ReadAllText(path), Opts)
+                : null;
         }
-        catch { /* config corrompida: volta ao padrao em vez de nao abrir */ }
-        return new DockConfig();
+        catch { return null; }
     }
 
     /// <summary>
@@ -1203,12 +1232,53 @@ public sealed class DockConfig : INotifyPropertyChanged
 
     public void Save()
     {
+        if (_restored) return;
         try
         {
+            // Grava ao lado e só então troca: escrever direto em cima deixava o config.json pela
+            // metade quando o Windows caía no meio, e o Load o trocava pelo padrão sem avisar. A
+            // troca guarda o anterior no .bak.
             Directory.CreateDirectory(Dir);
-            File.WriteAllText(FilePath, JsonSerializer.Serialize(this, Opts));
+            var tmp = FilePath + ".tmp";
+            File.WriteAllText(tmp, JsonSerializer.Serialize(this, Opts));
+            if (File.Exists(FilePath)) File.Replace(tmp, FilePath, BackupPath);
+            else File.Move(tmp, FilePath);
         }
-        catch { }
+        catch (Exception ex) { Log.Write("não deu para gravar o config.json: " + ex.Message); }
+    }
+
+    /// <summary>
+    /// Uma cópia do config na pasta escolhida, com data e hora no nome — várias convivem. Grava
+    /// antes, para a cópia levar o que está na tela. Devolve o caminho do arquivo criado.
+    /// </summary>
+    public string BackupTo(string folder)
+    {
+        Save();
+        Directory.CreateDirectory(folder);
+        var destino = Path.Combine(folder, $"WinDock-config-{DateTime.Now:yyyy-MM-dd-HHmmss}.json");
+        File.Copy(FilePath, destino, overwrite: true);
+        return destino;
+    }
+
+    /// <summary>Ligado pelo <see cref="RestoreFrom"/>: daí até a dock sair, nada grava por cima.</summary>
+    private static bool _restored;
+
+    /// <summary>
+    /// Põe um backup no lugar do config.json. Quem chama reabre a dock em seguida: o arquivo é lido
+    /// só na abertura, e cada <see cref="Save"/> até a saída (o do painel que fecha, o da dock que
+    /// sai) gravaria a config velha por cima da restaurada — por isso eles param aqui.
+    /// Falha com exceção se o arquivo não for um config que a dock leia.
+    /// </summary>
+    public static void RestoreFrom(string path)
+    {
+        if (TryRead(path) is null)
+            throw new InvalidDataException("o arquivo não é uma configuração do WinDock que dê para ler");
+
+        Directory.CreateDirectory(Dir);
+        if (File.Exists(FilePath)) File.Copy(FilePath, BackupPath, overwrite: true);
+        File.Copy(path, FilePath, overwrite: true);
+        _restored = true;
+        Log.Write($"config restaurada de {path}; reabrindo a dock");
     }
 
     /// <summary>Volta tudo ao padrao, menos os apps fixados.</summary>

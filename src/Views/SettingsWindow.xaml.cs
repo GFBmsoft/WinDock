@@ -977,6 +977,82 @@ public partial class SettingsWindow : Window
         catch { return string.Empty; }
     }
 
+    /// <summary>A pasta do backup, ou Documentos enquanto nenhuma foi escolhida.</summary>
+    private string BackupFolder()
+    {
+        var pasta = Environment.ExpandEnvironmentVariables(_config.BackupFolder.Trim().Trim('"'));
+        return pasta.Length > 0
+            ? pasta
+            : Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
+    }
+
+    private void ShowBackupStatus(string texto)
+    {
+        BackupStatus.Text = texto;
+        BackupStatus.Visibility = Visibility.Visible;
+    }
+
+    private void OnBackupBrowse(object sender, RoutedEventArgs e)
+    {
+        var dlg = new Microsoft.Win32.OpenFolderDialog { Title = "Pasta do backup" };
+        try { if (System.IO.Directory.Exists(BackupFolder())) dlg.InitialDirectory = BackupFolder(); }
+        catch { /* caminho torto */ }
+
+        if (dlg.ShowDialog(this) != true) return;
+        _config.BackupFolder = dlg.FolderName;
+        _config.Save();
+    }
+
+    private void OnBackupNow(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var arquivo = _config.BackupTo(BackupFolder());
+            Log.Write($"backup da config em {arquivo}");
+            ShowBackupStatus("Backup gravado em " + arquivo);
+        }
+        catch (Exception ex)
+        {
+            Log.Write("o backup da config falhou", ex);
+            ShowBackupStatus("Não deu para gravar o backup: " + ex.Message);
+        }
+    }
+
+    /// <summary>
+    /// Escolhe um backup, põe no lugar e reabre a dock — a config é lida só na abertura. A atual não
+    /// se perde: vira o config.json.bak.
+    /// </summary>
+    private void OnBackupRestore(object sender, RoutedEventArgs e)
+    {
+        var dlg = new Microsoft.Win32.OpenFileDialog
+        {
+            Title = "Restaurar a configuração de um backup",
+            Filter = "Configuração do WinDock (*.json)|*.json|Todos os arquivos|*.*",
+        };
+        try { if (System.IO.Directory.Exists(BackupFolder())) dlg.InitialDirectory = BackupFolder(); }
+        catch { /* caminho torto */ }
+
+        if (dlg.ShowDialog(this) != true) return;
+
+        var exe = Environment.ProcessPath;
+        try
+        {
+            if (string.IsNullOrEmpty(exe)) throw new InvalidOperationException("não achei o executável da dock para reabrir");
+            DockConfig.RestoreFrom(dlg.FileName);
+        }
+        catch (Exception ex)
+        {
+            Log.Write("a restauração da config falhou", ex);
+            ShowBackupStatus("Não deu para restaurar: " + ex.Message);
+            return;
+        }
+
+        // o mesmo caminho da atualização: a nova espera esta sair antes de pegar a vez
+        SelfUpdateService.Relaunch(exe);
+        Close();
+        Application.Current.MainWindow?.Close();
+    }
+
     private void OnReset(object sender, RoutedEventArgs e) => _config.ResetAppearance();
 
     private void OnClose(object sender, RoutedEventArgs e) => Close();
