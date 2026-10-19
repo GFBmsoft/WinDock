@@ -288,6 +288,7 @@ public partial class PanelWindow : Window
         _model.ToggleCard(card);
         if (card == "wifi" && _model.WifiExpanded) await _model.ScanWifi();
         if (card == "bateria" && _model.BatteryExpanded) _model.RefreshBatteryCard();
+        if (card == "sistema") _model.RefreshSystemCard();
     }
 
     /// <summary>
@@ -770,8 +771,8 @@ public partial class PanelWindow : Window
     // ── rede e sistema ───────────────────────────────────────
 
     /// <summary>
-    /// Abre (ou fecha) o cartão de sistema: processador, memória e rede, cada um com o
-    /// último minuto em gráfico.
+    /// Abre (ou fecha) o cartão de sistema: processador, memória, disco e rede, cada um com o
+    /// último minuto em gráfico — e, detalhado, o espaço de cada unidade.
     /// </summary>
     private void OnSystemStats(object sender, RoutedEventArgs e)
     {
@@ -781,6 +782,7 @@ public partial class PanelWindow : Window
         if (estavaAberto) { WatchOutsideClick(); return; }
 
         SystemPopup.IsOpen = true;
+        _model.RefreshSystemCard();
         WatchOutsideClick();
     }
 

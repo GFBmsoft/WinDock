@@ -634,6 +634,37 @@ internal static class Native
     [DllImport("kernel32.dll", SetLastError = true)]
     public static extern bool GlobalMemoryStatusEx(ref MEMORYSTATUSEX buffer);
 
+    // ── atividade do disco ──────────────────────────────────
+    //
+    // Os contadores que o próprio driver do disco mantém, lidos com o disco aberto sem direito
+    // nenhum (acesso 0) — não pede administrador. Os mesmos números que o Gerenciador de Tarefas
+    // usa para o "tempo ativo": a diferença entre duas leituras faz a conta.
+
+    public const uint IOCTL_DISK_PERFORMANCE = 0x00070020;
+    public const uint FILE_SHARE_READ_WRITE = 0x3;
+    public const uint OPEN_EXISTING = 3;
+
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+    public struct DISK_PERFORMANCE
+    {
+        public long BytesRead, BytesWritten;
+        public long ReadTime, WriteTime;
+        public long IdleTime;               // parado, em 100 ns
+        public uint ReadCount, WriteCount, QueueDepth, SplitCount;
+        public long QueryTime;              // o relógio da leitura, em 100 ns
+        public uint StorageDeviceNumber;
+        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 8)] public string StorageManagerName;
+    }
+
+    [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    public static extern Microsoft.Win32.SafeHandles.SafeFileHandle CreateFile(
+        string fileName, uint access, uint share, nint security, uint creation, uint flags, nint template);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    public static extern bool DeviceIoControl(Microsoft.Win32.SafeHandles.SafeFileHandle device, uint code,
+                                              nint inBuffer, uint inSize, out DISK_PERFORMANCE outBuffer,
+                                              uint outSize, out uint returned, nint overlapped);
+
     // ── energia ─────────────────────────────────────────────
     [DllImport("user32.dll", SetLastError = true)]
     public static extern bool LockWorkStation();

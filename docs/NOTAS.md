@@ -11,6 +11,11 @@
   tag que leva a nota junto. Escrito para quem usa a dock: o que mudou na tela, e não no código.
 -->
 
+## 1.0.0.49 — 19/10/2026
+- Disco no cartão de sistema: o tempo ativo do último minuto em gráfico, com a leitura e a gravação embaixo; a dica do item da barra também mostra o disco.
+- A seta no rodapé do cartão de sistema mostra o espaço de cada unidade, com quanto está ocupado e quanto sobra. Vem recolhido.
+- "Verificar agora" em Configurações › Itens da barra: consulta o GitHub na hora, sem esperar a consulta do dia, e o presente aparece já se houver versão nova.
+
 ## 1.0.0.48 — 19/10/2026
 - A dica dos botões do Chrome mostra só o app e o perfil ("Chrome - GF"), e não mais o título comprido da aba aberta.
 

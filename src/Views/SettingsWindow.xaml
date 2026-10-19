@@ -1186,21 +1186,28 @@
           </Grid>
         </Border>
 
-        <Border Style="{StaticResource FluentCardBorderStyle}">
-          <Grid>
-            <Grid.ColumnDefinitions>
-              <ColumnDefinition Width="*" />
-              <ColumnDefinition Width="Auto" />
-            </Grid.ColumnDefinitions>
-            <StackPanel VerticalAlignment="Center">
-              <TextBlock Text="Avisar nova versão do WinDock" Style="{StaticResource FluentTitle}" />
-              <TextBlock Text="Um presente aparece à esquerda das atualizações quando sai uma versão nova no GitHub. O clique baixa, troca e reabre a dock. O GitHub é consultado uma vez por dia."
-                         Style="{StaticResource FluentCaption}" TextWrapping="Wrap" />
-            </StackPanel>
-            <CheckBox Grid.Column="1" Style="{StaticResource FluentToggle}"
-                      AutomationProperties.Name="Avisar nova versão do WinDock"
-                      IsChecked="{Binding PanelSelfUpdate, Mode=TwoWay}" />
-          </Grid>
+        <Border Style="{StaticResource FluentCardBorderStyle}" MinHeight="0">
+          <StackPanel>
+            <Grid>
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+              </Grid.ColumnDefinitions>
+              <StackPanel VerticalAlignment="Center">
+                <TextBlock Text="Avisar nova versão do WinDock" Style="{StaticResource FluentTitle}" />
+                <TextBlock Text="Um presente aparece à esquerda das atualizações quando sai uma versão nova no GitHub. O clique baixa, troca e reabre a dock. O GitHub é consultado uma vez por dia."
+                           Style="{StaticResource FluentCaption}" TextWrapping="Wrap" />
+              </StackPanel>
+              <CheckBox Grid.Column="1" Style="{StaticResource FluentToggle}"
+                        AutomationProperties.Name="Avisar nova versão do WinDock"
+                        IsChecked="{Binding PanelSelfUpdate, Mode=TwoWay}" />
+            </Grid>
+            <!-- pedido de 19/10/2026: a consulta diária deixava uma Release nova esperando até o dia seguinte -->
+            <Button x:Name="SelfUpdateCheck" Style="{StaticResource FluentButton}" Margin="0,10,0,0"
+                    HorizontalAlignment="Left" Content="Verificar agora" Click="OnSelfUpdateCheck" />
+            <TextBlock x:Name="SelfUpdateStatus" Margin="0,8,0,0" Style="{StaticResource FluentCaption}"
+                       TextWrapping="Wrap" Visibility="Collapsed" />
+          </StackPanel>
         </Border>
 
         <TextBlock Text="Cota de IA" Style="{StaticResource FluentSection}" />

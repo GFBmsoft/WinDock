@@ -490,6 +490,45 @@ public sealed class PanelModel : INotifyPropertyChanged, IDisposable
     /// <summary>A placa de vídeo entra no cartão quando a leitura dela chega — veja o <c>GpuMeter</c>.</summary>
     public bool HasGpu { get => _hasGpu; private set => Set(ref _hasGpu, value); }
 
+    private string _diskText = "0%";
+    public string DiskText { get => _diskText; private set => Set(ref _diskText, value); }
+
+    private string _diskRates = string.Empty;
+    /// <summary>"Leitura 12 MB/s · gravação 3 MB/s" — embaixo do gráfico do disco.</summary>
+    public string DiskRates { get => _diskRates; private set => Set(ref _diskRates, value); }
+
+    /// <summary>Uma unidade no cartão de sistema, já com a barra medida e pintada.</summary>
+    public sealed record DriveRow(string Name, string Percent, string Detail, double BarWidth, Brush BarBrush);
+
+    private IReadOnlyList<DriveRow> _drives = [];
+    /// <summary>O espaço de cada unidade — só no cartão detalhado, e relido quando ele abre.</summary>
+    public IReadOnlyList<DriveRow> Drives { get => _drives; private set => Set(ref _drives, value); }
+
+    /// <summary>Azul como a barra do Explorer; vermelha a partir de 90%, que é quando o Explorer também avisa.</summary>
+    private static readonly Brush DriveOk = Frozen(Color.FromRgb(0x4C, 0xC2, 0xFF));
+    private static readonly Brush DriveFull = Frozen(Color.FromRgb(0xFF, 0x6B, 0x6B));
+
+    /// <summary>
+    /// Relê o cartão de sistema quando ele abre. As medidas ao vivo já estão andando; o espaço
+    /// das unidades só com o cartão detalhado, que é onde aparece — e fora da thread da
+    /// interface, porque um disco externo parado leva um tempo para acordar e responder.
+    /// </summary>
+    public async void RefreshSystemCard()
+    {
+        if (!SystemExpanded) return;
+
+        var unidades = await Task.Run(SystemStatsService.Drives);
+        Drives = unidades.Select(d => new DriveRow(
+            d.Name,
+            d.Used.ToString("0") + "%",
+            $"{SystemStatsService.Size(d.Free)} livres de {SystemStatsService.Size(d.Total)}",
+            Math.Round(280 * Math.Clamp(d.Used, 0, 100) / 100.0),
+            d.Used >= 90 ? DriveFull : DriveOk)).ToList();
+
+        // a lista nasce depois do cartão aberto, e o cartão cresce debaixo do cursor
+        CardResized?.Invoke(this, EventArgs.Empty);
+    }
+
     private string _systemTooltip = "CPU e memória";
     public string SystemTooltip { get => _systemTooltip; private set => Set(ref _systemTooltip, value); }
 
@@ -499,6 +538,7 @@ public sealed class PanelModel : INotifyPropertyChanged, IDisposable
     public IReadOnlyList<double> DownHistory => _stats.DownHistory;
     public IReadOnlyList<double> UpHistory => _stats.UpHistory;
     public IReadOnlyList<double> GpuHistory => _stats.GpuHistory;
+    public IReadOnlyList<double> DiskHistory => _stats.DiskHistory;
 
     /// <summary>
     /// Mede tudo uma vez por segundo, e só com o item ligado: somar os contadores de todos
@@ -517,12 +557,14 @@ public sealed class PanelModel : INotifyPropertyChanged, IDisposable
         RamText = _stats.Ram.ToString("0") + "%";
         GpuText = _stats.Gpu.ToString("0") + "%";
         HasGpu = _stats.HasGpu;
+        DiskText = _stats.Disk.ToString("0") + "%";
+        DiskRates = $"Leitura {SystemStatsService.Rate(_stats.DiskRead)} · gravação {SystemStatsService.Rate(_stats.DiskWrite)}";
 
         // a rede entra na dica do item, e não na barra: quem quer o número de passagem lê
         // aqui, e quem quer acompanhar abre o cartão
         SystemTooltip = HasGpu
-            ? $"CPU {CpuText} · memória {RamText} · GPU {GpuText} · rede {NetDown} ↓ {NetUp} ↑"
-            : $"CPU {CpuText} · memória {RamText} · rede {NetDown} ↓ {NetUp} ↑";
+            ? $"CPU {CpuText} · memória {RamText} · GPU {GpuText} · disco {DiskText} · rede {NetDown} ↓ {NetUp} ↑"
+            : $"CPU {CpuText} · memória {RamText} · disco {DiskText} · rede {NetDown} ↓ {NetUp} ↑";
 
         // os gráficos só existem enquanto o cartão está aberto; avisar sempre não custa
         // nada e evita o cartão abrir com o desenho de um minuto atrás
@@ -531,6 +573,7 @@ public sealed class PanelModel : INotifyPropertyChanged, IDisposable
         OnChanged(nameof(DownHistory));
         OnChanged(nameof(UpHistory));
         OnChanged(nameof(GpuHistory));
+        OnChanged(nameof(DiskHistory));
     }
 
     // ── mídia ───────────────────────────────────────────────
@@ -947,7 +990,7 @@ public sealed class PanelModel : INotifyPropertyChanged, IDisposable
     // ── cartões compactos ───────────────────────────────────
 
     /// <summary>
-    /// Os cartões de volume, wi-fi, bluetooth e bateria nascem compactos — o essencial — e a seta
+    /// Os cartões de volume, wi-fi, bluetooth, bateria e sistema nascem compactos — o essencial — e a seta
     /// do rodapé abre o resto, como o da cota de IA. A escolha de cada um mora na configuração
     /// (<c>DockConfig.CardsExpanded</c>), pelo mesmo motivo do da cota: é jeito de ler.
     /// </summary>
@@ -955,6 +998,7 @@ public sealed class PanelModel : INotifyPropertyChanged, IDisposable
     public bool BluetoothExpanded => IsExpanded("bluetooth");
     public bool WifiExpanded => IsExpanded("wifi");
     public bool BatteryExpanded => IsExpanded("bateria");
+    public bool SystemExpanded => IsExpanded("sistema");
 
     private bool IsExpanded(string card) => _config.CardsExpanded.Contains(card, StringComparer.OrdinalIgnoreCase);
 
@@ -969,6 +1013,7 @@ public sealed class PanelModel : INotifyPropertyChanged, IDisposable
         OnChanged(nameof(BluetoothExpanded));
         OnChanged(nameof(WifiExpanded));
         OnChanged(nameof(BatteryExpanded));
+        OnChanged(nameof(SystemExpanded));
 
         // recolher encolhe o cartão debaixo do cursor — veja o CardResized
         CardResized?.Invoke(this, EventArgs.Empty);
@@ -1725,6 +1770,21 @@ public sealed class PanelModel : INotifyPropertyChanged, IDisposable
             CheckSelfUpdate();
         };
         _selfUpdateTimer.Start();
+
+        SelfUpdateService.Checked += OnSelfUpdateChecked;
+    }
+
+    /// <summary>As Configurações perguntaram ao GitHub e já gravaram a resposta: só falta o presente.</summary>
+    private void OnSelfUpdateChecked(WinDockRelease release) =>
+        _dispatcher.InvokeAsync(() => ShowSelfUpdate(release));
+
+    private void ShowSelfUpdate(WinDockRelease release)
+    {
+        _release = release;
+        var atual = SelfUpdateService.CurrentVersion;
+        var nova = SelfUpdateService.IsNewer(atual, release.Tag);
+        Log.Trace($"nova versão: GitHub tem {release.Tag}, esta é {atual}{(nova ? " — avisando" : string.Empty)}");
+        SelfUpdateTag = nova ? release.Tag : string.Empty;
     }
 
     public void CheckSelfUpdate(bool force = false)
@@ -1750,14 +1810,11 @@ public sealed class PanelModel : INotifyPropertyChanged, IDisposable
                 // sem resposta, a consulta fica para a próxima volta — e a tag guardada continua valendo
                 if (release is null) return;
 
-                _release = release;
                 _config.SelfUpdateCheckedAt = DateTime.UtcNow;
                 _config.SelfUpdateTag = release.Tag;
                 _config.Save();
 
-                var nova = SelfUpdateService.IsNewer(atual, release.Tag);
-                Log.Trace($"nova versão: GitHub tem {release.Tag}, esta é {atual}{(nova ? " — avisando" : string.Empty)}");
-                SelfUpdateTag = nova ? release.Tag : string.Empty;
+                ShowSelfUpdate(release);
             });
         });
     }
@@ -2714,6 +2771,7 @@ public sealed class PanelModel : INotifyPropertyChanged, IDisposable
         _aiTimer?.Stop();
         _notificationsTimer?.Stop();
         _selfUpdateTimer?.Stop();
+        SelfUpdateService.Checked -= OnSelfUpdateChecked;
         _secondsTimer?.Stop();
         _updatesTimer?.Stop();
         _updatesWatcher?.Dispose();

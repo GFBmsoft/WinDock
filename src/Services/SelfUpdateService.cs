@@ -85,6 +85,12 @@ public static class SelfUpdateService
         return limpo.Split('.').Length == 4 && Version.TryParse(limpo, out var v) ? v : null;
     }
 
+    /// <summary>Avisa de uma consulta feita fora do vigia da barra — o "Verificar agora" das
+    /// Configurações —, para o presente mostrar a resposta sem esperar a próxima volta.</summary>
+    public static event Action<WinDockRelease>? Checked;
+
+    public static void Publish(WinDockRelease release) => Checked?.Invoke(release);
+
     /// <summary>A Release mais recente, ou <c>null</c> quando a pergunta não deu certo.</summary>
     public static async Task<WinDockRelease?> LatestAsync()
     {

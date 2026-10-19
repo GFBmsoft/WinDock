@@ -1003,6 +1003,39 @@ public partial class SettingsWindow : Window
         _config.Save();
     }
 
+    /// <summary>
+    /// Pergunta ao GitHub agora, sem esperar a consulta do dia. A resposta vale como a consulta
+    /// diária — fica gravada e recomeça a contagem —, e o presente da barra aparece já.
+    /// </summary>
+    private async void OnSelfUpdateCheck(object sender, RoutedEventArgs e)
+    {
+        SelfUpdateCheck.IsEnabled = false;
+        SelfUpdateStatus.Text = "Consultando o GitHub…";
+        SelfUpdateStatus.Visibility = Visibility.Visible;
+        try
+        {
+            var release = await SelfUpdateService.LatestAsync();
+            if (release is null)
+            {
+                SelfUpdateStatus.Text = "O GitHub não respondeu; tente de novo em alguns minutos.";
+                return;
+            }
+
+            _config.SelfUpdateCheckedAt = DateTime.UtcNow;
+            _config.SelfUpdateTag = release.Tag;
+            _config.Save();
+            SelfUpdateService.Publish(release);
+
+            var atual = SelfUpdateService.CurrentVersion;
+            SelfUpdateStatus.Text = !SelfUpdateService.IsNewer(atual, release.Tag)
+                ? $"Você está em dia: {atual} é a mais nova."
+                : _config.PanelSelfUpdate
+                    ? $"A {release.Tag} está disponível (você está na {atual}). Clique no presente da barra para atualizar."
+                    : $"A {release.Tag} está disponível (você está na {atual}). Ligue o aviso acima para o presente aparecer na barra.";
+        }
+        finally { SelfUpdateCheck.IsEnabled = true; }
+    }
+
     private void OnBackupNow(object sender, RoutedEventArgs e)
     {
         try

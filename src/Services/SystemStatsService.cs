@@ -1,11 +1,18 @@
 using System.Globalization;
+using System.IO;
 using System.Net.NetworkInformation;
 using static WinDock.Interop.Native;
 
 namespace WinDock.Services;
 
+/// <summary>Uma unidade e o espaço dela: "C:  Sistema", o tamanho e quanto sobra.</summary>
+public sealed record DriveSpace(string Name, long Total, long Free)
+{
+    public double Used => Total > 0 ? 100.0 * (Total - Free) / Total : 0;
+}
+
 /// <summary>
-/// Quanto a máquina está trabalhando: CPU, memória, placa de vídeo e o que passa pela rede.
+/// Quanto a máquina está trabalhando: CPU, memória, placa de vídeo, disco e o que passa pela rede.
 ///
 /// Uma amostra por segundo, pedida pelo relógio que a barra já tem — este serviço não sobe
 /// relógio nenhum. Guarda os últimos 60 segundos de cada medida, que é o que o cartão
@@ -27,6 +34,7 @@ public sealed class SystemStatsService
     private readonly double[] _down = new double[Window];
     private readonly double[] _up = new double[Window];
     private readonly double[] _gpu = new double[Window];
+    private readonly double[] _disk = new double[Window];
     private readonly GpuMeter _gpuMeter = new();
 
     /// <summary>Quantas amostras já entraram — abaixo de <see cref="Window"/> o gráfico ainda está enchendo.</summary>
@@ -48,6 +56,17 @@ public sealed class SystemStatsService
     /// <summary>Já há leitura da placa de vídeo. Nos primeiros segundos da dock, e numa máquina sem o contador, não há.</summary>
     public bool HasGpu => _gpuMeter.Ready;
 
+    /// <summary>
+    /// Tempo ativo do disco mais ocupado, de 0 a 100 — o "Disco" do Gerenciador de Tarefas. O
+    /// mais ocupado, e não a média: com dois discos, um copiando a 100% e outro parado não é
+    /// uma máquina a 50%.
+    /// </summary>
+    public double Disk { get; private set; }
+
+    /// <summary>Bytes por segundo lidos e gravados, somados em todos os discos.</summary>
+    public double DiskRead { get; private set; }
+    public double DiskWrite { get; private set; }
+
     /// <summary>Bytes por segundo que entraram e que saíram, na última amostra.</summary>
     public double Down { get; private set; }
     public double Up { get; private set; }
@@ -64,6 +83,7 @@ public sealed class SystemStatsService
     public double[] DownHistory => Snapshot(_down);
     public double[] UpHistory => Snapshot(_up);
     public double[] GpuHistory => Snapshot(_gpu);
+    public double[] DiskHistory => Snapshot(_disk);
 
     private double[] Snapshot(double[] origem)
     {
@@ -89,6 +109,7 @@ public sealed class SystemStatsService
         MeasureCpu(primeira);
         MeasureRam();
         MeasureNetwork(primeira, segundos);
+        MeasureDisks();
         Gpu = _gpuMeter.Sample() ?? Gpu;
 
         if (primeira) return;
@@ -98,6 +119,7 @@ public sealed class SystemStatsService
         Push(_down, Down);
         Push(_up, Up);
         Push(_gpu, Gpu);
+        Push(_disk, Disk);
         _count++;
     }
 
@@ -226,6 +248,122 @@ public sealed class SystemStatsService
             catch (NetworkInformationException) { /* fica a lista anterior; a próxima volta tenta de novo */ }
             finally { Volatile.Write(ref _enumerando, 0); }
         });
+    }
+
+    // ── disco ───────────────────────────────────────────────
+
+    /// <summary>Os discos físicos encontrados — o N de cada \\.\PhysicalDriveN.</summary>
+    private volatile int[] _discos = [];
+    private DateTime _discosEm;
+    private int _procurandoDiscos;
+
+    /// <summary>A leitura anterior de cada disco, pelo número dele.</summary>
+    private readonly Dictionary<int, DISK_PERFORMANCE> _discoAnterior = new();
+
+    /// <summary>
+    /// Lê os contadores de cada disco e faz a conta contra a leitura anterior.
+    ///
+    /// <para>O disco é aberto e fechado a cada leitura, e não guardado aberto: segurar o
+    /// \\.\PhysicalDriveN de um pendrive faria o "Ejetar com segurança" dizer que ele está em
+    /// uso. Abrir sem direito nenhum e pedir os contadores custa microssegundos.</para>
+    /// </summary>
+    private void MeasureDisks()
+    {
+        RefreshDisks();
+
+        double ativo = 0, lido = 0, gravado = 0;
+        var tamanho = (uint)System.Runtime.InteropServices.Marshal.SizeOf<DISK_PERFORMANCE>();
+
+        foreach (var n in _discos)
+        {
+            using var disco = CreateFile($@"\\.\PhysicalDrive{n}", 0, FILE_SHARE_READ_WRITE, 0, OPEN_EXISTING, 0, 0);
+            if (disco.IsInvalid ||
+                !DeviceIoControl(disco, IOCTL_DISK_PERFORMANCE, 0, 0, out var agora, tamanho, out _, 0))
+            {
+                // o disco saiu (um pendrive puxado): fica fora da conta, e a lista é refeita já
+                _discoAnterior.Remove(n);
+                _discosEm = default;
+                continue;
+            }
+
+            if (_discoAnterior.TryGetValue(n, out var antes) && agora.QueryTime > antes.QueryTime)
+            {
+                var relogio = (double)(agora.QueryTime - antes.QueryTime);
+                var segundos = relogio / 1e7;
+                ativo = Math.Max(ativo, Math.Clamp(100.0 * (1 - (agora.IdleTime - antes.IdleTime) / relogio), 0, 100));
+                lido += Math.Max(0, agora.BytesRead - antes.BytesRead) / segundos;
+                gravado += Math.Max(0, agora.BytesWritten - antes.BytesWritten) / segundos;
+            }
+            _discoAnterior[n] = agora;
+        }
+
+        Disk = ativo;
+        DiskRead = lido;
+        DiskWrite = gravado;
+    }
+
+    /// <summary>
+    /// Procura os discos físicos de tempos em tempos, fora da thread de quem mede — no mesmo
+    /// ritmo da lista de adaptadores. Os números não vêm sempre seguidos (o pendrive que sai
+    /// deixa um buraco), então a procura passa por todos até um teto, e não para no primeiro
+    /// que falta.
+    /// </summary>
+    private void RefreshDisks()
+    {
+        if (DateTime.UtcNow - _discosEm < AdapterRefresh) return;
+        if (Interlocked.Exchange(ref _procurandoDiscos, 1) == 1) return;
+
+        _discosEm = DateTime.UtcNow;
+
+        _ = Task.Run(() =>
+        {
+            try
+            {
+                var achados = new List<int>();
+                for (var n = 0; n < 16; n++)
+                {
+                    using var disco = CreateFile($@"\\.\PhysicalDrive{n}", 0, FILE_SHARE_READ_WRITE, 0, OPEN_EXISTING, 0, 0);
+                    if (!disco.IsInvalid) achados.Add(n);
+                }
+                _discos = achados.ToArray();
+            }
+            finally { Volatile.Write(ref _procurandoDiscos, 0); }
+        });
+    }
+
+    /// <summary>
+    /// O espaço de cada unidade: as do próprio computador e as removíveis com mídia. As de rede
+    /// ficam de fora — perguntar o tamanho de um compartilhamento que dormiu segura a resposta
+    /// por segundos. Chamar fora da thread da interface, pelo mesmo motivo com um disco externo.
+    /// </summary>
+    public static IReadOnlyList<DriveSpace> Drives()
+    {
+        var lista = new List<DriveSpace>();
+        foreach (var d in DriveInfo.GetDrives())
+        {
+            try
+            {
+                if (d.DriveType is not (DriveType.Fixed or DriveType.Removable) || !d.IsReady || d.TotalSize <= 0) continue;
+
+                var nome = d.Name.TrimEnd('\\');
+                if (!string.IsNullOrWhiteSpace(d.VolumeLabel)) nome += "  " + d.VolumeLabel;
+                lista.Add(new DriveSpace(nome, d.TotalSize, d.TotalFreeSpace));
+            }
+            catch (IOException) { /* a mídia saiu entre a lista e a pergunta */ }
+            catch (UnauthorizedAccessException) { }
+        }
+        return lista;
+    }
+
+    /// <summary>"476 GB", "1,8 TB" — o tamanho de uma unidade, sem casas que ninguém lê.</summary>
+    public static string Size(long bytes)
+    {
+        var c = CultureInfo.CurrentCulture;
+        const double gb = 1024d * 1024 * 1024;
+
+        if (bytes >= 1024 * gb) return (bytes / (1024 * gb)).ToString("0.0", c) + " TB";
+        if (bytes >= 10 * gb) return (bytes / gb).ToString("0", c) + " GB";
+        return (bytes / gb).ToString("0.0", c) + " GB";
     }
 
     /// <summary>
