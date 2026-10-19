@@ -11,6 +11,9 @@
   tag que leva a nota junto. Escrito para quem usa a dock: o que mudou na tela, e não no código.
 -->
 
+## 1.0.0.48 — 19/10/2026
+- A dica dos botões do Chrome mostra só o app e o perfil ("Chrome - GF"), e não mais o título comprido da aba aberta.
+
 ## 1.0.0.47 — 16/10/2026
 - Backup das configurações, em Configurações › Geral: uma cópia com data e hora na pasta que você escolher, e um botão para restaurar a partir dela.
 - A configuração não se perde mais quando o Windows cai no meio de uma gravação: a dock grava ao lado e só depois troca, e guarda a versão anterior. Se o arquivo vier estragado, ela abre com essa anterior em vez de voltar ao padrão.

@@ -80,10 +80,17 @@ public sealed class DockItem : INotifyPropertyChanged
 
     public string Tooltip => _windows.Count switch
     {
-        0 => Label,
+        0 => Name,
+        1 when ChromeProfiles.ByAumid(Id) is not null => Name,
         1 => _windows[0].Title,
-        _ => $"{Label} ({_windows.Count} janelas)"
+        _ => $"{Name} ({_windows.Count} janelas)"
     };
+
+    /// <summary>
+    /// O nome na dica. Num perfil do Chrome, o titulo da janela e o da aba — longo e sem dizer
+    /// de qual perfil e (EV28) —, entao a dica fica so no app e no perfil.
+    /// </summary>
+    private string Name => ChromeProfiles.ByAumid(Id) is { } p ? $"Chrome - {p.Name}" : Label;
 
     /// <summary>Indice da janela mostrada por ultimo, para alternar entre elas a cada clique.</summary>
     public int CycleIndex { get; set; }
