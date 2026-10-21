@@ -11,6 +11,10 @@
   tag que leva a nota junto. Escrito para quem usa a dock: o que mudou na tela, e não no código.
 -->
 
+## 1.0.0.52 — 21/10/2026
+- Programas que rodam com outra extensão no lugar de .exe, como os instaladores (que rodam como .tmp), aparecem na dock com o próprio ícone, e não com uma folha em branco.
+- Um programa fixado cujo arquivo foi apagado ou mudou de pasta aparece com o ícone genérico de aplicativo, em vez de deixar um espaço vazio na dock.
+
 ## 1.0.0.51 — 21/10/2026
 - No preview das janelas, o título e o X de fechar ficam em cima da miniatura, como na barra de tarefas do Windows 11.
 

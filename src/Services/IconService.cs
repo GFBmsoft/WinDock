@@ -205,31 +205,47 @@ public static class IconService
         BitmapSource? result = null;
         try
         {
-            // um indice diferente de zero so pode ser resolvido por ExtractIconEx
-            if (iconIndex != 0 && File.Exists(exePath))
+            // Um indice diferente de zero so pode ser resolvido por ExtractIconEx. E o executavel
+            // que nao termina em .exe tambem: o shell escolhe o icone pela extensao, e so no .exe
+            // abre o arquivo para ler o desenho gravado dentro. O instalador do Inno Setup roda
+            // como .tmp e aparecia na dock com a folha em branco do "Arquivo TMP" (21/10/2026).
+            // O que nao e executavel nao tem icone dentro: devolve nada e segue para o shell.
+            if ((iconIndex != 0 || !exePath.EndsWith(".exe", StringComparison.OrdinalIgnoreCase)) &&
+                File.Exists(exePath))
                 result = FromExtract(exePath, iconIndex);
 
-            if (result is null)
-            {
-                var info = new SHFILEINFO();
-                var h = SHGetFileInfo(exePath, 0, ref info, (uint)Marshal.SizeOf<SHFILEINFO>(),
-                                      SHGFI_ICON | SHGFI_LARGEICON);
-                if (h != 0 && info.hIcon != 0)
-                {
-                    result = Imaging.CreateBitmapSourceFromHIcon(info.hIcon, Int32Rect.Empty,
-                                                                 BitmapSizeOptions.FromEmptyOptions());
-                    result.Freeze();
-                    DestroyIcon(info.hIcon);
-                }
-            }
+            result ??= FromShell(exePath, 0);
 
             if (result is null && File.Exists(exePath))
                 result = FromExtract(exePath, 0);
+
+            // O arquivo sumiu (desinstalado, ou mudou de pasta): sem nada para ler, o botao
+            // fixado ficava sem desenho nenhum — um vao na dock que nem parecia botao, e que
+            // por isso nao se achava para desafixar. Pelo tipo, sem abrir o arquivo, o shell
+            // ainda da o icone generico.
+            if (result is null && exePath.Length > 0)
+                result = FromShell(exePath, SHGFI_USEFILEATTRIBUTES);
         }
         catch { result = null; }
 
         Cache[path] = result;
         Origens[path] = (exePath, Carimbo(path), Carimbo(exePath));
+        return result;
+    }
+
+    /// <summary>O icone que o shell mostra para o arquivo. Com <see cref="SHGFI_USEFILEATTRIBUTES"/>
+    /// ele responde so pela extensao, e o arquivo nem precisa existir.</summary>
+    private static BitmapSource? FromShell(string file, uint flags)
+    {
+        var info = new SHFILEINFO();
+        var h = SHGetFileInfo(file, FILE_ATTRIBUTE_NORMAL, ref info, (uint)Marshal.SizeOf<SHFILEINFO>(),
+                              SHGFI_ICON | SHGFI_LARGEICON | flags);
+        if (h == 0 || info.hIcon == 0) return null;
+
+        var result = Imaging.CreateBitmapSourceFromHIcon(info.hIcon, Int32Rect.Empty,
+                                                         BitmapSizeOptions.FromEmptyOptions());
+        result.Freeze();
+        DestroyIcon(info.hIcon);
         return result;
     }
 
