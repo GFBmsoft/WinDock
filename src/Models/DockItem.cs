@@ -117,7 +117,8 @@ public sealed class DockItem : INotifyPropertyChanged
         _isPinned = pinned;
         _icon = IconService.ForApp(id, launchPath);
         OverlayPath = overlayIcon;
-        _overlay = IconService.Image(overlayIcon);
+        // o icone do perfil do Chrome ja traz o avatar no canto: a foto por cima seria repetida
+        _overlay = ChromeProfiles.ByAumid(id) is { IconPath.Length: > 0 } ? null : IconService.Image(overlayIcon);
     }
 
     /// <summary>

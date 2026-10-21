@@ -431,6 +431,24 @@ public sealed class DockModel : IDisposable
         {
             var item = Items[i];
             if (!item.IsPinned) continue;
+
+            // Perfil do Chrome fixado pelo atalho que o Chrome apagou (ele refaz os atalhos de
+            // perfil quando o perfil muda): o clique passa a abrir o chrome.exe com o perfil.
+            if (item.LaunchPath.EndsWith(".lnk", StringComparison.OrdinalIgnoreCase) &&
+                !File.Exists(item.LaunchPath) &&
+                ChromeProfiles.ByAumid(item.Id) is { } perfil &&
+                ChromeProfiles.ExePath() is { } chrome)
+            {
+                Log.Write($"fixado '{item.Label}': o atalho do perfil sumiu — abrindo pelo chrome.exe com {perfil.Arguments}");
+                Items[i] = new DockItem(item.Id, chrome, perfil.Arguments, $"Chrome - {perfil.Name}", pinned: true)
+                {
+                    Windows = item.Windows,
+                    IsActive = item.IsActive
+                };
+                mudou = true;
+                continue;
+            }
+
             if (!PackagedApps.TryRepair(item.LaunchPath, out var atual) &&
                 !SquirrelApps.TryRepair(item.LaunchPath, out atual)) continue;
 

@@ -29,6 +29,13 @@ public static class IconService
 
     private static BitmapSource? RawForApp(string id, string launchPath)
     {
+        // Perfil do Chrome: o icone que o Chrome gera para o perfil vem antes ate do atalho. O
+        // atalho de perfil e apagado e recriado pelo Chrome quando o perfil muda — o fixado
+        // ficava apontando para um .lnk que nao existe mais, sem icone — e o perfil sem atalho
+        // caia no chrome.exe, igual para todos.
+        if (ChromeProfiles.ByAumid(id) is { IconPath.Length: > 0 } perfil &&
+            Ico(perfil.IconPath) is { } doPerfil) return doPerfil;
+
         if (launchPath.EndsWith(".lnk", StringComparison.OrdinalIgnoreCase)) return For(launchPath);
 
         if (IsAumid(id) && Shell($@"shell:AppsFolder\{id}") is { } fromShell) return fromShell;
@@ -309,6 +316,38 @@ public static class IconService
         }
 
         return PixelFormats.Pbgra32;
+    }
+
+    /// <summary>
+    /// A maior imagem de um .ico — o do perfil do Chrome traz ate 256 px, e o SHGetFileInfo
+    /// so entregaria a de 32. Relido quando o arquivo muda: o Chrome refaz o icone quando o
+    /// perfil troca de foto.
+    /// </summary>
+    public static BitmapSource? Ico(string path)
+    {
+        if (string.IsNullOrEmpty(path)) return null;
+        var key = $"ico::{path}";
+        var carimbo = Carimbo(path);
+        if (Cache.TryGetValue(key, out var cached) && Origens.TryGetValue(key, out var origem) &&
+            origem.Caminho == carimbo) return cached;
+
+        BitmapSource? result = null;
+        try
+        {
+            if (carimbo != 0)
+            {
+                using var stream = File.OpenRead(path);   // nao segura o arquivo aberto
+                var decoder = BitmapDecoder.Create(stream, BitmapCreateOptions.PreservePixelFormat,
+                                                   BitmapCacheOption.OnLoad);
+                result = decoder.Frames.OrderByDescending(f => f.PixelWidth).FirstOrDefault();
+                result?.Freeze();
+            }
+        }
+        catch { result = null; }
+
+        Cache[key] = result;
+        Origens[key] = (path, carimbo, carimbo);
+        return result;
     }
 
     /// <summary>Carrega um PNG/JPG solto (a foto do perfil do Chrome, por exemplo).</summary>

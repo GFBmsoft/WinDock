@@ -3,8 +3,15 @@ using System.Text.Json;
 
 namespace WinDock.Services;
 
-/// <summary>Um perfil do Chrome: a pasta, o nome que o usuario deu e a foto.</summary>
-public sealed record ChromeProfile(string Directory, string Name, string Aumid, string PicturePath)
+/// <summary>
+/// Um perfil do Chrome: a pasta, o nome que o usuario deu, a foto e o icone do perfil.
+///
+/// O icone (<c>Google Profile.ico</c>) e o que o proprio Chrome gera para a barra de tarefas:
+/// o simbolo do Chrome com o avatar do perfil no canto. Existe ate para o perfil sem foto do
+/// Google — e o unico desenho que separa todos os perfis.
+/// </summary>
+public sealed record ChromeProfile(string Directory, string Name, string Aumid, string PicturePath,
+                                   string IconPath)
 {
     public string Arguments => $"--profile-directory=\"{Directory}\"";
 }
@@ -53,12 +60,35 @@ public static class ChromeProfiles
                 var name = entry.Value.TryGetProperty("name", out var n) ? n.GetString() ?? dir : dir;
 
                 var picture = Path.Combine(userData, dir, "Google Profile Picture.png");
-                list.Add(new ChromeProfile(dir, name, AumidFor(dir), File.Exists(picture) ? picture : string.Empty));
+                var icon = Path.Combine(userData, dir, "Google Profile.ico");
+                list.Add(new ChromeProfile(dir, name, AumidFor(dir),
+                                           File.Exists(picture) ? picture : string.Empty,
+                                           File.Exists(icon) ? icon : string.Empty));
             }
         }
         catch { /* Local State ilegivel: sem perfis, o resto da dock segue igual */ }
 
         return list;
+    }
+
+    /// <summary>
+    /// O chrome.exe instalado, para abrir um perfil cujo atalho sumiu — o Chrome apaga e
+    /// recria os atalhos de perfil quando o perfil muda de nome ou de foto.
+    /// </summary>
+    public static string? ExePath()
+    {
+        foreach (var pasta in new[]
+                 {
+                     Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles),
+                     Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86),
+                     Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData)
+                 })
+        {
+            if (string.IsNullOrEmpty(pasta)) continue;
+            var exe = Path.Combine(pasta, @"Google\Chrome\Application\chrome.exe");
+            if (File.Exists(exe)) return exe;
+        }
+        return null;
     }
 
     /// <summary>
