@@ -25,9 +25,9 @@
     <!--
       O X de cada miniatura.
 
-      Mora na linha do título, e não por cima do desenho como o da barra de tarefas: o DWM
-      compõe a miniatura ACIMA desta janela, então qualquer coisa que o WPF desenhe dentro
-      daquele retângulo fica escondida atrás dela. Aqui embaixo é onde o nosso desenho aparece.
+      Mora na linha do título, que fica em cima da miniatura como na barra de tarefas do
+      Windows 11 — e não por cima do desenho: o DWM compõe a miniatura ACIMA desta janela, então
+      qualquer coisa que o WPF desenhe dentro daquele retângulo fica escondida atrás dela.
 
       Some enquanto o mouse não está na célula — mas em Hidden, não Collapsed: assim o espaço
       dele fica reservado e o título não se mexe quando o mouse entra.
@@ -68,14 +68,11 @@
       </ItemsControl.ItemsPanel>
       <ItemsControl.ItemTemplate>
         <DataTemplate>
-          <Border x:Name="Cell" Background="Transparent" CornerRadius="6" Padding="6,6,6,4"
+          <Border x:Name="Cell" Background="Transparent" CornerRadius="6" Padding="6,4,6,6"
                   Margin="2" Cursor="Hand"
                   MouseLeftButtonUp="OnThumbnailClick" Tag="{Binding Handle}">
             <StackPanel>
-              <!-- o espaco que o DWM preenche -->
-              <Border x:Name="Slot" Width="{Binding Width}" Height="{Binding Height}"
-                      Background="#18FFFFFF" CornerRadius="3" />
-              <Grid Width="{Binding Width}" Margin="0,6,0,0">
+              <Grid Width="{Binding Width}" Margin="0,0,0,6">
                 <Grid.ColumnDefinitions>
                   <ColumnDefinition Width="*" />
                   <ColumnDefinition Width="Auto" />
@@ -86,6 +83,9 @@
                         Visibility="Hidden" Tag="{Binding Handle}" Click="OnThumbnailClose"
                         ToolTip="Fechar esta janela" />
               </Grid>
+              <!-- o espaco que o DWM preenche -->
+              <Border x:Name="Slot" Width="{Binding Width}" Height="{Binding Height}"
+                      Background="#18FFFFFF" CornerRadius="3" />
             </StackPanel>
           </Border>
           <DataTemplate.Triggers>

@@ -11,6 +11,13 @@
   tag que leva a nota junto. Escrito para quem usa a dock: o que mudou na tela, e não no código.
 -->
 
+## 1.0.0.51 — 21/10/2026
+- No preview das janelas, o título e o X de fechar ficam em cima da miniatura, como na barra de tarefas do Windows 11.
+
+## 1.0.0.50 — 21/10/2026
+- Cada perfil do Chrome aparece na dock com o próprio ícone, o do avatar do perfil.
+- Um perfil do Chrome fixado continua abrindo mesmo depois que o Chrome apaga o atalho dele.
+
 ## 1.0.0.49 — 19/10/2026
 - Disco no cartão de sistema: o tempo ativo do último minuto em gráfico, com a leitura e a gravação embaixo; a dica do item da barra também mostra o disco.
 - A seta no rodapé do cartão de sistema mostra o espaço de cada unidade, com quanto está ocupado e quanto sobra. Vem recolhido.
