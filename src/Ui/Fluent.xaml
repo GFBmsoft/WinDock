@@ -100,6 +100,11 @@
               <Setter TargetName="Track" Property="Background" Value="{StaticResource FluentAccentHover}" />
               <Setter TargetName="Track" Property="BorderBrush" Value="{StaticResource FluentAccentHover}" />
             </MultiTrigger>
+            <!-- desligado por outro (o "balao" de uma origem fora do sino): apagado, sem a mao -->
+            <Trigger Property="IsEnabled" Value="False">
+              <Setter Property="Opacity" Value="0.35" />
+              <Setter Property="Cursor" Value="Arrow" />
+            </Trigger>
           </ControlTemplate.Triggers>
         </ControlTemplate>
       </Setter.Value>
@@ -514,6 +519,36 @@
           <ControlTemplate.Triggers>
             <Trigger Property="IsMouseOver" Value="True">
               <Setter TargetName="Bg" Property="Background" Value="{StaticResource FluentControlHover}" />
+            </Trigger>
+            <Trigger Property="IsPressed" Value="True">
+              <Setter TargetName="Bg" Property="Opacity" Value="0.7" />
+            </Trigger>
+          </ControlTemplate.Triggers>
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+  </Style>
+
+  <!--
+    O botao sem moldura do Windows 11 ("subtle"): so ganha fundo com o mouse em cima. E para a
+    acao que se repete em toda linha de uma lista, como o X de tirar — com moldura, uma coluna
+    de seis botoes iguais pesava mais que os nomes ao lado.
+  -->
+  <Style x:Key="FluentSubtleButton" TargetType="Button">
+    <Setter Property="Foreground" Value="{StaticResource FluentTextDim}" />
+    <Setter Property="Width" Value="28" />
+    <Setter Property="Height" Value="28" />
+    <Setter Property="Cursor" Value="Hand" />
+    <Setter Property="Template">
+      <Setter.Value>
+        <ControlTemplate TargetType="Button">
+          <Border x:Name="Bg" Background="Transparent" CornerRadius="4">
+            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+          </Border>
+          <ControlTemplate.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+              <Setter TargetName="Bg" Property="Background" Value="{StaticResource FluentControlHover}" />
+              <Setter Property="Foreground" Value="{StaticResource FluentText}" />
             </Trigger>
             <Trigger Property="IsPressed" Value="True">
               <Setter TargetName="Bg" Property="Opacity" Value="0.7" />

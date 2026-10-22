@@ -207,10 +207,17 @@ public sealed class MediaService : IDisposable
     ///
     /// O catálogo de aplicativos já resolve AUMID para nome ("Spotify"); quando não resolve —
     /// programas Win32 se anunciam pelo executável — sobra limpar o que dá.
+    ///
+    /// O Chrome vem antes do catálogo: cada perfil toca com o próprio AUMID, e o dos perfis além
+    /// do padrão ("Chrome.UserData.Profile1") não está no catálogo — a lista mostrava o id cru
+    /// (EV31). Pelo "Local State" sai o nome que a pessoa deu ao perfil, no mesmo "Chrome - GF"
+    /// da dica da dock; o padrão também, senão viraria um "Google Chrome" sem dizer qual.
     /// </summary>
     public static string FriendlyName(string appId)
     {
         if (string.IsNullOrWhiteSpace(appId)) return "";
+
+        if (ChromeProfiles.ByAumid(appId) is { } perfil) return $"Chrome - {perfil.Name}";
 
         var achado = AppCatalog.All()
             .FirstOrDefault(a => a.IsAumid && a.Target.Equals(appId, StringComparison.OrdinalIgnoreCase));

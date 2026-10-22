@@ -11,6 +11,10 @@
   tag que leva a nota junto. Escrito para quem usa a dock: o que mudou na tela, e não no código.
 -->
 
+## 1.0.0.53 — 22/10/2026
+- Configurações › Itens da barra › Origens: interruptores no lugar das caixas de marcar, com "No sino" e "Balão" num cabeçalho só; cada origem mostra o nome inteiro e o endereço embaixo, quando é site.
+- Programas na barra de mídia: cada perfil do Chrome aparece pelo nome que você deu a ele ("Chrome - GF"), e não pelo código interno; cada programa tem o ícone dele e um interruptor.
+
 ## 1.0.0.52 — 21/10/2026
 - Programas que rodam com outra extensão no lugar de .exe, como os instaladores (que rodam como .tmp), aparecem na dock com o próprio ícone, e não com uma folha em branco.
 - Um programa fixado cujo arquivo foi apagado ou mudou de pasta aparece com o ícone genérico de aplicativo, em vez de deixar um espaço vazio na dock.

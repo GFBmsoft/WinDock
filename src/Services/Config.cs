@@ -325,6 +325,13 @@ public sealed class NotificationSource : IGlyphChoice
         set { if (Set(ref _color, value)) Raise(nameof(LookFill)); }
     }
 
+    /// <summary>
+    /// A linha de baixo do nome nas Configurações: o endereço, quando a origem é um site. De app,
+    /// só "Aplicativo" — a chave dele é o AppUserModelID ("Windows.SystemToast.AutoPlay"), que não
+    /// diz nada a quem lê.
+    /// </summary>
+    [JsonIgnore] public string Detail => NotificationService.SiteOf(Key) == Key ? Key : "Aplicativo";
+
     // sem desenho, o cartão usa o ícone do app; aqui no seletor isso aparece como o sino
     [JsonIgnore] public string LookGlyph => NotificationService.Look(this).Glyph is { Length: > 0 } g ? g : "";
     [JsonIgnore] public System.Windows.Media.Brush LookFill => NotificationService.Look(this).Fill;

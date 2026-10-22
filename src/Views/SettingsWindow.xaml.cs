@@ -840,6 +840,12 @@ public partial class SettingsWindow : Window
         public string AppId { get; } = appId;
         public string Name { get; } = MediaService.FriendlyName(appId);
 
+        /// <summary>O ícone da dock para o programa — o do perfil, no Chrome; o id só serve para achá-lo.</summary>
+        public System.Windows.Media.Imaging.BitmapSource? Icon { get; } = IconService.ForApp(appId, string.Empty);
+
+        /// <summary>Sem ícone (programa Win32 que se anuncia só pelo executável), uma nota no lugar.</summary>
+        public string Glyph => Icon is null ? "" : string.Empty;
+
         public bool Allowed
         {
             get => config.MediaApps.Contains(AppId, StringComparer.OrdinalIgnoreCase);

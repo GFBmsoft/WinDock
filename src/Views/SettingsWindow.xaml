@@ -925,16 +925,35 @@
                 Visibility="{Binding PanelMedia, Converter={StaticResource BoolToVisible}}">
           <StackPanel>
             <TextBlock Text="Programas na barra de mídia" Style="{StaticResource FluentTitle}" />
-            <TextBlock Text="Marque quem pode ocupar a barra. Sem nenhum marcado, vale para todos — marque só o Spotify se não quiser que um vídeo no navegador tome o lugar dele."
+            <TextBlock Text="Ligue quem pode ocupar a barra. Com todos desligados, vale para todos — ligue só o Spotify se não quiser que um vídeo no navegador tome o lugar dele."
                        Style="{StaticResource FluentCaption}" TextWrapping="Wrap" />
 
-            <ItemsControl x:Name="MediaAppsList" Margin="0,12,0,0">
+            <!-- uma linha por programa, como a lista de apps das Notificações do Windows 11: ícone,
+                 nome e o interruptor. O AUMID fica só no código — na tela ele era o nome do
+                 perfil do Chrome escrito como "Chrome.UserData.Profile1" (EV31). -->
+            <ItemsControl x:Name="MediaAppsList" Margin="0,10,0,0">
               <ItemsControl.ItemTemplate>
                 <DataTemplate>
-                  <CheckBox Content="{Binding Name}" Margin="0,0,0,6"
-                            Foreground="{StaticResource FluentText}" FontSize="12"
-                            IsChecked="{Binding Allowed, Mode=TwoWay}"
-                            ToolTip="{Binding AppId}" />
+                  <Border BorderBrush="{StaticResource FluentDivider}" BorderThickness="0,1,0,0" Padding="2,8">
+                    <Grid>
+                      <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="32" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                      </Grid.ColumnDefinitions>
+                      <Image Source="{Binding Icon}" Width="20" Height="20" HorizontalAlignment="Left"
+                             RenderOptions.BitmapScalingMode="HighQuality" />
+                      <TextBlock Text="{Binding Glyph}" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
+                                 FontSize="16" Foreground="{StaticResource FluentTextDim}"
+                                 VerticalAlignment="Center" Margin="2,0,0,0"
+                                 Visibility="{Binding Glyph, Converter={StaticResource EmptyToCollapsed}}" />
+                      <TextBlock Grid.Column="1" Text="{Binding Name}" Style="{StaticResource FluentTitle}"
+                                 TextTrimming="CharacterEllipsis" />
+                      <CheckBox Grid.Column="2" Style="{StaticResource FluentToggle}"
+                                AutomationProperties.Name="{Binding Name}"
+                                IsChecked="{Binding Allowed, Mode=TwoWay}" />
+                    </Grid>
+                  </Border>
                 </DataTemplate>
               </ItemsControl.ItemTemplate>
             </ItemsControl>
@@ -1075,42 +1094,66 @@
         <Border Style="{StaticResource FluentCardBorderStyle}">
           <StackPanel>
             <TextBlock Text="Origens" Style="{StaticResource FluentTitle}" />
-            <TextBlock Text="Cada app ou site que já mandou notificação. O desenho é o do cartão do sino; desmarcar &quot;no sino&quot; tira a origem do número e do cartão (ela continua na Central do Windows), e &quot;balão&quot; decide se ela ganha o balão breve. Origens novas entram aqui sozinhas na primeira notificação; no automático, os sites conhecidos têm o desenho deles e o resto usa o ícone do app."
+            <TextBlock Text="Cada app ou site que já mandou notificação. O desenho é o do cartão do sino; desligar &quot;No sino&quot; tira a origem do número e do cartão (ela continua na Central do Windows), e &quot;Balão&quot; decide se ela ganha o balão breve. Origens novas entram aqui sozinhas na primeira notificação; no automático, os sites conhecidos têm o desenho deles e o resto usa o ícone do app."
                        Style="{StaticResource FluentCaption}" TextWrapping="Wrap" />
 
-            <ItemsControl x:Name="NotificationSourcesList" Margin="0,10,0,0">
+            <!-- Uma linha por origem, no desenho da lista de apps das Notificações do Windows 11:
+                 desenho, nome com o endereço embaixo, e os interruptores do Fluent.xaml sob um
+                 cabeçalho só — antes eram caixas brancas do WPF com "no sino" e "balão" repetidos
+                 em toda linha, e o AppUserModelID numa coluna própria (EV30). As colunas do
+                 cabeçalho e das linhas têm de ser as mesmas. -->
+            <Grid Margin="2,14,2,6">
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="44" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="72" />
+                <ColumnDefinition Width="72" />
+                <ColumnDefinition Width="36" />
+              </Grid.ColumnDefinitions>
+              <TextBlock Grid.Column="2" Text="No sino" Style="{StaticResource FluentCaption}"
+                         HorizontalAlignment="Center" Margin="0"
+                         ToolTip="Conta no número do sino e aparece no cartão" />
+              <TextBlock Grid.Column="3" Text="Balão" Style="{StaticResource FluentCaption}"
+                         HorizontalAlignment="Center" Margin="0"
+                         ToolTip="Ganha o balão breve quando chega" />
+            </Grid>
+
+            <ItemsControl x:Name="NotificationSourcesList">
               <ItemsControl.ItemTemplate>
                 <DataTemplate>
-                  <Grid Margin="0,0,0,4">
-                    <Grid.ColumnDefinitions>
-                      <ColumnDefinition Width="38" />
-                      <ColumnDefinition Width="140" />
-                      <ColumnDefinition Width="*" />
-                      <ColumnDefinition Width="Auto" />
-                      <ColumnDefinition Width="Auto" />
-                      <ColumnDefinition Width="Auto" />
-                    </Grid.ColumnDefinitions>
-                    <ui:GlyphPicker Tool="{Binding}" HorizontalAlignment="Left" />
-                    <TextBlock Grid.Column="1" Text="{Binding Name}" Style="{StaticResource FluentTitle}"
-                               VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
-                    <TextBlock Grid.Column="2" Text="{Binding Key}" Style="{StaticResource FluentCaption}"
-                               VerticalAlignment="Center" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" Margin="6,0,0,0"
-                               ToolTip="{Binding Key}" />
-                    <CheckBox Grid.Column="3" Content="no sino" FontSize="11" Margin="10,0,0,0"
-                              Foreground="{StaticResource FluentTextDim}" VerticalAlignment="Center"
-                              ToolTip="Conta no número do sino e aparece no cartão"
-                              IsChecked="{Binding Show, Mode=TwoWay}" />
-                    <CheckBox Grid.Column="4" Content="balão" FontSize="11" Margin="10,0,0,0"
-                              Foreground="{StaticResource FluentTextDim}" VerticalAlignment="Center"
-                              ToolTip="Ganha o balão breve quando chega"
-                              IsChecked="{Binding Popup, Mode=TwoWay}"
-                              IsEnabled="{Binding Show}" />
-                    <Button Grid.Column="5" Style="{StaticResource FluentButton}" Padding="7,1" Height="28"
-                            Margin="10,0,0,0" Click="OnNotificationSourceRemove" Tag="{Binding}"
-                            ToolTip="Tirar da lista (volta se chegar outra notificação dela)">
-                      <TextBlock Text="&#x2715;" FontSize="11" />
-                    </Button>
-                  </Grid>
+                  <Border BorderBrush="{StaticResource FluentDivider}" BorderThickness="0,1,0,0" Padding="2,7">
+                    <Grid>
+                      <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="44" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="72" />
+                        <ColumnDefinition Width="72" />
+                        <ColumnDefinition Width="36" />
+                      </Grid.ColumnDefinitions>
+                      <ui:GlyphPicker Tool="{Binding}" HorizontalAlignment="Left" />
+                      <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                        <TextBlock Text="{Binding Name}" Style="{StaticResource FluentTitle}"
+                                   TextTrimming="CharacterEllipsis" />
+                        <TextBlock Text="{Binding Detail}" Style="{StaticResource FluentCaption}"
+                                   TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" Margin="0,1,0,0" />
+                      </StackPanel>
+                      <CheckBox Grid.Column="2" Style="{StaticResource FluentToggle}" HorizontalAlignment="Center"
+                                AutomationProperties.Name="{Binding Name, StringFormat={}{0}: no sino}"
+                                ToolTip="Conta no número do sino e aparece no cartão"
+                                IsChecked="{Binding Show, Mode=TwoWay}" />
+                      <CheckBox Grid.Column="3" Style="{StaticResource FluentToggle}" HorizontalAlignment="Center"
+                                AutomationProperties.Name="{Binding Name, StringFormat={}{0}: balão}"
+                                ToolTip="Ganha o balão breve quando chega"
+                                IsChecked="{Binding Popup, Mode=TwoWay}"
+                                IsEnabled="{Binding Show}" />
+                      <Button Grid.Column="4" Style="{StaticResource FluentSubtleButton}" HorizontalAlignment="Right"
+                              Click="OnNotificationSourceRemove" Tag="{Binding}"
+                              AutomationProperties.Name="{Binding Name, StringFormat={}Tirar {0} da lista}"
+                              ToolTip="Tirar da lista (volta se chegar outra notificação dela)">
+                        <TextBlock Text="&#x2715;" FontSize="11" />
+                      </Button>
+                    </Grid>
+                  </Border>
                 </DataTemplate>
               </ItemsControl.ItemTemplate>
             </ItemsControl>
