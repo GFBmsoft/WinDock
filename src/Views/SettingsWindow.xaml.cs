@@ -609,8 +609,12 @@ public partial class SettingsWindow : Window
 
     // ── tamanho das janelas flutuantes ───────────────────────
 
-    /// <summary>Uma linha da lista: o app e o tamanho já formatado pra tela.</summary>
-    private sealed record FloatingSizeRow(string App, string Size);
+    /// <summary>
+    /// Uma linha da lista: a chave do app no config, e na tela o nome, o ícone e o tamanho já
+    /// formatado. A chave é AUMID ou executável e não aparece — era o "Chrome.UserData.Profile1".
+    /// </summary>
+    private sealed record FloatingSizeRow(string Key, string Name, System.Windows.Media.Imaging.BitmapSource? Icon,
+                                          string Size);
 
     /// <summary>
     /// Mostra o que o mosaico guardou sozinho, e é a única forma de desfazer sem editar o
@@ -621,8 +625,11 @@ public partial class SettingsWindow : Window
     {
         _floatingSizes.Clear();
 
-        foreach (var (app, size) in _config.FloatingSizes.OrderBy(p => p.Key, StringComparer.OrdinalIgnoreCase))
-            _floatingSizes.Add(new FloatingSizeRow(app, $"{size.Width}×{size.Height}"));
+        var linhas = _config.FloatingSizes
+            .Select(p => new FloatingSizeRow(p.Key, AppCatalog.FriendlyName(p.Key), AppCatalog.Icon(p.Key),
+                                             $"{p.Value.Width}×{p.Value.Height}"))
+            .OrderBy(r => r.Name, StringComparer.CurrentCultureIgnoreCase);
+        foreach (var linha in linhas) _floatingSizes.Add(linha);
 
         // a legenda do vazio some assim que existe um item: uma lista vazia sem explicação
         // parece defeito, e a mesma explicação sobrando embaixo de dez itens é ruído
@@ -633,7 +640,7 @@ public partial class SettingsWindow : Window
     {
         if (((FrameworkElement)sender).DataContext is not FloatingSizeRow row) return;
 
-        _config.FloatingSizes.Remove(row.App);
+        _config.FloatingSizes.Remove(row.Key);
         _config.Save();
         LoadFloatingSizes();
     }
@@ -838,13 +845,13 @@ public partial class SettingsWindow : Window
     private sealed class MediaAppRow(DockConfig config, string appId)
     {
         public string AppId { get; } = appId;
-        public string Name { get; } = MediaService.FriendlyName(appId);
+        public string Name { get; } = AppCatalog.FriendlyName(appId);
 
         /// <summary>O ícone da dock para o programa — o do perfil, no Chrome; o id só serve para achá-lo.</summary>
-        public System.Windows.Media.Imaging.BitmapSource? Icon { get; } = IconService.ForApp(appId, string.Empty);
+        public System.Windows.Media.Imaging.BitmapSource? Icon { get; } = AppCatalog.Icon(appId);
 
         /// <summary>Sem ícone (programa Win32 que se anuncia só pelo executável), uma nota no lugar.</summary>
-        public string Glyph => Icon is null ? "" : string.Empty;
+        public string Glyph => Icon is null ? "\uE8D6" : string.Empty;
 
         public bool Allowed
         {
@@ -863,14 +870,19 @@ public partial class SettingsWindow : Window
     /// <summary>
     /// Monta a lista com os programas de mídia vistos nesta sessão, mais os que já estavam
     /// marcados — senão um programa fechado sumiria da lista sem jeito de desmarcá-lo.
+    ///
+    /// Perfil do Chrome só entra se for um dos da pessoa: o apagado sai, e o que ninguém ajeitou
+    /// (sem conta e com o "Seu Chrome" do próprio Chrome) também — a lista mostrava três Chromes
+    /// para quem tem dois perfis. Marcado, fica, pelo mesmo motivo de cima.
     /// </summary>
     private void LoadMediaApps()
     {
         var apps = MediaService.KnownApps
+            .Where(a => !ChromeProfiles.IsProfileAumid(a) || ChromeProfiles.ByAumid(a) is { Personalized: true })
             .Concat(_config.MediaApps)
             .Where(a => !string.IsNullOrWhiteSpace(a))
             .Distinct(StringComparer.OrdinalIgnoreCase)
-            .OrderBy(MediaService.FriendlyName, StringComparer.CurrentCultureIgnoreCase)
+            .OrderBy(AppCatalog.FriendlyName, StringComparer.CurrentCultureIgnoreCase)
             .ToList();
 
         MediaAppsList.ItemsSource = apps.Select(a => new MediaAppRow(_config, a)).ToList();

@@ -595,42 +595,46 @@
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
                       </Grid.ColumnDefinitions>
 
                       <TextBlock Text="{Binding Position}" Foreground="{StaticResource FluentTextDim}"
                                  FontSize="11" VerticalAlignment="Center" Width="20" />
-                      <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
-                        <TextBlock Text="{Binding Name}" FontSize="12"
-                                   Foreground="{StaticResource FluentText}" VerticalAlignment="Center" />
+                      <TextBlock Grid.Column="1" Text="{Binding Name}" FontSize="12" TextTrimming="CharacterEllipsis"
+                                 Foreground="{StaticResource FluentText}" VerticalAlignment="Center" />
 
-                        <!-- em ilhas: a ilha nova começa neste item. O primeiro sempre abre uma,
-                             então ele não ganha a caixa -->
-                        <CheckBox Content="nova ilha" FontSize="11" Margin="12,0,0,0"
-                                  Foreground="{StaticResource FluentTextDim}" VerticalAlignment="Center"
+                      <!-- em ilhas: a ilha nova começa neste item. O primeiro sempre abre uma,
+                           então ele não ganha o interruptor. Fica junto das setas, e não colado no
+                           nome: assim os interruptores fazem uma coluna só (antes, caixas brancas
+                           do WPF, cada uma numa altura). -->
+                      <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center" Margin="12,0,14,0">
+                        <StackPanel.Style>
+                          <Style TargetType="StackPanel">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                            <Style.Triggers>
+                              <MultiDataTrigger>
+                                <MultiDataTrigger.Conditions>
+                                  <Condition Binding="{Binding DataContext.PanelIslands, RelativeSource={RelativeSource AncestorType=Window}}" Value="True" />
+                                  <Condition Binding="{Binding IsFirst}" Value="False" />
+                                </MultiDataTrigger.Conditions>
+                                <Setter Property="Visibility" Value="Visible" />
+                              </MultiDataTrigger>
+                            </Style.Triggers>
+                          </Style>
+                        </StackPanel.Style>
+                        <TextBlock Text="Nova ilha" Style="{StaticResource FluentCaption}" Margin="0,0,8,0"
+                                   VerticalAlignment="Center" />
+                        <CheckBox Style="{StaticResource FluentToggle}"
+                                  AutomationProperties.Name="{Binding Name, StringFormat={}{0}: nova ilha}"
                                   IsChecked="{Binding StartsIsland, Mode=OneWay}" Tag="{Binding Key}"
-                                  Checked="OnIslandBreak" Unchecked="OnIslandBreak">
-                          <CheckBox.Style>
-                            <Style TargetType="CheckBox">
-                              <Setter Property="Visibility" Value="Collapsed" />
-                              <Style.Triggers>
-                                <MultiDataTrigger>
-                                  <MultiDataTrigger.Conditions>
-                                    <Condition Binding="{Binding DataContext.PanelIslands, RelativeSource={RelativeSource AncestorType=Window}}" Value="True" />
-                                    <Condition Binding="{Binding IsFirst}" Value="False" />
-                                  </MultiDataTrigger.Conditions>
-                                  <Setter Property="Visibility" Value="Visible" />
-                                </MultiDataTrigger>
-                              </Style.Triggers>
-                            </Style>
-                          </CheckBox.Style>
-                        </CheckBox>
+                                  Checked="OnIslandBreak" Unchecked="OnIslandBreak" />
                       </StackPanel>
 
-                      <Button Grid.Column="2" Style="{StaticResource FluentButton}" Padding="8,2"
+                      <Button Grid.Column="3" Style="{StaticResource FluentButton}" Padding="8,2"
                               Click="OnPanelItemUp" Tag="{Binding Key}" ToolTip="Mover para a esquerda">
                         <TextBlock Text="&#x2191;" FontSize="12" />
                       </Button>
-                      <Button Grid.Column="3" Style="{StaticResource FluentButton}" Padding="8,2"
+                      <Button Grid.Column="4" Style="{StaticResource FluentButton}" Padding="8,2"
                               Margin="4,0,0,0" Click="OnPanelItemDown" Tag="{Binding Key}"
                               ToolTip="Mover para a direita">
                         <TextBlock Text="&#x2193;" FontSize="12" />
@@ -1073,17 +1077,39 @@
                         IsChecked="{Binding NotificationPopup, Mode=TwoWay}" />
             </Grid>
 
-            <StackPanel Orientation="Horizontal" Margin="0,12,0,0"
+            <!-- os ajustes do balão, uma linha cada, separadas como as origens: o texto à esquerda,
+                 o controle à direita (antes, uma caixa branca do WPF ao lado do campo) -->
+            <StackPanel Margin="0,12,0,0"
                         Visibility="{Binding NotificationPopup, Converter={StaticResource BoolToVisible}}">
-              <StackPanel Margin="0,0,20,0">
-                <TextBlock Text="Segundos na tela" Style="{StaticResource FluentCaption}" Margin="2,0,0,4" />
-                <TextBox Style="{StaticResource FluentTextBox}" Width="70" HorizontalAlignment="Left"
-                         Text="{Binding NotificationPopupSeconds, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" />
-              </StackPanel>
-              <CheckBox Content="Mostrar o texto da mensagem" VerticalAlignment="Bottom" Margin="0,0,0,6"
-                        Foreground="{StaticResource FluentText}" FontSize="12"
-                        ToolTip="Desmarcado, o balão diz só de onde veio — para quando outra pessoa pode estar vendo a tela"
-                        IsChecked="{Binding NotificationPopupText, Mode=TwoWay}" />
+              <Border BorderBrush="{StaticResource FluentDivider}" BorderThickness="0,1,0,0" Padding="2,8">
+                <Grid>
+                  <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                  </Grid.ColumnDefinitions>
+                  <TextBlock Text="Segundos na tela" Foreground="{StaticResource FluentText}" FontSize="13"
+                             VerticalAlignment="Center" />
+                  <TextBox Grid.Column="1" Style="{StaticResource FluentTextBox}" Width="70"
+                           AutomationProperties.Name="Segundos na tela"
+                           Text="{Binding NotificationPopupSeconds, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" />
+                </Grid>
+              </Border>
+              <Border BorderBrush="{StaticResource FluentDivider}" BorderThickness="0,1,0,0" Padding="2,8,2,0">
+                <Grid>
+                  <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                  </Grid.ColumnDefinitions>
+                  <StackPanel VerticalAlignment="Center">
+                    <TextBlock Text="Mostrar o texto da mensagem" Foreground="{StaticResource FluentText}" FontSize="13" />
+                    <TextBlock Text="Desligado, o balão diz só de onde veio — para quando outra pessoa pode estar vendo a tela."
+                               Style="{StaticResource FluentCaption}" TextWrapping="Wrap" />
+                  </StackPanel>
+                  <CheckBox Grid.Column="1" Style="{StaticResource FluentToggle}" Margin="12,0,0,0"
+                            AutomationProperties.Name="Mostrar o texto da mensagem"
+                            IsChecked="{Binding NotificationPopupText, Mode=TwoWay}" />
+                </Grid>
+              </Border>
             </StackPanel>
           </StackPanel>
         </Border>
@@ -1483,9 +1509,24 @@
                 <DataTemplate>
                   <Border Background="{StaticResource FluentControl}" BorderBrush="{StaticResource FluentControlBorder}"
                           BorderThickness="1" CornerRadius="12" Padding="10,4" Margin="0,0,6,6">
+                    <!-- o nome do app com o ícone dele, e não a chave guardada: era
+                         "Chrome.UserData.Profile1", e o AUMID comprido de um app da Store passava
+                         da borda do cartão -->
                     <StackPanel Orientation="Horizontal">
-                      <TextBlock Text="{Binding App}" Foreground="{StaticResource FluentText}" FontSize="12"
-                                 VerticalAlignment="Center" />
+                      <Image Source="{Binding Icon}" Width="16" Height="16" Margin="-2,0,6,0" VerticalAlignment="Center"
+                             RenderOptions.BitmapScalingMode="HighQuality">
+                        <Image.Style>
+                          <Style TargetType="Image">
+                            <Style.Triggers>
+                              <DataTrigger Binding="{Binding Icon}" Value="{x:Null}">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                              </DataTrigger>
+                            </Style.Triggers>
+                          </Style>
+                        </Image.Style>
+                      </Image>
+                      <TextBlock Text="{Binding Name}" Foreground="{StaticResource FluentText}" FontSize="12"
+                                 MaxWidth="280" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
                       <TextBlock Text="{Binding Size}" Foreground="{StaticResource FluentTextDim}" FontSize="12"
                                  Margin="6,0,0,0" VerticalAlignment="Center" />
                       <TextBlock Text=" ✕" Foreground="{StaticResource FluentTextDim}" FontSize="12"

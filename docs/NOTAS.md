@@ -11,6 +11,13 @@
   tag que leva a nota junto. Escrito para quem usa a dock: o que mudou na tela, e não no código.
 -->
 
+## 1.0.0.54 — 22/10/2026
+- Programas na barra de mídia: só os seus perfis do Chrome aparecem; o perfil que ninguém ajeitou (sem conta e com o "Seu Chrome" de fábrica) e o perfil apagado saem da lista.
+- Ordem dos itens da barra: o "Nova ilha" virou interruptor, numa coluna só ao lado das setas.
+- Balão ao chegar: "Segundos na tela" e "Mostrar o texto da mensagem" em linhas próprias, com interruptor.
+- Tamanho das janelas flutuantes: cada programa aparece pelo nome e com o ícone ("Chrome - GF", "Calculadora", "Conexão de Área de Trabalho Remota"), e não pelo código interno.
+- A dock volta a ler os atalhos do Menu Iniciar, que no Windows em português ficavam de fora, e mostra o nome deles em português.
+
 ## 1.0.0.53 — 22/10/2026
 - Configurações › Itens da barra › Origens: interruptores no lugar das caixas de marcar, com "No sino" e "Balão" num cabeçalho só; cada origem mostra o nome inteiro e o endereço embaixo, quando é site.
 - Programas na barra de mídia: cada perfil do Chrome aparece pelo nome que você deu a ele ("Chrome - GF"), e não pelo código interno; cada programa tem o ícone dele e um interruptor.

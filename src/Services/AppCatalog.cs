@@ -113,6 +113,72 @@ public static class AppCatalog
     }
 
     /// <summary>
+    /// O nome que a pessoa reconhece para a chave com que a dock guarda um app: o AppUserModelID,
+    /// ou o nome do executavel quando a janela nao tem um.
+    ///
+    /// Serve as listas das Configuracoes que se enchem sozinhas (programas de midia, tamanhos das
+    /// janelas flutuantes): mostrar a chave crua era mostrar "Chrome.UserData.Profile1" e
+    /// "Microsoft.SecHealthUI_8wekyb3d8bbwe!SecHealthUI" (EV31).
+    ///
+    /// Na ordem: o perfil do Chrome pelo "Local State", no mesmo "Chrome - GF" da dica da dock (o
+    /// AUMID dos perfis alem do padrao nao esta no catalogo, e o padrao viraria um "Google Chrome"
+    /// sem dizer qual); o catalogo, que resolve o AUMID ("Spotify") e tambem o executavel dos
+    /// programas sem AUMID, que a pasta de aplicativos lista pelo caminho; o atalho do menu iniciar
+    /// que abre o executavel ("Code.exe" -> "Visual Studio Code"); e, sem nada disso, a chave
+    /// limpa do que da.
+    /// </summary>
+    public static string FriendlyName(string id)
+    {
+        if (string.IsNullOrWhiteSpace(id)) return "";
+
+        if (ChromeProfiles.ByAumid(id) is { } perfil) return $"Chrome - {perfil.Name}";
+        if (ByKey(id) is { } app) return app.Name;
+        if (ShortcutFor(id) is { } atalho) return atalho.Name;
+
+        // "Spotify.exe" -> "Spotify"; um AUMID sem correspondencia fica com a parte final: depois
+        // do "!" num app da Store, e depois do ultimo ponto num AUMID com cara de dominio ao
+        // contrario ("com.squirrel.SourceTree.SourceTree" -> "SourceTree"). Ponta curta e
+        // extensao, e nao nome — o "VSCodeUserSetup-x64-1.137.0.tmp" fica inteiro.
+        if (id.EndsWith(".exe", StringComparison.OrdinalIgnoreCase)) return id[..^4];
+        if (id.Contains('!')) return id[(id.IndexOf('!') + 1)..];
+        var ponta = id[(id.LastIndexOf('.') + 1)..];
+        return ponta.Length > 4 && ponta.Length < id.Length ? ponta : id;
+    }
+
+    /// <summary>O icone para a mesma chave, achado pelo mesmo caminho do <see cref="FriendlyName"/>.</summary>
+    public static System.Windows.Media.Imaging.BitmapSource? Icon(string id)
+    {
+        if (string.IsNullOrWhiteSpace(id)) return null;
+
+        if (ChromeProfiles.ByAumid(id) is null && ByKey(id) is { } app) return IconService.Shell(app.IconSource);
+        if (ShortcutFor(id) is { } atalho) return IconService.ForApp(id, atalho.LnkPath);
+        return IconService.ForApp(id, string.Empty);
+    }
+
+    /// <summary>O app do catalogo com este AUMID, ou cujo caminho termina neste executavel.</summary>
+    private static CatalogApp? ByKey(string id) =>
+        All().FirstOrDefault(a => a.IsAumid && a.Target.Equals(id, StringComparison.OrdinalIgnoreCase)) ??
+        (id.EndsWith(".exe", StringComparison.OrdinalIgnoreCase)
+            ? All().FirstOrDefault(a => a.IsAumid && a.Target.Contains('\\') &&
+                                        Path.GetFileName(a.Target).Equals(id, StringComparison.OrdinalIgnoreCase))
+            : null);
+
+    /// <summary>
+    /// O atalho do menu iniciar com este AUMID (o Discord e o Obsidian se anunciam assim e nao estao
+    /// no catalogo por ele), ou o que abre este executavel sem argumento nenhum. Com argumento ele
+    /// ja e outra coisa: o mmc.exe e o alvo de todos os consoles das Ferramentas Administrativas, e
+    /// o chrome.exe, de um atalho por perfil.
+    /// </summary>
+    private static Shortcut? ShortcutFor(string id) =>
+        id.EndsWith(".exe", StringComparison.OrdinalIgnoreCase)
+            ? ShortcutService.All()
+                .Where(s => s.Arguments.Length == 0 &&
+                            Path.GetFileName(s.Target).Equals(id, StringComparison.OrdinalIgnoreCase))
+                .OrderBy(s => s.Name.Length)
+                .FirstOrDefault()
+            : ShortcutService.All().FirstOrDefault(s => s.Aumid.Equals(id, StringComparison.OrdinalIgnoreCase));
+
+    /// <summary>
     /// Abre um app da pasta de aplicativos. Quem resolve o AppUserModelID e o proprio
     /// explorer — e o unico jeito de lancar app da Store sem conhecer o executavel.
     /// </summary>

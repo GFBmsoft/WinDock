@@ -7,9 +7,14 @@ namespace WinDock.Services;
 
 /// <summary>Um .lnk ja lido: alvo, argumentos e o AppUserModelID que ele carrega.</summary>
 public sealed record Shortcut(string LnkPath, string Target, string Arguments, string Aumid,
-                              string IconPath, int IconIndex)
+                              string IconPath, int IconIndex, string DisplayName = "")
 {
-    public string Name => Path.GetFileNameWithoutExtension(LnkPath);
+    /// <summary>
+    /// O nome que o Explorador mostra. Os atalhos do proprio Windows tem nome de arquivo em ingles
+    /// ("Remote Desktop Connection.lnk") e a traducao no desktop.ini da pasta, que so o shell
+    /// aplica; sem ela, o nome do arquivo.
+    /// </summary>
+    public string Name => DisplayName.Length > 0 ? DisplayName : Path.GetFileNameWithoutExtension(LnkPath);
 }
 
 /// <summary>
@@ -91,13 +96,26 @@ public static class ShortcutService
             Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory)
         };
 
+        // Pasta que nao se deixa listar e pulada, e nao derruba a varredura. No Windows em portugues
+        // o menu iniciar tem a juncao "Programas" (compatibilidade com o nome antigo), que nega a
+        // listagem ate para administrador, e ela vem antes de "Programs" na ordem: com o
+        // SearchOption.AllDirectories a excecao saia ali e o menu iniciar inteiro ficava de fora —
+        // a lista tinha um atalho em vez de duzentos (22/10/2026). Ocultos e de sistema continuam
+        // dentro, como antes (AttributesToSkip = 0).
+        var opcoes = new EnumerationOptions
+        {
+            RecurseSubdirectories = true,
+            IgnoreInaccessible = true,
+            AttributesToSkip = 0
+        };
+
         var found = new List<Shortcut>();
         foreach (var root in roots)
         {
             if (string.IsNullOrEmpty(root) || !Directory.Exists(root)) continue;
             try
             {
-                foreach (var lnk in Directory.EnumerateFiles(root, "*.lnk", SearchOption.AllDirectories))
+                foreach (var lnk in Directory.EnumerateFiles(root, "*.lnk", opcoes))
                 {
                     var s = Read(lnk);
                     if (s is not null) found.Add(s);
@@ -138,7 +156,12 @@ public static class ShortcutService
             var path = target.ToString();
             if (string.IsNullOrWhiteSpace(path)) return null;
 
-            return new Shortcut(lnkPath, path, args.ToString(), aumid, icon.ToString(), iconIndex);
+            var info = new SHFILEINFO();
+            var nome = SHGetFileInfo(lnkPath, 0, ref info, (uint)Marshal.SizeOf<SHFILEINFO>(), SHGFI_DISPLAYNAME) != 0
+                       ? info.szDisplayName ?? string.Empty
+                       : string.Empty;
+
+            return new Shortcut(lnkPath, path, args.ToString(), aumid, icon.ToString(), iconIndex, nome);
         }
         catch { return null; }
     }

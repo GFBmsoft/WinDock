@@ -9,9 +9,13 @@ namespace WinDock.Services;
 /// O icone (<c>Google Profile.ico</c>) e o que o proprio Chrome gera para a barra de tarefas:
 /// o simbolo do Chrome com o avatar do perfil no canto. Existe ate para o perfil sem foto do
 /// Google — e o unico desenho que separa todos os perfis.
+///
+/// <see cref="Personalized"/> e falso no perfil que ninguem ajeitou: sem conta do Google e com o
+/// nome que o proprio Chrome deu ("Seu Chrome"). E o perfil aberto sem querer, que ninguem conta
+/// como "um dos meus perfis".
 /// </summary>
 public sealed record ChromeProfile(string Directory, string Name, string Aumid, string PicturePath,
-                                   string IconPath)
+                                   string IconPath, bool Personalized = true)
 {
     public string Arguments => $"--profile-directory=\"{Directory}\"";
 }
@@ -38,6 +42,14 @@ public static class ChromeProfiles
             ? null
             : All().FirstOrDefault(p => string.Equals(p.Aumid, aumid, StringComparison.OrdinalIgnoreCase));
 
+    /// <summary>
+    /// O AUMID tem a forma do de um perfil do Chrome ("Chrome", "Chrome.UserData.Profile2"), exista o
+    /// perfil ou não — é o que separa o perfil apagado de um app qualquer que o catálogo não conhece.
+    /// </summary>
+    public static bool IsProfileAumid(string aumid) =>
+        aumid.Equals("Chrome", StringComparison.OrdinalIgnoreCase) ||
+        aumid.StartsWith("Chrome.UserData.", StringComparison.OrdinalIgnoreCase);
+
     private static List<ChromeProfile> Scan()
     {
         var list = new List<ChromeProfile>();
@@ -61,9 +73,13 @@ public static class ChromeProfiles
 
                 var picture = Path.Combine(userData, dir, "Google Profile Picture.png");
                 var icon = Path.Combine(userData, dir, "Google Profile.ico");
+                var nomePadrao = entry.Value.TryGetProperty("is_using_default_name", out var d) &&
+                                 d.ValueKind == JsonValueKind.True;
+                var conta = entry.Value.TryGetProperty("user_name", out var u) ? u.GetString() ?? "" : "";
                 list.Add(new ChromeProfile(dir, name, AumidFor(dir),
                                            File.Exists(picture) ? picture : string.Empty,
-                                           File.Exists(icon) ? icon : string.Empty));
+                                           File.Exists(icon) ? icon : string.Empty,
+                                           Personalized: !nomePadrao || conta.Length > 0));
             }
         }
         catch { /* Local State ilegivel: sem perfis, o resto da dock segue igual */ }
