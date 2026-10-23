@@ -738,9 +738,15 @@ arquivo vazio chamado `rastrear` nessa mesma pasta liga o rastro já no arranque
 
 ### Ordem dos itens da barra
 
-**Configurações > Ordem dos itens da barra** lista os onze itens do canto direito com setas para
+**Configurações > Ordem dos itens da barra** lista os itens dos dois cantos com setas para
 mover. A barra muda na hora. A música entra como **dois itens separados** (a informação e os
 controles), então dá para afastá-los ou juntá-los.
+
+Só entram na lista os itens **ligados** em **Itens da barra**: o brilho desligado não aparece, e
+o relógio no centro também não, porque ele não ocupa lugar nos cantos. Um item desligado guarda o
+lugar dele e volta ali quando é religado. O que está ligado mas sem nada para mostrar agora (a
+música parada, nenhum pen-drive) aparece **apagado**, e cada toque numa seta passa direto por ele:
+o item vai até o próximo vizinho que está de fato na barra, e a barra sempre muda.
 
 ### Barra em ilhas
 

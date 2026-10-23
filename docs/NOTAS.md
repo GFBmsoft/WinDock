@@ -11,6 +11,10 @@
   tag que leva a nota junto. Escrito para quem usa a dock: o que mudou na tela, e não no código.
 -->
 
+## 1.0.0.56 — 23/10/2026
+- Ordem dos itens da barra: cada toque numa seta muda a barra. Antes, a seta podia trocar o item com um vizinho que não estava aparecendo (o relógio no centro, o brilho desligado, a música parada), e nada mudava na tela.
+- A lista mostra só os itens ligados em Itens da barra; o relógio no centro também sai, porque não fica nos cantos. Um item desligado guarda o lugar e volta ali ao ser religado. O que está ligado mas sem nada para mostrar agora aparece apagado.
+
 ## 1.0.0.55 — 23/10/2026
 - Teclado na barra: a sigla do teclado em uso (US, BR) ao lado de um desenho de teclado, e um clique troca para o próximo, como o Win+Espaço. Passando o mouse aparece o nome inteiro e para qual teclado o clique vai. Só aparece com dois teclados ou mais; desliga em Configurações › Itens da barra › Teclado.
 - Menu do ícone da dock: o Fechar passou para a ponta do cursor, com o Finalizar tarefa logo ao lado, como na barra do Windows 11. O Sair do WinDock foi para a outra ponta, longe de um clique escorregado.

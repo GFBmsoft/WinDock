@@ -979,7 +979,8 @@ public partial class MainWindow : Window
             return;
         }
 
-        _settings = new SettingsWindow(_config);
+        // pergunta à barra de agora, e não à de quando abriu: desligar e religar a barra troca a janela
+        _settings = new SettingsWindow(_config, k => _panel?.IsOnBar(k) ?? true);
         _settings.Closed += (_, _) => _settings = null;
         _settings.Show();
 

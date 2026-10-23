@@ -494,6 +494,32 @@ public partial class PanelWindow : Window
     public const string SideDivider = "|direita";
 
     /// <summary>
+    /// O interruptor do item em Configurações › Itens da barra está ligado? A lista de ordem
+    /// mostra só estes: um item desligado nunca aparece, e arrumar o lugar dele era ruído no meio
+    /// dos que a pessoa usa (pedido de 23/10/2026, com o brilho de exemplo).
+    ///
+    /// O relógio no centro conta como desligado aqui: ele não ocupa lugar em canto nenhum. Item
+    /// sem interruptor (bateria, Wi-Fi, volume…) está sempre ligado. Desligado não quer dizer
+    /// fora da ordem: a chave continua guardada no lugar dela, e o item volta ali ao ser religado.
+    /// </summary>
+    public static bool IsTurnedOn(string key, DockConfig config) => key switch
+    {
+        "busca"                      => config.PanelSearch,
+        "locais"                     => config.PanelPlaces,
+        "bandeja"                    => config.PanelTray,
+        "midia" or "midia-controles" => config.PanelMedia,
+        "ferramentas"                => config.PanelTools,
+        "sistema"                    => config.PanelSystem,
+        "teclado"                    => config.PanelKeyboard,
+        "brilho"                     => config.PanelBrightness,
+        "remover"                    => config.PanelRemovable,
+        "atualizacoes"               => config.PanelUpdates || config.PanelSelfUpdate,
+        "cotaIa"                     => config.PanelAiUsage,
+        "relogio"                    => !config.PanelCenterClock,
+        _                            => true,
+    };
+
+    /// <summary>
     /// A ordem completa, com a divisória, a partir da guardada.
     ///
     /// Quem não aparece na guardada entra ao lado do vizinho que tem na ordem de fábrica — é o
@@ -563,6 +589,27 @@ public partial class PanelWindow : Window
 
     /// <summary>Os itens da barra, guardados na primeira passagem do <see cref="ApplyPanelOrder"/>.</summary>
     private List<UIElement>? _items;
+
+    /// <summary>
+    /// O item aparece na barra agora? Não aparece o que está escondido no momento (a música
+    /// parada, o pen-drive que saiu, o brilho sem tela que o aceite) nem o relógio quando ele
+    /// está no centro — esse continua na ordem, mas não ocupa lugar no canto.
+    ///
+    /// Serve às setas das Configurações, que passam direto por quem não aparece: trocar de
+    /// lugar com um item invisível gravava a ordem nova e a barra ficava igual, e a seta
+    /// parecia quebrada. Chave que a barra não conhece conta como visível, para a seta nunca
+    /// ficar presa nela.
+    /// </summary>
+    public bool IsOnBar(string key) =>
+        _items?.FirstOrDefault(e => key.Equals((e as FrameworkElement)?.Tag as string, StringComparison.OrdinalIgnoreCase))
+            is not { } item || Shows(item);
+
+    /// <summary>
+    /// Visível, e com alguma coisa dentro quando é um grupo: as atualizações são uma fila com o
+    /// presente e a seta, sempre visível, e sem os dois ela fica de pé sem desenhar nada.
+    /// </summary>
+    private static bool Shows(UIElement e) =>
+        e.Visibility == Visibility.Visible && (e is not Panel fila || fila.Children.Cast<UIElement>().Any(Shows));
 
     /// <summary>
     /// Põe os itens nas duas filas — soltos, ou em ilhas quando a barra está em ilhas.

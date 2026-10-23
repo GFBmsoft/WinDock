@@ -23,9 +23,14 @@ public partial class SettingsWindow : Window
     /// <summary>O mesmo espelho para os tamanhos guardados por app.</summary>
     private readonly ObservableCollection<FloatingSizeRow> _floatingSizes = new();
 
-    public SettingsWindow(DockConfig config)
+    /// <summary>Se um item da barra aparece nela agora (veja <see cref="PanelWindow.IsOnBar"/>).</summary>
+    private readonly Func<string, bool> _onBar;
+
+    /// <param name="onBar">Sem barra, todo item conta como visível e as setas andam de um em um.</param>
+    public SettingsWindow(DockConfig config, Func<string, bool>? onBar = null)
     {
         _config = config;
+        _onBar = onBar ?? (_ => true);
         InitializeComponent();
         DataContext = config;
 
@@ -33,6 +38,7 @@ public partial class SettingsWindow : Window
         LoadTrayNames();
         LoadMediaApps();
         LoadPanelOrder();
+        _config.PropertyChanged += OnConfigChanged;
         LoadAiAccounts();
         ToolsList.ItemsSource = _tools;
         foreach (var t in _config.Tools) Track(t);
@@ -659,12 +665,25 @@ public partial class SettingsWindow : Window
     /// <summary>
     /// Uma linha da lista de ordem. A posição recomeça em cada canto, e a primeira de cada um não
     /// ganha a caixa "nova ilha" — ela sempre abre uma.
+    ///
+    /// O item ligado que não aparece na barra agora (a música parada, o pen-drive que saiu) sai
+    /// apagado: é por ele que as setas passam direto (veja <see cref="MovePanelItem"/>), e sem a
+    /// marca a linha pareceria pular duas de uma vez. O desligado nem entra na lista.
     /// </summary>
-    private sealed record PanelOrderRow(int Position, string Key, string Name, bool StartsIsland)
+    private sealed record PanelOrderRow(int Position, string Key, string Name, bool StartsIsland, bool OnBar)
     {
         public bool IsFirst => Position == 1;
         public bool IsDivider => Key == PanelWindow.SideDivider;
         public bool IsItem => !IsDivider;
+        public double Opacity => OnBar ? 1 : 0.5;
+        public string? Hint => OnBar ? null : "Ligado, mas sem nada para mostrar na barra agora — as setas passam direto por ele";
+
+        // Cada linha é ela mesma, e não o valor que carrega. A acessibilidade do WPF guarda uma
+        // entrada por linha da lista, e com a igualdade de record a linha nova de cada seta caía
+        // na entrada da velha, que já tinha saído da tela: depois de um clique, só as linhas
+        // que mudaram continuavam ao alcance do leitor de tela (2 de 19, medido em 23/10/2026).
+        public bool Equals(PanelOrderRow? other) => ReferenceEquals(this, other);
+        public override int GetHashCode() => System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(this);
     }
 
     /// <summary>A caixa "nova ilha" de um item: liga ou desliga a quebra dele, e a barra se refaz na hora.</summary>
@@ -687,18 +706,39 @@ public partial class SettingsWindow : Window
     /// <summary>A ordem atual, com a divisória — a mesma conta que a barra faz ao desenhar.</summary>
     private List<string> CurrentPanelOrder() => PanelWindow.FullOrder(_config.PanelOrder);
 
+    /// <summary>Os itens que a lista mostra agora, numa linha só — para saber se ela precisa ser refeita.</summary>
+    private string _panelOrderShown = "";
+
+    private string PanelOrderShown() =>
+        string.Join(",", CurrentPanelOrder().Where(k => PanelWindow.IsTurnedOn(k, _config)));
+
+    /// <summary>
+    /// Ligar ou desligar um item (na página Itens da barra, ou o relógio no centro) põe ou tira a
+    /// linha dele na hora. Só refaz quando o conjunto mudou: os controles deslizantes da barra
+    /// também avisam, a cada passo do arraste.
+    /// </summary>
+    private void OnConfigChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName?.StartsWith("Panel", StringComparison.Ordinal) == true && PanelOrderShown() != _panelOrderShown)
+            LoadPanelOrder();
+    }
+
     private void LoadPanelOrder()
     {
         var nomes = PanelWindow.PanelItems.ToDictionary(i => i.Key, i => i.Name);
+        _panelOrderShown = PanelOrderShown();
 
         var linhas = new List<PanelOrderRow>();
         var posicao = 0;
         foreach (var k in CurrentPanelOrder())
         {
+            if (!PanelWindow.IsTurnedOn(k, _config)) continue;
+
             // a divisória recomeça a contagem: a posição é dentro do canto
             posicao = k == PanelWindow.SideDivider ? 0 : posicao + 1;
             linhas.Add(new PanelOrderRow(posicao, k, nomes.TryGetValue(k, out var n) ? n : k,
-                                         _config.PanelIslandBreaks.Contains(k, StringComparer.OrdinalIgnoreCase)));
+                                         _config.PanelIslandBreaks.Contains(k, StringComparer.OrdinalIgnoreCase),
+                                         k == PanelWindow.SideDivider || _onBar(k)));
         }
 
         PanelOrderList.ItemsSource = linhas;
@@ -800,7 +840,17 @@ public partial class SettingsWindow : Window
     private void OnPanelItemDown(object sender, RoutedEventArgs e) => MovePanelItem(sender, +1);
 
     /// <summary>
-    /// Troca o item de lugar com o vizinho e grava a lista inteira.
+    /// Passa o item para o outro lado do vizinho e grava a lista inteira.
+    ///
+    /// <para><b>O vizinho é o primeiro que a barra mostra</b>, e os que não aparecem agora ficam
+    /// para trás (veja <see cref="PanelWindow.IsOnBar"/>). Trocar com um item invisível era
+    /// uma seta que gravava e não mudava nada na barra — e foi o que fez a ordem parecer
+    /// quebrada quando o teclado chegou: ele nasceu colado no relógio, que estava no centro.
+    /// Contam também a divisória (passar por ela é mudar de canto) e, em ilhas, o item
+    /// escondido que abre uma ilha, porque passar por ele é mudar de ilha.</para>
+    ///
+    /// <para>O item é tirado e posto do outro lado do vizinho, e não trocado com ele: assim
+    /// quem foi pulado fica onde estava em relação a todos os outros.</para>
     ///
     /// Grava tudo, e não só a diferença, porque a lista guardada passa a ser a ordem completa
     /// — inclusive dos itens que ainda estavam implícitos. Sem isso, mover um item deixaria
@@ -812,11 +862,23 @@ public partial class SettingsWindow : Window
 
         var ordem = CurrentPanelOrder();
         var de = ordem.FindIndex(k => k.Equals(key, StringComparison.OrdinalIgnoreCase));
+        if (de < 0) return;
+
+        bool Vizinho(string k) =>
+            k == PanelWindow.SideDivider || _onBar(k) ||
+            (_config.PanelIslands && _config.PanelIslandBreaks.Contains(k, StringComparer.OrdinalIgnoreCase));
+
         var para = de + passo;
+        while (para >= 0 && para < ordem.Count && !Vizinho(ordem[para])) para += passo;
 
-        if (de < 0 || para < 0 || para >= ordem.Count) return;
+        // só invisíveis até a ponta: não há para onde ir que a barra mostre
+        if (para < 0 || para >= ordem.Count) return;
 
-        (ordem[de], ordem[para]) = (ordem[para], ordem[de]);
+        // para a direita, tirar o item puxa o vizinho uma casa para trás, e o mesmo índice
+        // cai logo depois dele
+        var item = ordem[de];
+        ordem.RemoveAt(de);
+        ordem.Insert(para, item);
 
         _config.PanelOrder = ordem;
         _config.Save();
@@ -1112,6 +1174,7 @@ public partial class SettingsWindow : Window
     {
         // o evento é estático: sem soltar, cada painel fechado continuaria preso a ele
         HotkeyCatalog.StatesChanged -= OnHotkeyStatesChanged;
+        _config.PropertyChanged -= OnConfigChanged;   // a config vive mais que esta janela
         _config.Save();
         base.OnClosed(e);
     }

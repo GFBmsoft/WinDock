@@ -562,7 +562,7 @@
         <Border Style="{StaticResource FluentCardBorderStyle}">
           <StackPanel>
             <TextBlock Text="Ordem dos itens da barra" Style="{StaticResource FluentTitle}" />
-            <TextBlock Text="Da esquerda para a direita, como aparecem na barra. O que fica acima da divisória vai para o canto esquerdo, o que fica abaixo para o direito — use as setas para mover um item, inclusive de um canto para o outro. A barra muda na hora."
+            <TextBlock Text="Da esquerda para a direita, como aparecem na barra. O que fica acima da divisória vai para o canto esquerdo, o que fica abaixo para o direito — use as setas para mover um item, inclusive de um canto para o outro. A barra muda na hora. Só aparecem os itens ligados em Itens da barra; o apagado está ligado, mas sem nada para mostrar agora (a música parada, nenhum pen-drive)."
                        Style="{StaticResource FluentCaption}" TextWrapping="Wrap" />
 
             <TextBlock Text="CANTO ESQUERDO" Foreground="{StaticResource FluentTextDim}" FontSize="10"
@@ -585,8 +585,10 @@
                             VerticalAlignment="Center" />
                   </Grid>
 
+                  <!-- apagado o que não aparece na barra agora: as setas passam direto por ele -->
                   <Border Background="{StaticResource FluentControl}"
                           Visibility="{Binding IsItem, Converter={StaticResource BoolToVisible}}"
+                          Opacity="{Binding Opacity}" ToolTip="{Binding Hint}"
                           BorderBrush="{StaticResource FluentControlBorder}" BorderThickness="1"
                           CornerRadius="6" Padding="10,5" Margin="0,0,0,4">
                     <Grid>
