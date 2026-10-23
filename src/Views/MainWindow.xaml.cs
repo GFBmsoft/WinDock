@@ -778,49 +778,59 @@ public partial class MainWindow : Window
     {
         if (ItemOf(sender) is not { } item || _model is null) return;
 
-        var menu = new ContextMenu();
+        // O menu vai em blocos, separados por linha: o que é do **WinDock** inteiro, o que mexe
+        // na **dock** (fixar), as janelas do app e o que mexe no **app** (abrir, fechar, matar).
+        // Misturados, "Desafixar da dock" ficava colado em "Fechar" — dois verbos parecidos
+        // com consequências muito diferentes.
+        //
+        // **O bloco do app fica na ponta do cursor, com o Fechar por último**, como na barra do
+        // Windows 11 ("Fechar janela" é a última linha dela). Com a dock embaixo o menu abre para
+        // cima, e a última linha é a primeira que o cursor encontra — e era o "Sair do WinDock":
+        // quem ia fechar um programa fechava a dock (pedido de 23/10/2026). Com a dock em cima
+        // ou de lado o menu abre para baixo, e a ordem se inverte para o Fechar continuar junto
+        // do cursor.
+        var linhas = new List<Control>
+        {
+            Item("Buscar aplicativos", OpenLauncher, "Alt+Espaço"),
+            Item("Adicionar atalho...", PinShortcut),
+            Item("Configurações...", OpenSettings),
+            Item("Sair do WinDock", Close),
+            new Separator(),
+            Item(item.IsPinned ? "Desafixar da dock" : "Fixar na dock", () => _model.TogglePin(item)),
+            new Separator(),
+        };
 
         if (item.Windows.Count > 1)
         {
             foreach (var w in item.Windows)
             {
                 var handle = w.Handle;
-                var mi = new MenuItem { Header = Trim(w.Title) };
-                mi.Click += (_, _) => WindowService.Activate(handle);
-                menu.Items.Add(mi);
+                linhas.Add(Item(Trim(w.Title), () => WindowService.Activate(handle)));
             }
-            menu.Items.Add(new Separator());
+            linhas.Add(new Separator());
         }
 
-        // O menu vai em três blocos, separados por linha: o que mexe no **app** (abrir,
-        // fechar, matar), o que mexe na **dock** (fixar) e o que é do **WinDock** inteiro.
-        // Misturados, "Desafixar da dock" ficava colado em "Fechar" — dois verbos parecidos
-        // com consequências muito diferentes.
-        Add(menu, "Nova janela", () => DockModel.Launch(item));
+        linhas.Add(Item("Nova janela", () => DockModel.Launch(item)));
 
         // Apagado, e não escondido, quando não há arquivo que mostrar (app da Store, alvo que sumiu):
         // pelo mesmo motivo do Fechar logo abaixo, o menu mantém o tamanho e a ordem de sempre
         var local = DockModel.FileLocationOf(item);
-        Add(menu, "Abrir local do arquivo", () => WindowService.ShowInFolder(local!), enabled: local is not null);
+        linhas.Add(Item("Abrir local do arquivo", () => WindowService.ShowInFolder(local!), enabled: local is not null));
 
         // Fechar e forçar aparecem sempre, apagados quando o app não está aberto — como na
         // barra do Windows. Sumir com eles fazia o menu mudar de tamanho e de ordem conforme
         // o app estivesse ou não rodando, e o item que se procurava não estava onde a última
         // vez o deixou.
-        Add(menu, item.Windows.Count > 1 ? "Fechar todas" : "Fechar",
-            () => _model.CloseAll(item), enabled: item.HasWindows);
         // "Finalizar tarefa" é o nome que a própria barra do Windows usa para a mesma coisa
         // (matar o processo, sem pedir licença) — segue esse nome em vez de inventar um novo.
-        Add(menu, "Finalizar tarefa", () => ForceClose(item), enabled: item.HasWindows);
+        linhas.Add(Item("Finalizar tarefa", () => ForceClose(item), enabled: item.HasWindows));
+        linhas.Add(Item(item.Windows.Count > 1 ? "Fechar todas" : "Fechar",
+                        () => _model.CloseAll(item), enabled: item.HasWindows));
 
-        menu.Items.Add(new Separator());
-        Add(menu, item.IsPinned ? "Desafixar da dock" : "Fixar na dock", () => _model.TogglePin(item));
+        if (_config.Edge != Interop.DockEdge.Bottom) linhas.Reverse();
 
-        menu.Items.Add(new Separator());
-        Add(menu, "Buscar aplicativos", OpenLauncher, "Alt+Espaço");
-        Add(menu, "Adicionar atalho...", PinShortcut);
-        Add(menu, "Configurações...", OpenSettings);
-        Add(menu, "Sair do WinDock", Close);
+        var menu = new ContextMenu();
+        foreach (var linha in linhas) menu.Items.Add(linha);
 
         menu.PlacementTarget = (UIElement)sender;
         menu.IsOpen = true;
@@ -898,7 +908,7 @@ public partial class MainWindow : Window
     ///
     /// "Fechar" pede licença ao app e ele pode salvar o que estiver aberto; isto aqui não —
     /// o trabalho não salvo se perde. Uma escolha dessas não pode acontecer por um clique
-    /// que escorregou uma linha no menu, ainda mais estando logo abaixo de "Fechar".
+    /// que escorregou uma linha no menu, ainda mais estando colada no "Fechar".
     /// </summary>
     private void ForceClose(DockItem item)
     {
@@ -921,12 +931,11 @@ public partial class MainWindow : Window
 
     /// <param name="gesture">Atalho mostrado à direita do item, quando existe um.</param>
     /// <param name="enabled">Falso deixa o item à vista, mas apagado.</param>
-    private static void Add(ContextMenu menu, string header, Action action,
-                            string gesture = "", bool enabled = true)
+    private static MenuItem Item(string header, Action action, string gesture = "", bool enabled = true)
     {
         var mi = new MenuItem { Header = header, InputGestureText = gesture, IsEnabled = enabled };
         mi.Click += (_, _) => action();
-        menu.Items.Add(mi);
+        return mi;
     }
 
     /// <summary>

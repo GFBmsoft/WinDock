@@ -1212,6 +1212,23 @@
               <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
             <StackPanel VerticalAlignment="Center">
+              <TextBlock Text="Teclado" Style="{StaticResource FluentTitle}" />
+              <TextBlock Text="A sigla do teclado em uso na barra (US, BR), no lugar do indicador da barra do Windows. O clique troca para o próximo teclado de Configurações do Windows › Hora e idioma, como o Win+Espaço. Só aparece com dois teclados ou mais."
+                         Style="{StaticResource FluentCaption}" TextWrapping="Wrap" />
+            </StackPanel>
+            <CheckBox Grid.Column="1" Style="{StaticResource FluentToggle}"
+                      AutomationProperties.Name="Teclado"
+                      IsChecked="{Binding PanelKeyboard, Mode=TwoWay}" />
+          </Grid>
+        </Border>
+
+        <Border Style="{StaticResource FluentCardBorderStyle}">
+          <Grid>
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="*" />
+              <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <StackPanel VerticalAlignment="Center">
               <TextBlock Text="Indicador de brilho" Style="{StaticResource FluentTitle}" />
               <TextBlock Text="O controle de brilho do monitor na barra. Some sozinho num monitor que não fala DDC/CI — o painel do notebook, em geral."
                          Style="{StaticResource FluentCaption}" TextWrapping="Wrap" />

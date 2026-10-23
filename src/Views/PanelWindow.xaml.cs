@@ -472,6 +472,7 @@ public partial class PanelWindow : Window
         ("midia-controles", "Música — controles"),
         ("ferramentas",     "Ferramentas (comandos mais usados)"),
         ("sistema",         "CPU e memória"),
+        ("teclado",         "Teclado (US, BR…)"),
         ("bateria",         "Bateria"),
         ("wifi",            "Wi-Fi"),
         ("bluetooth",       "Bluetooth"),
@@ -923,6 +924,11 @@ public partial class PanelWindow : Window
         _model.NudgeBrightness(e.Delta);
         e.Handled = true;
     }
+
+    // ── teclado ──────────────────────────────────────────────
+
+    /// <summary>Troca o teclado sem abrir nada, como os controles de mídia.</summary>
+    private void OnKeyboard(object sender, RoutedEventArgs e) => _model.NextKeyboard();
 
     // ── mídia ────────────────────────────────────────────────
 

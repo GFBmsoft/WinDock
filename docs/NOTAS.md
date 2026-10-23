@@ -11,6 +11,10 @@
   tag que leva a nota junto. Escrito para quem usa a dock: o que mudou na tela, e não no código.
 -->
 
+## 1.0.0.55 — 23/10/2026
+- Teclado na barra: a sigla do teclado em uso (US, BR) ao lado de um desenho de teclado, e um clique troca para o próximo, como o Win+Espaço. Passando o mouse aparece o nome inteiro e para qual teclado o clique vai. Só aparece com dois teclados ou mais; desliga em Configurações › Itens da barra › Teclado.
+- Menu do ícone da dock: o Fechar passou para a ponta do cursor, com o Finalizar tarefa logo ao lado, como na barra do Windows 11. O Sair do WinDock foi para a outra ponta, longe de um clique escorregado.
+
 ## 1.0.0.54 — 22/10/2026
 - Programas na barra de mídia: só os seus perfis do Chrome aparecem; o perfil que ninguém ajeitou (sem conta e com o "Seu Chrome" de fábrica) e o perfil apagado saem da lista.
 - Ordem dos itens da barra: o "Nova ilha" virou interruptor, numa coluna só ao lado das setas.

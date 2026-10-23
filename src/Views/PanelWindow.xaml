@@ -591,6 +591,19 @@
           </StackPanel>
         </Button>
 
+        <!-- Teclado: a sigla do teclado em uso, no lugar do "POR / PTB2" da barra do Windows, que
+             some junto com ela. O clique troca para o próximo, como o Win+Espaço. Só existe com
+             dois teclados ou mais (veja KeyboardService). -->
+        <Button Tag="teclado" x:Name="KeyboardButton" Style="{StaticResource ClockButton}"
+                Click="OnKeyboard" ToolTip="{Binding KeyboardTooltip}" Padding="4,2"
+                AutomationProperties.Name="Teclado"
+                Visibility="{Binding HasKeyboard, Converter={StaticResource BoolToVisible}}">
+          <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+            <ui:GlyphIcon Glyph="&#xE765;" Fill="#FFF2F2F2" Style="{StaticResource BarGlyph}" VerticalAlignment="Center" />
+            <TextBlock Text="{Binding KeyboardText}" Style="{StaticResource BarText}" Margin="4,0,0,0" />
+          </StackPanel>
+        </Button>
+
         <!-- a pilha do Windows: corpo, ponta e o miolo que enche conforme a carga.
              A porcentagem fica na dica do mouse: o desenho ja diz o quanto resta. -->
         <!-- nos ícones compactos a pilha encolhe inteira, na proporção dos ícones (15 → 12), e

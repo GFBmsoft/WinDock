@@ -655,6 +655,16 @@ public sealed class DockConfig : INotifyPropertyChanged
     /// </summary>
     public bool PanelBrightness { get => _panelBrightness; set => Set(ref _panelBrightness, value); }
 
+    private bool _panelKeyboard = true;
+    /// <summary>
+    /// A sigla do teclado em uso ("US", "BR") na barra; o clique troca para o próximo.
+    ///
+    /// Ligada por padrão, e sem custo para quem tem um teclado só: o item só existe com dois ou
+    /// mais — veja <c>PanelModel.HasKeyboard</c>. Esconder a barra do Windows leva junto o
+    /// indicador dela, e sem ele não há como saber qual teclado está valendo antes de digitar.
+    /// </summary>
+    public bool PanelKeyboard { get => _panelKeyboard; set => Set(ref _panelKeyboard, value); }
+
     private bool _panelRemovable = true;
     /// <summary>
     /// O botão de remover pen-drive e HD externo com segurança.
@@ -1305,6 +1315,7 @@ public sealed class DockConfig : INotifyPropertyChanged
         CalendarDoneRetentionDays = d.CalendarDoneRetentionDays;
         PanelTray = d.PanelTray; PanelAppVolume = d.PanelAppVolume; PanelMedia = d.PanelMedia;
         PanelBrightness = d.PanelBrightness; PanelAiUsage = d.PanelAiUsage;
+        PanelKeyboard = d.PanelKeyboard;
         PanelUpdates = d.PanelUpdates;
         PanelSystem = d.PanelSystem;
         PanelCompact = d.PanelCompact;

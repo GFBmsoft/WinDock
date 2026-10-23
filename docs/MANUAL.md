@@ -132,7 +132,7 @@ com os privilégios mais altos.
 | Ver as janelas de um app | pare o mouse no ícone (a partir de duas janelas) |
 | Ir para uma janela específica | clique na miniatura dela |
 | Fechar uma janela sem abri-la | passe o mouse na miniatura e clique no **✕**, ao lado do título em cima da miniatura (o painel fica aberto para fechar as outras) |
-| Menu (nova janela, abrir local do arquivo, fechar, finalizar tarefa, fixar ou desafixar) | botão direito no ícone |
+| Menu (nova janela, abrir local do arquivo, finalizar tarefa, fechar, fixar ou desafixar) | botão direito no ícone — o **Fechar** fica na ponta do cursor, como na barra do Windows 11, e o **Sair do WinDock** na ponta oposta |
 | Abrir a pasta do programa, com ele selecionado | botão direito > **Abrir local do arquivo** (apagado para apps da Store, cuja pasta o Windows fecha por permissão) |
 | Fixar um atalho específico (`.lnk`) | botão direito > **Adicionar atalho...** |
 | Reordenar | arraste um ícone sobre o outro |
@@ -163,7 +163,8 @@ monitor aceita ser controlado (veja [Brilho](#brilho)), a **cota de IA**, se voc
 (veja [Cota de IA](#cota-de-ia)), o **pen-drive**, enquanto houver um espetado
 (veja [Remover dispositivo externo](#remover-dispositivo-externo)), e as **atualizações**, enquanto
 houver alguma esperando (veja [Atualizações esperando](#atualizações-esperando)) — mais o
-**CPU e memória**, se você ligar (veja [CPU, memória e rede](#cpu-memória-e-rede)) — e a **chave de
+**CPU e memória**, se você ligar (veja [CPU, memória e rede](#cpu-memória-e-rede)), o **teclado**
+em uso, quando há mais de um (veja [Teclado](#teclado)) — e a **chave de
 boca** das ferramentas (veja [Ferramentas](#ferramentas)).
 Se preferir a barra mais curta, **Configurações > Ícones compactos** diminui os ícones para o tamanho
 dos de CPU e memória e os junta, com metade do espaço entre eles — e a data e a hora passam para
@@ -198,6 +199,7 @@ atalho para a página do Windows daquele assunto.
 | Ver o plano de energia e a semana da bateria | clique na pilha > a seta do rodapé |
 | Desligar, reiniciar, hibernar, bloquear, sair | o botão de energia |
 | Brilho do monitor | clique no ícone de brilho, ou role a roda do mouse sobre ele |
+| Trocar de teclado (US ↔ BR) | clique na sigla do teclado (veja [Teclado](#teclado)) |
 | Abrir a limpeza de disco, o gerenciador de dispositivos e outros comandos seus | a chave de boca (veja [Ferramentas](#ferramentas)) |
 | Ver o último minuto de processador, memória, placa de vídeo e rede | clique no CPU (veja [CPU, memória e rede](#cpu-memória-e-rede)) |
 | Quanto da cota do Claude já foi usada | clique no robô (veja [Cota de IA](#cota-de-ia)) |
@@ -456,6 +458,16 @@ Aparece só em monitor que aceita controle por **DDC/CI** — em geral os extern
 notebook costuma não aceitar, e ali o item some sozinho. O ajuste vai direto para o monitor, como
 os botões físicos dele. Para não ter o item nem onde ele funciona, desligue
 **Configurações > Indicador de brilho**.
+
+#### Teclado
+
+O desenho de teclado com a sigla do que está valendo na janela em que você digita — **US**, **BR** —,
+no lugar do indicador da barra do Windows. A sigla é do país do teclado, e não do idioma: o
+"Estados Unidos (internacional)" posto no português aparece como US. Passe o mouse para ver o nome
+inteiro e para qual o clique vai trocar. O clique passa para o próximo teclado da lista de
+**Configurações do Windows > Hora e idioma > Idioma e região**, na mesma ordem do `Win+Espaço`.
+Com um teclado só, o item não aparece; para não tê-lo nem com dois, desligue **Configurações >
+Itens da barra > Teclado**.
 
 #### Remover dispositivo externo
 

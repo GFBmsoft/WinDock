@@ -72,6 +72,7 @@ public sealed class PanelModel : INotifyPropertyChanged, IDisposable
         WatchUpdates();
         WatchSelfUpdate();
         WatchNotifications();
+        if (_config.PanelKeyboard) WatchKeyboard();
 
         // A lista de dispositivos externos não tem relógio: quem avisa é o Windows, pelo
         // WM_DEVICECHANGE que a barra assina (veja PanelWindow.OnDeviceChange). Esta é só a
@@ -396,6 +397,91 @@ public sealed class PanelModel : INotifyPropertyChanged, IDisposable
     /// <summary>Roda do mouse sobre o ícone: sobe ou desce de cinco em cinco.</summary>
     public void NudgeBrightness(int direction) =>
         Brightness = _brightnessLevel + (direction > 0 ? 5 : -5);
+
+    // ── teclado ──────────────────────────────────────────────
+
+    private IReadOnlyList<KeyboardLayout> _keyboards = Array.Empty<KeyboardLayout>();
+    private KeyboardLayout? _keyboard;
+    private DispatcherTimer? _keyboardTimer;
+
+    /// <summary>
+    /// Com um teclado só não há o que trocar nem dúvida sobre qual está valendo, e o item some —
+    /// como o do pen-drive sem pen-drive.
+    /// </summary>
+    public bool HasKeyboard => _config.PanelKeyboard && _keyboards.Count > 1;
+
+    /// <summary>A sigla do teclado da janela em primeiro plano: "US", "BR".</summary>
+    public string KeyboardText => _keyboard?.Short ?? string.Empty;
+
+    /// <summary>O nome inteiro, e o que o clique vai fazer — a sigla sozinha não diz que "US" é o internacional.</summary>
+    public string KeyboardTooltip
+    {
+        get
+        {
+            if (_keyboard is null) return "Teclado";
+            var proximo = KeyboardService.After(_keyboard.Hkl, _keyboards);
+            return proximo is null || KeyboardService.Same(proximo.Hkl, _keyboard.Hkl)
+                ? $"Teclado {_keyboard.Name}"
+                : $"Teclado {_keyboard.Name} — clique para trocar para {proximo.Name}";
+        }
+    }
+
+    /// <summary>
+    /// Lê o teclado da janela em primeiro plano quatro vezes por segundo.
+    ///
+    /// Relógio, e não aviso, porque não há aviso que sirva: o <c>WM_INPUTLANGCHANGE</c> vai só
+    /// para a janela que trocou, e a dock não é ela. Um quarto de segundo é o que faz a sigla
+    /// acompanhar o Win+Espaço sem parecer atrasada — no relógio de um segundo da barra ela
+    /// poderia ficar um segundo inteiro no teclado velho, o tempo das primeiras letras. A
+    /// leitura são três chamadas ao Windows, sem registro nem disco; a lista é relida só quando
+    /// aparece um teclado que ela não conhece.
+    /// </summary>
+    private void WatchKeyboard()
+    {
+        _keyboards = KeyboardService.List();
+        ReadKeyboard();
+        OnChanged(nameof(HasKeyboard));
+
+        _keyboardTimer ??= new DispatcherTimer(DispatcherPriority.Background) { Interval = TimeSpan.FromMilliseconds(250) };
+        _keyboardTimer.Tick -= OnKeyboardTick;
+        _keyboardTimer.Tick += OnKeyboardTick;
+        _keyboardTimer.Start();
+    }
+
+    private void OnKeyboardTick(object? sender, EventArgs e) => ReadKeyboard();
+
+    private void ReadKeyboard()
+    {
+        var hkl = KeyboardService.Current();
+        if (hkl == 0 || (_keyboard is not null && KeyboardService.Same(hkl, _keyboard.Hkl))) return;
+
+        // teclado novo em Hora e idioma: a lista é relida aqui, e o item aparece quando ela
+        // passa de um para dois sem esperar a dock reabrir
+        if (!_keyboards.Any(k => KeyboardService.Same(k.Hkl, hkl)))
+        {
+            _keyboards = KeyboardService.List();
+            OnChanged(nameof(HasKeyboard));
+        }
+
+        _keyboard = KeyboardService.Describe(hkl);
+        OnChanged(nameof(KeyboardText));
+        OnChanged(nameof(KeyboardTooltip));
+    }
+
+    /// <summary>
+    /// O clique: o próximo teclado da lista, na janela em primeiro plano. A sigla muda no
+    /// próximo tique, quando a janela já trocou — e não aqui, de antemão: se ela recusar, a barra
+    /// continua dizendo a verdade.
+    /// </summary>
+    public void NextKeyboard()
+    {
+        _keyboards = KeyboardService.List();   // um teclado tirado em Hora e idioma sai da roda já
+        OnChanged(nameof(HasKeyboard));
+
+        if (KeyboardService.After(_keyboard?.Hkl ?? 0, _keyboards) is not { } proximo) return;
+        if (!KeyboardService.Activate(proximo.Hkl))
+            Log.Write($"a janela em primeiro plano não aceitou o pedido de trocar para o teclado {proximo.Name}");
+    }
 
     // ── rede e sistema ──────────────────────────────────────
 
@@ -2524,6 +2610,13 @@ public sealed class PanelModel : INotifyPropertyChanged, IDisposable
         if (e.PropertyName is nameof(DockConfig.PanelMedia)) OnChanged(nameof(ShowMedia));
         if (e.PropertyName is nameof(DockConfig.PanelBrightness)) OnChanged(nameof(HasBrightness));
 
+        // desligado, o relógio para junto: não há por que ler o teclado de ninguém
+        if (e.PropertyName is nameof(DockConfig.PanelKeyboard))
+        {
+            if (_config.PanelKeyboard) WatchKeyboard();
+            else { _keyboardTimer?.Stop(); OnChanged(nameof(HasKeyboard)); }
+        }
+
         // ligar o sistema vale na hora; a primeira medida sai zerada (toda conta aqui é a
         // diferença entre duas leituras) e o segundo tique já traz o valor de verdade
         if (e.PropertyName is nameof(DockConfig.PanelSystem)) OnChanged(nameof(HasSystemInfo));
@@ -2768,6 +2861,7 @@ public sealed class PanelModel : INotifyPropertyChanged, IDisposable
     public void Dispose()
     {
         _timer.Stop();
+        _keyboardTimer?.Stop();
         _aiTimer?.Stop();
         _notificationsTimer?.Stop();
         _selfUpdateTimer?.Stop();
