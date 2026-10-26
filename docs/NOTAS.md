@@ -11,6 +11,9 @@
   tag que leva a nota junto. Escrito para quem usa a dock: o que mudou na tela, e não no código.
 -->
 
+## 1.0.0.59 — 26/10/2026
+- As dicas dos ícones da bandeja (a "Discord" que aparecia sozinha debaixo da barra de cima) não vazam mais: a dock apaga, no instante em que nasce, toda dica que o painel de ícones ocultos do Windows abre enquanto está escondido. Com o painel aberto de verdade (pelo Win+B), as dicas dele continuam aparecendo.
+
 ## 1.0.0.58 — 26/10/2026
 - Busca (Alt+Espaço): passa a achar a Lixeira, o Este Computador, a Rede, as pastas do usuário (Documentos, Downloads…), os seus Locais da barra e os itens do Painel de Controle (Gerenciador de Dispositivos, Opções de Energia, Programas e Recursos, Mouse…), cada um com "Local" ou "Painel de Controle" ao lado.
 - Busca: o nome do programa também vale — "cmd" acha o Prompt de Comando e "regedit" o Editor do Registro, com o arquivo escrito ao lado. E o nome idêntico ao digitado vem primeiro: "teclado" traz o Teclado antes do Teclado Virtual.

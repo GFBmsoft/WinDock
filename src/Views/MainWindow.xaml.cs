@@ -18,6 +18,12 @@ public partial class MainWindow : Window
     private readonly DockConfig _config = DockConfig.Load();
     private readonly TaskbarService _taskbar = new();
     private readonly FullScreenWatcher _fullScreen = new();
+
+    /// <summary>Apaga os balões que o painel de ícones ocultos do Windows abre escondido — eles
+    /// pousavam na barra de cima. Sem a barra do Windows na tela também: a leitura da bandeja
+    /// acontece em qualquer modo.</summary>
+    private readonly ShellPopupGuard _shellPopups = new();
+
     private AppBar? _appBar;
     private DockModel? _model;
     private SettingsWindow? _settings;
@@ -1014,6 +1020,7 @@ public partial class MainWindow : Window
         _model?.Dispose();
         _appBar?.Dispose();   // devolve a area de trabalho ao tamanho normal
         _taskbar.Dispose();   // e a barra do Windows ao estado em que estava
+        _shellPopups.Dispose();
         _fullScreen.Dispose();
 
         // o log fica com o arquivo aberto enquanto a dock vive; aqui ele solta o handle. Não há

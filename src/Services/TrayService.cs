@@ -1789,6 +1789,11 @@ public static class TrayService
     /// olho por um instante depois. A varredura é curta e restrita à faixa de cima da tela,
     /// onde só cabe o balão da bandeja — e roda fora da thread da interface, que a essa
     /// altura já está desenhando o cartão.
+    ///
+    /// Os balões cujo dono é o **painel** (a dica do ícone que ficou com o foco) não dependem
+    /// mais daqui: o <see cref="ShellPopupGuard"/> os apaga a qualquer hora, e era por esta
+    /// varredura durar só 1,5 s e poupar o que já estava na tela que eles vazavam. Esta continua
+    /// para os da **barra** do Windows — a dica da seta, cujo dono é a <c>Shell_TrayWnd</c>.
     /// </summary>
     private static void SweepShellPopups()
     {
