@@ -648,7 +648,8 @@ plano de energia ficam no [cartão da bateria](#bateria).
 Digite parte do nome; `↑` `↓` andam na lista e `Enter` abre. `Esc` fecha.
 
 Ela acha, nesta ordem de preferência, o que está **na dock**, os **aplicativos** instalados (os
-mesmos do menu iniciar), os seus **Locais** da barra, as pastas do Windows — **Lixeira**, **Este
+mesmos do menu iniciar, só os que são programa — o link para o site, o manual em texto e a ajuda
+que alguns instaladores põem lá ficam de fora), os seus **Locais** da barra, as pastas do Windows — **Lixeira**, **Este
 Computador**, **Rede**, Documentos, Downloads — e os itens do **Painel de Controle** (Gerenciador
 de Dispositivos, Opções de Energia, Programas e Recursos, Mouse…). A linha diz de onde veio:
 "Aplicativo", "Local" ou "Painel de Controle". O nome do executável também vale: `cmd` acha o

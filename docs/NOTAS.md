@@ -11,6 +11,9 @@
   tag que leva a nota junto. Escrito para quem usa a dock: o que mudou na tela, e não no código.
 -->
 
+## 1.0.0.60 — 26/10/2026
+- Busca: só aparecem programas. O que os instaladores põem no menu iniciar e não é programa — o "Website" do TortoiseSVN (um link), o manual e as novidades do WinRAR (arquivos de texto), a ajuda dele e a pasta "Samples" — saiu da lista, onde aparecia como "Aplicativo" sem ícone.
+
 ## 1.0.0.59 — 26/10/2026
 - As dicas dos ícones da bandeja (a "Discord" que aparecia sozinha debaixo da barra de cima) não vazam mais: a dock apaga, no instante em que nasce, toda dica que o painel de ícones ocultos do Windows abre enquanto está escondido. Com o painel aberto de verdade (pelo Win+B), as dicas dele continuam aparecendo.
 

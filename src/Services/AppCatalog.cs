@@ -97,16 +97,36 @@ public static class AppCatalog
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         foreach (var app in FromAppsFolder())
-            if (seen.Add(app.Target))
+            if (IsProgram(app.Target) && seen.Add(app.Target))
                 found.Add(app);
 
         // rede de seguranca: se o COM do shell falhar, os .lnk do menu iniciar ainda dao
         // uma lista util (e sao eles que trazem os atalhos proprios, tipo BM e BMT)
         foreach (var lnk in ShortcutService.All())
-            if (seen.Add(lnk.LnkPath) && !found.Any(a => a.Name.Equals(lnk.Name, StringComparison.OrdinalIgnoreCase)))
+            if (IsProgram(lnk.Target) && seen.Add(lnk.LnkPath) &&
+                !found.Any(a => a.Name.Equals(lnk.Name, StringComparison.OrdinalIgnoreCase)))
                 found.Add(new CatalogApp(lnk.Name, lnk.LnkPath, IsAumid: false));
 
         return found.OrderBy(a => a.Name, StringComparer.CurrentCultureIgnoreCase).ToList();
+    }
+
+    /// <summary>
+    /// O alvo é um programa — e não o que os instaladores também põem no menu iniciar.
+    ///
+    /// A pasta de aplicativos lista tudo o que tem atalho lá: o "Website" do TortoiseSVN é um
+    /// <c>.url</c>, o "Console RAR manual" e o "What is new" do WinRAR são <c>.txt</c>, a ajuda dele é
+    /// <c>.chm</c> e o "Samples" do Embarcadero é uma pasta (26/10/2026, EV02). Na busca eles viravam
+    /// "Aplicativo" com a folha genérica no lugar do ícone, e casavam por letras espalhadas — "bt"
+    /// trazia o "Website". Vale o identificador de app (sem barra: os da Store e os registrados) ou
+    /// um arquivo que se executa; um atalho sem alvo em arquivo (aponta para um item do shell)
+    /// também fica, como antes.
+    /// </summary>
+    private static bool IsProgram(string target)
+    {
+        if (string.IsNullOrWhiteSpace(target) || !target.Contains('\\')) return true;
+
+        return Path.GetExtension(target).ToLowerInvariant()
+            is ".exe" or ".msc" or ".cpl" or ".bat" or ".cmd" or ".com" or ".ps1" or ".vbs" or ".appref-ms";
     }
 
     /// <summary>
