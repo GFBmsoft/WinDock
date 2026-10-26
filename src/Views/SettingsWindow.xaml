@@ -1274,28 +1274,21 @@
           </Grid>
         </Border>
 
-        <Border Style="{StaticResource FluentCardBorderStyle}" MinHeight="0">
-          <StackPanel>
-            <Grid>
-              <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*" />
-                <ColumnDefinition Width="Auto" />
-              </Grid.ColumnDefinitions>
-              <StackPanel VerticalAlignment="Center">
-                <TextBlock Text="Avisar nova versão do WinDock" Style="{StaticResource FluentTitle}" />
-                <TextBlock Text="Um presente aparece à esquerda das atualizações quando sai uma versão nova no GitHub. O clique baixa, troca e reabre a dock. O GitHub é consultado uma vez por dia."
-                           Style="{StaticResource FluentCaption}" TextWrapping="Wrap" />
-              </StackPanel>
-              <CheckBox Grid.Column="1" Style="{StaticResource FluentToggle}"
-                        AutomationProperties.Name="Avisar nova versão do WinDock"
-                        IsChecked="{Binding PanelSelfUpdate, Mode=TwoWay}" />
-            </Grid>
-            <!-- pedido de 19/10/2026: a consulta diária deixava uma Release nova esperando até o dia seguinte -->
-            <Button x:Name="SelfUpdateCheck" Style="{StaticResource FluentButton}" Margin="0,10,0,0"
-                    HorizontalAlignment="Left" Content="Verificar agora" Click="OnSelfUpdateCheck" />
-            <TextBlock x:Name="SelfUpdateStatus" Margin="0,8,0,0" Style="{StaticResource FluentCaption}"
-                       TextWrapping="Wrap" Visibility="Collapsed" />
-          </StackPanel>
+        <Border Style="{StaticResource FluentCardBorderStyle}">
+          <Grid>
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="*" />
+              <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <StackPanel VerticalAlignment="Center">
+              <TextBlock Text="Avisar nova versão do WinDock" Style="{StaticResource FluentTitle}" />
+              <TextBlock Text="Um presente aparece à esquerda das atualizações quando sai uma versão nova no GitHub. O clique baixa, troca e reabre a dock. O GitHub é consultado uma vez por dia; para perguntar já, há o Verificar agora em Notas da versão e o Conferir agora do cartão de atualizações."
+                         Style="{StaticResource FluentCaption}" TextWrapping="Wrap" />
+            </StackPanel>
+            <CheckBox Grid.Column="1" Style="{StaticResource FluentToggle}"
+                      AutomationProperties.Name="Avisar nova versão do WinDock"
+                      IsChecked="{Binding PanelSelfUpdate, Mode=TwoWay}" />
+          </Grid>
         </Border>
 
         <TextBlock Text="Cota de IA" Style="{StaticResource FluentSection}" />
@@ -1771,7 +1764,24 @@
       <StackPanel x:Name="PageNotes" Visibility="Collapsed">
 
         <TextBlock Text="Notas da versão" Style="{StaticResource FluentSection}" Margin="2,0,0,2" />
-        <TextBlock x:Name="NotesCurrent" Style="{StaticResource FluentCaption}" Margin="2,0,0,10" />
+
+        <!-- o Verificar agora mora aqui desde 26/10/2026 (pedido dele): é onde se olha a versão em
+             uso e o que mudou, e estava escondido no fim de Itens da barra. Nasceu em 19/10/2026,
+             porque a consulta diária deixava uma Release nova esperando até o dia seguinte -->
+        <Grid Margin="2,0,0,10">
+          <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*" />
+            <ColumnDefinition Width="Auto" />
+          </Grid.ColumnDefinitions>
+          <StackPanel VerticalAlignment="Center">
+            <TextBlock x:Name="NotesCurrent" Style="{StaticResource FluentCaption}" TextWrapping="Wrap" />
+            <TextBlock x:Name="SelfUpdateStatus" Margin="0,4,0,0" Style="{StaticResource FluentCaption}"
+                       TextWrapping="Wrap" Visibility="Collapsed" />
+          </StackPanel>
+          <Button x:Name="SelfUpdateCheck" Grid.Column="1" Style="{StaticResource FluentButton}"
+                  Margin="12,0,0,0" VerticalAlignment="Center"
+                  Content="Verificar agora" Click="OnSelfUpdateCheck" />
+        </Grid>
 
         <ItemsControl x:Name="NotesList">
           <ItemsControl.ItemTemplate>

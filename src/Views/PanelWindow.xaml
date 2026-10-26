@@ -1514,6 +1514,30 @@
               </Button>
             </StackPanel>
 
+            <!-- o próprio WinDock (pedido de 26/10/2026): a versão nova com o Atualizar do presente
+                 da barra, ou a frase de que está em dia — que, como a do Windows Update, só diz
+                 "mais nova" depois de o GitHub responder -->
+            <StackPanel Margin="0,4,0,0">
+              <Border Height="1" Background="#22FFFFFF" Margin="2,4,2,8" />
+              <Button Style="{StaticResource PanelRow}" Click="OnSelfUpdate"
+                      ToolTip="Baixar a versão nova, trocar e reabrir a dock"
+                      Visibility="{Binding HasSelfUpdateAvailable, Converter={StaticResource BoolToVisible}}">
+                <Grid>
+                  <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                  </Grid.ColumnDefinitions>
+                  <TextBlock Text="{Binding SelfUpdateAvailableText}" Foreground="#FFE8E8EA" FontSize="12"
+                             VerticalAlignment="Center" />
+                  <TextBlock Grid.Column="1" Text="Atualizar" Foreground="#FF4CC2FF" FontSize="11"
+                             VerticalAlignment="Center" />
+                </Grid>
+              </Button>
+              <TextBlock Text="{Binding SelfUpdateCardText}" Foreground="#FF9D9D9D" FontSize="11"
+                         TextWrapping="Wrap" Margin="2,0,2,0"
+                         Visibility="{Binding HasSelfUpdateCardText, Converter={StaticResource BoolToVisible}}" />
+            </StackPanel>
+
             <!-- o que está calado: fora da conta do ícone, mas à vista, e com o desfazer ao lado.
                  Aparece mesmo com o resto vazio — silêncio que não se vê vira esquecimento -->
             <Button Style="{StaticResource PanelButton}" HorizontalContentAlignment="Left"
@@ -1549,7 +1573,8 @@
               <TextBlock Text="{Binding UpdatesReadAt}" Foreground="#FF6A6A6A" FontSize="10"
                          VerticalAlignment="Center" Margin="2,0,0,0" />
               <Button Style="{StaticResource PanelButton}" Click="OnRefreshUpdates"
-                      HorizontalAlignment="Right" Padding="8,2" ToolTip="Perguntar de novo, agora">
+                      HorizontalAlignment="Right" Padding="8,2"
+                      ToolTip="Perguntar de novo, agora — ao Windows Update, ao winget e ao GitHub pelo WinDock">
                 <TextBlock Text="Conferir agora" Foreground="#FF4CC2FF" FontSize="11" />
               </Button>
             </Grid>

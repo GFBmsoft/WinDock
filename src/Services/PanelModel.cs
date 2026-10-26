@@ -1827,8 +1827,43 @@ public sealed class PanelModel : INotifyPropertyChanged, IDisposable
             if (!Set(ref _selfUpdateTag, value)) return;
             OnChanged(nameof(HasSelfUpdate));
             OnChanged(nameof(SelfUpdateTooltip));
+            OnChanged(nameof(HasSelfUpdateAvailable));
+            OnChanged(nameof(SelfUpdateAvailableText));
+            SelfUpdateCardChanged();
         }
     }
+
+    /// <summary>
+    /// A linha do WinDock no cartão de atualizações, com o Atualizar ao lado. Não depende do aviso
+    /// da barra: quem desligou o presente e conferiu pelo cartão também precisa ver a resposta.
+    /// </summary>
+    public bool HasSelfUpdateAvailable => _selfUpdateTag.Length > 0;
+
+    public string SelfUpdateAvailableText => $"WinDock {_selfUpdateTag} disponível";
+
+    private bool _selfUpdateChecking;
+    private bool _selfUpdateFailed;
+
+    /// <summary>
+    /// O que o cartão diz da dock quando não há versão nova — e, como na frase do Windows Update,
+    /// diz se perguntou: "em dia" só depois de o GitHub responder.
+    /// </summary>
+    public string SelfUpdateCardText =>
+        _selfUpdateChecking ? "Perguntando ao GitHub pelo WinDock…" :
+        _selfUpdateFailed ? "O GitHub não respondeu sobre o WinDock; tente de novo em alguns minutos." :
+        _selfUpdateTag.Length > 0 ? string.Empty :
+        _config.SelfUpdateCheckedAt is null ||
+        SelfUpdateService.IsNewer(SelfUpdateService.CurrentVersion, _config.SelfUpdateTag)
+            ? $"WinDock {SelfUpdateService.CurrentVersion}."
+            : $"WinDock {SelfUpdateService.CurrentVersion}: é a versão mais nova.";
+
+    private void SelfUpdateCardChanged()
+    {
+        OnChanged(nameof(SelfUpdateCardText));
+        OnChanged(nameof(HasSelfUpdateCardText));
+    }
+
+    public bool HasSelfUpdateCardText => SelfUpdateCardText.Length > 0;
 
     /// <summary>
     /// O ícone só existe enquanto há versão nova — ao contrário do das atualizações do Windows,
@@ -1863,6 +1898,12 @@ public sealed class PanelModel : INotifyPropertyChanged, IDisposable
     /// </summary>
     private void WatchSelfUpdate()
     {
+        // A tag guardada vale desde a abertura: não custa consulta, e esperar os três minutos da
+        // primeira olhada deixava o cartão de atualizações dizendo "é a versão mais nova" com uma
+        // Release mais nova já conhecida (visto numa dist 1.0.0.56, em 26/10/2026).
+        if (SelfUpdateService.IsNewer(SelfUpdateService.CurrentVersion, _config.SelfUpdateTag))
+            SelfUpdateTag = _config.SelfUpdateTag;
+
         _selfUpdateTimer = new DispatcherTimer(DispatcherPriority.Background) { Interval = TimeSpan.FromMinutes(3) };
         _selfUpdateTimer.Tick += (_, _) =>
         {
@@ -1876,7 +1917,12 @@ public sealed class PanelModel : INotifyPropertyChanged, IDisposable
 
     /// <summary>As Configurações perguntaram ao GitHub e já gravaram a resposta: só falta o presente.</summary>
     private void OnSelfUpdateChecked(WinDockRelease release) =>
-        _dispatcher.InvokeAsync(() => ShowSelfUpdate(release));
+        _dispatcher.InvokeAsync(() =>
+        {
+            _selfUpdateFailed = false;
+            ShowSelfUpdate(release);
+            SelfUpdateCardChanged();
+        });
 
     private void ShowSelfUpdate(WinDockRelease release)
     {
@@ -1901,20 +1947,35 @@ public sealed class PanelModel : INotifyPropertyChanged, IDisposable
             return;
         }
 
+        // o "Conferir agora" do cartão pode ser clicado de novo com a consulta em voo
+        if (_selfUpdateChecking) return;
+        _selfUpdateChecking = true;
+        _selfUpdateFailed = false;
+        SelfUpdateCardChanged();
+
         _ = Task.Run(async () =>
         {
             var release = await SelfUpdateService.LatestAsync().ConfigureAwait(false);
 
             await _dispatcher.InvokeAsync(() =>
             {
-                // sem resposta, a consulta fica para a próxima volta — e a tag guardada continua valendo
-                if (release is null) return;
+                _selfUpdateChecking = false;
+
+                // sem resposta, a consulta fica para a próxima volta — e a tag guardada continua
+                // valendo; o cartão só diz que falhou quando foi ele que pediu
+                if (release is null)
+                {
+                    _selfUpdateFailed = force;
+                    SelfUpdateCardChanged();
+                    return;
+                }
 
                 _config.SelfUpdateCheckedAt = DateTime.UtcNow;
                 _config.SelfUpdateTag = release.Tag;
                 _config.Save();
 
                 ShowSelfUpdate(release);
+                SelfUpdateCardChanged();
             });
         });
     }

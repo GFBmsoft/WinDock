@@ -11,6 +11,13 @@
   tag que leva a nota junto. Escrito para quem usa a dock: o que mudou na tela, e não no código.
 -->
 
+## 1.0.0.58 — 26/10/2026
+- Busca (Alt+Espaço): passa a achar a Lixeira, o Este Computador, a Rede, as pastas do usuário (Documentos, Downloads…), os seus Locais da barra e os itens do Painel de Controle (Gerenciador de Dispositivos, Opções de Energia, Programas e Recursos, Mouse…), cada um com "Local" ou "Painel de Controle" ao lado.
+- Busca: o nome do programa também vale — "cmd" acha o Prompt de Comando e "regedit" o Editor do Registro, com o arquivo escrito ao lado. E o nome idêntico ao digitado vem primeiro: "teclado" traz o Teclado antes do Teclado Virtual.
+- Busca embaixo da lupa mais compacta: mais estreita, uma linha só por resultado (o nome à esquerda e de onde veio à direita) e o desenho dos cartões da barra.
+- Cartão de atualizações: o Conferir agora pergunta também pelo WinDock, e o cartão mostra a versão nova com o Atualizar ao lado (o mesmo do presente) ou diz que a dock está na mais nova.
+- O Verificar agora mudou para Configurações › Notas da versão, ao lado da versão em uso.
+
 ## 1.0.0.57 — 26/10/2026
 - Bandeja no Windows em inglês (e em qualquer idioma): a dock passa a achar a seta "mostrar ícones ocultos" do Windows pelo desenho dela, e não pelo nome em português. Antes, num Windows em inglês, o cartão da bandeja ficava em "Lendo a bandeja…" e nenhum ícone aparecia.
 - Quando não dá para ler a bandeja, o cartão diz isso, em vez de ficar em "Lendo a bandeja…" para sempre. E a tentativa que falha desiste em 2 segundos, e não mais em 17 (a primeira depois de ligar a dock ainda espera até 10, porque a barra do Windows pode estar subindo).

@@ -21,11 +21,16 @@ public sealed class LauncherEntry
     public required Action Run { get; init; }
 
     internal int Score { get; set; }
+
+    /// <summary>A pasta ou o endereço do shell de um lugar — é por ele que a mesma pasta não
+    /// aparece duas vezes, vinda dos Locais da barra e das pastas do Windows.</summary>
+    internal string? Address { get; init; }
 }
 
 /// <summary>
-/// A busca do launcher: apps fixados na dock primeiro, depois os instalados, depois os
-/// comandos de energia, e por ultimo "executar o que foi digitado" (o Win+R de sempre).
+/// A busca do launcher: apps fixados na dock primeiro, depois os instalados, os lugares (os
+/// Locais da barra, as pastas do Windows e o Painel de Controle), os comandos de energia, e
+/// "executar o que foi digitado" (o Win+R de sempre) pelo prefixo <c>run</c>.
 ///
 /// A ordem nao e so estetica: o Enter dispara o primeiro item, entao o que voce usa todo
 /// dia — o que ja esta fixado — tem que ganhar de um app instalado de nome parecido.
@@ -33,8 +38,27 @@ public sealed class LauncherEntry
 public sealed class Launcher
 {
     private readonly DockModel _model;
+    private readonly DockConfig _config;
 
-    public Launcher(DockModel model) => _model = model;
+    public Launcher(DockModel model, DockConfig config)
+    {
+        _model = model;
+        _config = config;
+    }
+
+    /// <summary>
+    /// Quanto um lugar perde para um aplicativo que casou do mesmo jeito: "sistema" acha o
+    /// item "Sistema" do Painel de Controle na frente da "Configuração do Sistema" (começo do
+    /// nome contra começo de palavra), mas um app que comece com o texto vence uma pasta que
+    /// também comece.
+    /// </summary>
+    private const int PlacePenalty = 50;
+
+    /// <summary>
+    /// O executável só vale pelo começo, e abaixo do começo do nome: "cmd" acha o Prompt de
+    /// Comando, mas letras espalhadas no nome de um arquivo seriam ruído.
+    /// </summary>
+    private const int ExecutableBase = 900;
 
     /// <summary>
     /// Comandos de energia so aparecem com tres letras ou mais e so por prefixo do nome:
@@ -67,24 +91,78 @@ public sealed class Launcher
             found.Add(entry);
         }
 
-        // 2. apps instalados
+        // 2. apps instalados — pelo nome, ou pelo executável ("cmd", "regedit")
         foreach (var app in AppCatalog.All())
         {
             var score = Match(app.Search, needle);
+            var porExecutavel = false;
+
+            if (app.Executable.StartsWith(needle, StringComparison.Ordinal) &&
+                ExecutableBase - app.Executable.Length > score)
+            {
+                score = ExecutableBase - app.Executable.Length;
+                porExecutavel = true;
+            }
+
             if (score <= 0) continue;
-            if (found.Any(f => f.Name.Equals(app.Name, StringComparison.CurrentCultureIgnoreCase))) continue;
+            if (Taken(found, app.Name)) continue;
 
             found.Add(new LauncherEntry
             {
                 Name = app.Name,
-                Detail = "Aplicativo",
+                Detail = porExecutavel ? $"Aplicativo · {app.ExecutableFile}" : "Aplicativo",
                 Icon = IconService.Shell(app.IconSource),
                 Run = () => AppCatalog.Launch(app),
                 Score = score
             });
         }
 
-        // 3. energia
+        // 3. os Locais da barra, que a pessoa mesma escolheu, antes das pastas do Windows
+        foreach (var place in _config.Places)
+        {
+            if (string.IsNullOrWhiteSpace(place.Name) || string.IsNullOrWhiteSpace(place.Path)) continue;
+
+            var score = Match(Text.Normalize(place.Name), needle);
+            if (score <= 0 || Taken(found, place.Name)) continue;
+
+            // pasta de rede fica com a inicial: desconectada, pedir o ícone dela ao shell segura a
+            // busca por segundos, na thread da interface, a cada tecla até o cache responder
+            var caminho = Environment.ExpandEnvironmentVariables(place.Path.Trim().Trim('"'));
+
+            found.Add(new LauncherEntry
+            {
+                Name = place.Name,
+                Detail = ShellItems.PlaceKind,
+                Icon = caminho.StartsWith(@"\\", StringComparison.Ordinal) ? null : IconService.Shell(caminho),
+                Glyph = place.Name[..1],
+                Run = () => PlacesService.Open(place),
+                Score = score - PlacePenalty,
+                Address = place.Path
+            });
+        }
+
+        // 4. Lixeira, Este Computador, as pastas do usuário e o Painel de Controle
+        foreach (var item in ShellItems.All())
+        {
+            var score = Match(item.Search, needle);
+            if (score <= 0 || Taken(found, item.Name)) continue;
+
+            // a mesma pasta já veio pelos Locais com outro nome ("Downloads" lá e aqui)
+            if (found.Any(f => SamePlace(f.Address, item.Address))) continue;
+
+            found.Add(new LauncherEntry
+            {
+                Name = item.Name,
+                Detail = item.Kind,
+                Icon = IconService.Shell(item.Address),
+                Glyph = item.Name[..1],
+                Run = () => ShellItems.Open(item.Address),
+                Score = score - PlacePenalty,
+                Address = item.Address
+            });
+        }
+
+        // 5. energia
         if (query.Length >= PowerMinimumQuery)
         {
             foreach (var power in PowerService.All)
@@ -144,6 +222,16 @@ public sealed class Launcher
         Run = () => AppCatalog.Run(command)
     };
 
+    /// <summary>Já há uma linha com este nome — a da dock ou a de um app vence a que vem depois.</summary>
+    private static bool Taken(List<LauncherEntry> found, string name) =>
+        found.Any(f => f.Name.Equals(name, StringComparison.CurrentCultureIgnoreCase));
+
+    private static bool SamePlace(string? a, string? b) =>
+        !string.IsNullOrWhiteSpace(a) && !string.IsNullOrWhiteSpace(b) &&
+        string.Equals(Environment.ExpandEnvironmentVariables(a.Trim().Trim('"')).TrimEnd('\\'),
+                      Environment.ExpandEnvironmentVariables(b.Trim().Trim('"')).TrimEnd('\\'),
+                      StringComparison.OrdinalIgnoreCase);
+
     private LauncherEntry Pinned(Models.DockItem item) => new()
     {
         Name = item.Label,
@@ -162,6 +250,10 @@ public sealed class Launcher
     private static int Match(string hay, string needle)
     {
         if (string.IsNullOrEmpty(hay)) return 0;
+
+        // o nome inteiro, igualzinho: "teclado" acha o "Teclado" do Painel de Controle na
+        // frente do "Teclado Virtual", que só começa igual
+        if (hay == needle) return 1100 - hay.Length;
 
         if (hay.StartsWith(needle, StringComparison.Ordinal)) return 1000 - hay.Length;
 

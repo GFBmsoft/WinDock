@@ -1328,7 +1328,15 @@ public partial class PanelWindow : Window
     /// segundos. Por isso não é feito na abertura do cartão: ali o tamanho mudaria debaixo do
     /// mouse de quem só queria olhar; aqui foi pedido.
     /// </summary>
-    private void OnRefreshUpdates(object sender, RoutedEventArgs e) => _model.RefreshUpdates();
+    /// <summary>
+    /// Pergunta tudo de novo, agora — o Windows Update, o winget e, desde 26/10/2026, o GitHub pelo
+    /// WinDock (pedido dele: a versão nova da dock também é uma atualização esperando).
+    /// </summary>
+    private void OnRefreshUpdates(object sender, RoutedEventArgs e)
+    {
+        _model.RefreshUpdates();
+        _model.CheckSelfUpdate(force: true);
+    }
 
     /// <summary>
     /// A versão nova do WinDock: pergunta, baixa, troca o executável e reabre.

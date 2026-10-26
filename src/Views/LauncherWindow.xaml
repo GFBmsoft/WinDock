@@ -37,13 +37,96 @@
       </Setter>
     </Style>
 
+    <!-- a linha do cartão compacto, embaixo da lupa: metade do respiro e cantos menores -->
+    <Style x:Key="RowCompact" TargetType="ListBoxItem" BasedOn="{StaticResource Row}">
+      <Setter Property="Padding" Value="8,4" />
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="ListBoxItem">
+            <Border x:Name="Bg" Background="Transparent" CornerRadius="6" Padding="{TemplateBinding Padding}">
+              <ContentPresenter />
+            </Border>
+            <ControlTemplate.Triggers>
+              <Trigger Property="IsMouseOver" Value="True">
+                <Setter TargetName="Bg" Property="Background" Value="#18FFFFFF" />
+              </Trigger>
+              <Trigger Property="IsSelected" Value="True">
+                <Setter TargetName="Bg" Property="Background" Value="#332F6FEB" />
+              </Trigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+
+    <!-- quem não tem ícone (energia, comando, pasta que sumiu) ganha um círculo com a inicial -->
+    <Style x:Key="NoIcon" TargetType="Border">
+      <Setter Property="Visibility" Value="Visible" />
+      <Style.Triggers>
+        <DataTrigger Binding="{Binding HasIcon}" Value="True">
+          <Setter Property="Visibility" Value="Collapsed" />
+        </DataTrigger>
+      </Style.Triggers>
+    </Style>
+
+    <!-- a linha do meio da tela: nome em cima, de onde veio embaixo -->
+    <DataTemplate x:Key="ItemNormal">
+      <Grid>
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="34" />
+          <ColumnDefinition Width="*" />
+        </Grid.ColumnDefinitions>
+
+        <Image Source="{Binding Icon}" Width="26" Height="26"
+               RenderOptions.BitmapScalingMode="HighQuality"
+               Visibility="{Binding HasIcon, Converter={StaticResource BoolToVisible}}" />
+        <Border Width="26" Height="26" CornerRadius="13" Background="#FF2A2B30" Style="{StaticResource NoIcon}">
+          <TextBlock Text="{Binding Glyph}" Foreground="#FF6CB6FF" FontSize="13"
+                     HorizontalAlignment="Center" VerticalAlignment="Center" />
+        </Border>
+
+        <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="4,0,0,0">
+          <TextBlock Text="{Binding Name}" Foreground="#FFE8E8EA" FontSize="14"
+                     TextTrimming="CharacterEllipsis" />
+          <TextBlock Text="{Binding Detail}" Foreground="#FF7E7F86" FontSize="11"
+                     TextTrimming="CharacterEllipsis" />
+        </StackPanel>
+      </Grid>
+    </DataTemplate>
+
+    <!-- a linha compacta: uma altura só, com o "de onde veio" à direita, apagado -->
+    <DataTemplate x:Key="ItemCompact">
+      <Grid>
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="26" />
+          <ColumnDefinition Width="*" />
+          <ColumnDefinition Width="Auto" />
+        </Grid.ColumnDefinitions>
+
+        <Image Source="{Binding Icon}" Width="18" Height="18" HorizontalAlignment="Left"
+               RenderOptions.BitmapScalingMode="HighQuality"
+               Visibility="{Binding HasIcon, Converter={StaticResource BoolToVisible}}" />
+        <Border Width="18" Height="18" CornerRadius="9" Background="#FF2A2B30" HorizontalAlignment="Left"
+                Style="{StaticResource NoIcon}">
+          <TextBlock Text="{Binding Glyph}" Foreground="#FF6CB6FF" FontSize="10"
+                     HorizontalAlignment="Center" VerticalAlignment="Center" />
+        </Border>
+
+        <TextBlock Grid.Column="1" Text="{Binding Name}" Foreground="#FFE8E8EA" FontSize="13"
+                   VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+        <TextBlock Grid.Column="2" Text="{Binding Detail}" Foreground="#FF7E7F86" FontSize="11"
+                   VerticalAlignment="Center" Margin="10,0,0,0" MaxWidth="150"
+                   TextTrimming="CharacterEllipsis" />
+      </Grid>
+    </DataTemplate>
+
   </Window.Resources>
 
-  <Border Background="#F21B1C1F" CornerRadius="14" BorderBrush="#FF34353B" BorderThickness="1"
+  <Border x:Name="Card" Background="#F21B1C1F" CornerRadius="14" BorderBrush="#FF34353B" BorderThickness="1"
           Padding="8">
     <StackPanel>
 
-      <Grid Margin="0,0,0,6">
+      <Grid x:Name="QueryRow" Margin="0,0,0,6">
         <TextBox x:Name="Query"
                  Background="Transparent" Foreground="#FFE8E8EA" CaretBrush="#FF6CB6FF"
                  BorderThickness="0" FontSize="20" Padding="10,8"
@@ -51,7 +134,7 @@
                  TextChanged="OnQueryChanged" />
 
         <!-- o texto-fantasma some no primeiro caractere digitado -->
-        <TextBlock x:Name="Hint" Text="Buscar aplicativo…  ou  run &lt;comando&gt;" FontSize="20" Padding="12,8"
+        <TextBlock x:Name="Hint" Text="Buscar aplicativo, pasta ou configuração…  ou  run &lt;comando&gt;" FontSize="20" Padding="12,8"
                    IsHitTestVisible="False">
           <TextBlock.Style>
             <Style TargetType="TextBlock">
@@ -68,51 +151,16 @@
       </Grid>
 
       <!-- risco fino separando a busca dos resultados; some junto com a lista -->
-      <Border Height="1" Background="#1AFFFFFF" Margin="6,0,6,6"
+      <Border x:Name="Divider" Height="1" Background="#1AFFFFFF" Margin="6,0,6,6"
               Visibility="{Binding Visibility, ElementName=Results}" />
 
+      <!-- linha e desenho trocados no Open: a do meio da tela ou a compacta, embaixo da lupa -->
       <ListBox x:Name="Results" Background="Transparent" BorderThickness="0"
                ItemContainerStyle="{StaticResource Row}"
+               ItemTemplate="{StaticResource ItemNormal}"
                ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                ScrollViewer.CanContentScroll="False"
-               MouseLeftButtonUp="OnResultClick" KeyDown="OnResultKeyDown">
-        <ListBox.ItemTemplate>
-          <DataTemplate>
-            <Grid>
-              <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="34" />
-                <ColumnDefinition Width="*" />
-              </Grid.ColumnDefinitions>
-
-              <!-- icone do app; quem nao tem (energia, comando) ganha um circulo com a inicial -->
-              <Image Source="{Binding Icon}" Width="26" Height="26"
-                     RenderOptions.BitmapScalingMode="HighQuality"
-                     Visibility="{Binding HasIcon, Converter={StaticResource BoolToVisible}}" />
-              <Border Width="26" Height="26" CornerRadius="13" Background="#FF2A2B30">
-                <Border.Style>
-                  <Style TargetType="Border">
-                    <Setter Property="Visibility" Value="Visible" />
-                    <Style.Triggers>
-                      <DataTrigger Binding="{Binding HasIcon}" Value="True">
-                        <Setter Property="Visibility" Value="Collapsed" />
-                      </DataTrigger>
-                    </Style.Triggers>
-                  </Style>
-                </Border.Style>
-                <TextBlock Text="{Binding Glyph}" Foreground="#FF6CB6FF" FontSize="13"
-                           HorizontalAlignment="Center" VerticalAlignment="Center" />
-              </Border>
-
-              <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="4,0,0,0">
-                <TextBlock Text="{Binding Name}" Foreground="#FFE8E8EA" FontSize="14"
-                           TextTrimming="CharacterEllipsis" />
-                <TextBlock Text="{Binding Detail}" Foreground="#FF7E7F86" FontSize="11"
-                           TextTrimming="CharacterEllipsis" />
-              </StackPanel>
-            </Grid>
-          </DataTemplate>
-        </ListBox.ItemTemplate>
-      </ListBox>
+               MouseLeftButtonUp="OnResultClick" KeyDown="OnResultKeyDown" />
 
     </StackPanel>
   </Border>

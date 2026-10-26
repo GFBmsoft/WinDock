@@ -23,6 +23,11 @@ public partial class LauncherWindow : Window
     /// </summary>
     private const double RowHeight = 46;
 
+    /// <summary>A mesma conta na linha compacta: ícone de 18 e respiro de 4 em cima e embaixo.</summary>
+    private const double CompactRowHeight = 28;
+
+    private double _rowHeight = RowHeight;
+
     public LauncherWindow(Launcher launcher, DockConfig config)
     {
         _launcher = launcher;
@@ -39,11 +44,7 @@ public partial class LauncherWindow : Window
     /// </summary>
     public void Open(Point? below = null)
     {
-        // Compacta: mais estreita e com a letra do campo menor. Embaixo da lupa ela é um cartão
-        // da barra, e os 560 px do meio da tela pareciam uma janela caída no canto.
-        var compacta = below is not null;
-        Width = compacta ? 420 : 560;
-        Query.FontSize = Hint.FontSize = compacta ? 16 : 20;
+        ApplyLook(compacta: below is not null);
 
         Query.Text = string.Empty;
         Refresh();
@@ -59,6 +60,33 @@ public partial class LauncherWindow : Window
 
         Query.Focus();
         Keyboard.Focus(Query);
+    }
+
+    /// <summary>
+    /// Compacta: mais estreita e com a letra do campo menor. Embaixo da lupa ela é um cartão da
+    /// barra, e os 560 px do meio da tela pareciam uma janela caída no canto. Por isso também
+    /// veste o desenho dos cartões dela (fundo, borda e cantos de 10) e a linha tem uma altura
+    /// só, com o "de onde veio" ao lado do nome.
+    /// </summary>
+    private void ApplyLook(bool compacta)
+    {
+        Width = compacta ? 380 : 560;
+        Query.FontSize = Hint.FontSize = compacta ? 14 : 20;
+        Query.Padding = compacta ? new Thickness(8, 5, 8, 5) : new Thickness(10, 8, 10, 8);
+        Hint.Padding = compacta ? new Thickness(10, 5, 10, 5) : new Thickness(12, 8, 12, 8);
+        Hint.Text = compacta ? "Buscar…  ou  run <comando>"
+                             : "Buscar aplicativo, pasta ou configuração…  ou  run <comando>";
+
+        Card.Padding = new Thickness(compacta ? 6 : 8);
+        Card.CornerRadius = new CornerRadius(compacta ? 10 : 14);
+        Card.Background = compacta ? CompactBackground : NormalBackground;
+        Card.BorderBrush = compacta ? CompactBorder : NormalBorder;
+        QueryRow.Margin = new Thickness(0, 0, 0, compacta ? 4 : 6);
+        Divider.Margin = compacta ? new Thickness(4, 0, 4, 4) : new Thickness(6, 0, 6, 6);
+
+        Results.ItemContainerStyle = (Style)FindResource(compacta ? "RowCompact" : "Row");
+        Results.ItemTemplate = (DataTemplate)FindResource(compacta ? "ItemCompact" : "ItemNormal");
+        _rowHeight = compacta ? CompactRowHeight : RowHeight;
     }
 
     /// <summary>
@@ -112,8 +140,21 @@ public partial class LauncherWindow : Window
         //
         // O teto agora é a tela: metade da área útil, para a janela não virar uma coluna do
         // topo ao rodapé quando alguém pedir vinte resultados.
-        Results.MaxHeight = Math.Min((results.Count + 1) * RowHeight,
+        Results.MaxHeight = Math.Min((results.Count + 1) * _rowHeight,
                                      SystemParameters.WorkArea.Height * 0.5);
+    }
+
+    // o fundo de sempre, e o dos cartões da barra (PanelWindow.xaml) para a compacta
+    private static readonly System.Windows.Media.Brush NormalBackground = Frozen(0xF2, 0x1B, 0x1C, 0x1F);
+    private static readonly System.Windows.Media.Brush NormalBorder = Frozen(0xFF, 0x34, 0x35, 0x3B);
+    private static readonly System.Windows.Media.Brush CompactBackground = Frozen(0xF7, 0x24, 0x24, 0x24);
+    private static readonly System.Windows.Media.Brush CompactBorder = Frozen(0x2E, 0xFF, 0xFF, 0xFF);
+
+    private static System.Windows.Media.Brush Frozen(byte a, byte r, byte g, byte b)
+    {
+        var brush = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromArgb(a, r, g, b));
+        brush.Freeze();
+        return brush;
     }
 
     /// <summary>

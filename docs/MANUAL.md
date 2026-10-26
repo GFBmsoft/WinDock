@@ -617,7 +617,9 @@ a dock ouve o aviso de "instalação concluída" que o próprio Windows escreve 
 
 A hora da última fica no rodapé do cartão. Abrir o cartão não refaz a consulta — ela mudaria de
 tamanho debaixo do mouse. Quando quiser a resposta na hora, **Conferir agora** refaz as duas
-perguntas com o cartão aberto, mostrando "conferindo…" enquanto isso. Ele responde **em duas
+perguntas com o cartão aberto, mostrando "conferindo…" enquanto isso, e pergunta também ao GitHub
+pela [versão nova do WinDock](#atualizar): o cartão mostra "WinDock 1.0.0.N disponível" com o
+**Atualizar** ao lado (o mesmo do presente da barra) ou diz que a dock já está na mais nova. Ele responde **em duas
 etapas**: em uns três segundos vem o que o agente do Windows já sabe — que é a resposta certa logo
 depois de você instalar algo, e o que faz o ícone apagar rápido —, e a busca completa chega atrás,
 corrigindo se houver novidade.
@@ -644,6 +646,17 @@ plano de energia ficam no [cartão da bateria](#bateria).
 ![A busca](img/busca.png)
 
 Digite parte do nome; `↑` `↓` andam na lista e `Enter` abre. `Esc` fecha.
+
+Ela acha, nesta ordem de preferência, o que está **na dock**, os **aplicativos** instalados (os
+mesmos do menu iniciar), os seus **Locais** da barra, as pastas do Windows — **Lixeira**, **Este
+Computador**, **Rede**, Documentos, Downloads — e os itens do **Painel de Controle** (Gerenciador
+de Dispositivos, Opções de Energia, Programas e Recursos, Mouse…). A linha diz de onde veio:
+"Aplicativo", "Local" ou "Painel de Controle". O nome do executável também vale: `cmd` acha o
+Prompt de Comando e `regedit` o Editor do Registro, com o arquivo escrito ao lado. O nome idêntico
+ao digitado vem na frente de um que só começa igual.
+
+Aberta pela lupa da barra, a busca é **compacta**: mais estreita, com uma linha só por resultado —
+o nome à esquerda e de onde veio à direita.
 
 Para **executar um comando, caminho ou endereço**, use o prefixo `run`:
 
@@ -770,7 +783,9 @@ troca o executável **no mesmo lugar** e reabre a dock — a tarefa de logon con
 executável antigo fica ao lado como `WinDock.exe.old` e é apagado na abertura seguinte; se a troca
 falhar no meio, ele volta para o lugar.
 
-O GitHub é consultado **uma vez por dia** (a API sem login tem cota por hora). Desliga em
+O GitHub é consultado **uma vez por dia** (a API sem login tem cota por hora). Para perguntar na
+hora, use **Verificar agora** em **Configurações > Notas da versão**, ao lado da versão em uso, ou
+o **Conferir agora** do cartão de atualizações. O presente desliga em
 **Configurações > Avisar nova versão do WinDock**. A troca só acontece num executável de arquivo
 único e numa pasta onde a dock possa gravar; fora disso, o clique abre a página da Release.
 

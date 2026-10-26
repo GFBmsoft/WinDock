@@ -16,6 +16,29 @@ public sealed record CatalogApp(string Name, string Target, bool IsAumid)
     /// os apps a cada tecla digitada — normalizar na hora seria refazer isso o tempo todo.
     /// </summary>
     public string Search { get; } = Text.Normalize(Name);
+
+    /// <summary>
+    /// O executável, sem a extensão e normalizado — "cmd" para o Prompt de Comando, "regedit"
+    /// para o Editor do Registro —, ou vazio quando o app não tem um (os da Store vêm pelo
+    /// AppUserModelID). A pasta de aplicativos dá o caminho dos programas comuns com a pasta
+    /// conhecida na frente: <c>{1AC14E77-…}\cmd.exe</c>.
+    /// </summary>
+    public string Executable { get; } = ExecutableOf(Target, IsAumid);
+
+    /// <summary>O arquivo que aparece na linha de baixo quando a busca casou por ele.</summary>
+    public string ExecutableFile => IsAumid && Executable.Length > 0 ? Path.GetFileName(Target) : string.Empty;
+
+    private static string ExecutableOf(string target, bool isAumid)
+    {
+        if (!isAumid || !target.Contains('\\')) return string.Empty;
+
+        var extensao = Path.GetExtension(target);
+        return extensao.Equals(".exe", StringComparison.OrdinalIgnoreCase) ||
+               extensao.Equals(".msc", StringComparison.OrdinalIgnoreCase) ||
+               extensao.Equals(".cpl", StringComparison.OrdinalIgnoreCase)
+            ? Text.Normalize(Path.GetFileNameWithoutExtension(target))
+            : string.Empty;
+    }
 }
 
 /// <summary>
@@ -53,6 +76,9 @@ public static class AppCatalog
                 Thread.Sleep(TimeSpan.FromSeconds(3));
 
                 foreach (var app in All()) IconService.Shell(app.IconSource);
+
+                // os lugares do Windows e o Painel de Controle entram na mesma busca
+                foreach (var item in ShellItems.All()) IconService.Shell(item.Address);
             }
             catch { /* nada aqui e essencial: e so adiantar trabalho */ }
         })
