@@ -111,8 +111,8 @@ public sealed class DockModel : IDisposable
     ///   e é a única resposta possível para o <c>DESTROY</c>: quando ele chega o identificador
     ///   já morreu e nenhuma pergunta ao Windows funciona mais.
     /// - **é uma janela de topo, sem dono e com título?** — é o mínimo que uma janela precisa
-    ///   ter para virar botão (veja <see cref="WindowService"/>). Filha, dona ou sem título
-    ///   nunca vira, e é aí que mora a enxurrada.
+    ///   ter para virar botão (veja <see cref="WindowService"/>). Filha, com dono (sem pedir
+    ///   botão) ou sem título nunca vira, e é aí que mora a enxurrada.
     /// </summary>
     private bool Concerns(nint hWnd)
     {
@@ -120,7 +120,7 @@ public sealed class DockModel : IDisposable
         if (_known.Contains(hWnd)) return true;
 
         return GetAncestor(hWnd, GA_ROOT) == hWnd &&
-               GetWindow(hWnd, GW_OWNER) == 0 &&
+               !WindowService.OwnedWithoutButton(hWnd) &&
                GetWindowTextLength(hWnd) > 0;
     }
 
@@ -189,7 +189,8 @@ public sealed class DockModel : IDisposable
             {
                 var w = wins[0];
                 var (path, args, label, picture) = ResolveTarget(w);
-                Items.Add(new DockItem(w.AppKey, path, args, label, pinned: false, overlayIcon: picture)
+                Items.Add(new DockItem(w.AppKey, path, args, label, pinned: false, overlayIcon: picture,
+                                       window: w.Handle)
                 {
                     Windows = wins,
                     IsActive = wins.Any(x => WindowService.BelongsTo(foreground, x.Handle))

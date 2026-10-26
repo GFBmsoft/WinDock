@@ -11,6 +11,10 @@
   tag que leva a nota junto. Escrito para quem usa a dock: o que mudou na tela, e não no código.
 -->
 
+## 1.0.0.61 — 26/10/2026
+- Dock: o Fotos aberto aparece com o ícone dele, e não mais com o desenho genérico de aplicativo do Windows. O mesmo vale para outros apps da Store cujo programa não traz ícone próprio.
+- Dock: as Opções da Internet ganham botão quando estão abertas, com o globo delas. Antes elas não apareciam na dock: o Windows as abre presas a uma janela invisível, e a dock deixava de fora toda janela presa a outra, mesmo a que pede botão na barra.
+
 ## 1.0.0.60 — 26/10/2026
 - Busca: só aparecem programas. O que os instaladores põem no menu iniciar e não é programa — o "Website" do TortoiseSVN (um link), o manual e as novidades do WinRAR (arquivos de texto), a ajuda dele e a pasta "Samples" — saiu da lista, onde aparecia como "Aplicativo" sem ícone.
 

@@ -479,6 +479,31 @@ internal static class Native
     [DllImport("shell32.dll", CharSet = CharSet.Unicode)]
     public static extern uint ExtractIconEx(string file, int index, out nint large, out nint small, uint count);
 
+    /// <summary>
+    /// Quantos ícones o arquivo traz gravados dentro. É o mesmo <c>ExtractIconEx</c>, chamado com
+    /// índice -1 e sem onde guardar — só assim ele responde a contagem, e a declaração de cima
+    /// sempre passa onde guardar.
+    /// </summary>
+    [DllImport("shell32.dll", CharSet = CharSet.Unicode, EntryPoint = "ExtractIconExW")]
+    public static extern uint ExtractIconCount(string file, int index, nint large, nint small, uint count);
+
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+    public static extern nint SendMessageTimeout(nint hWnd, uint msg, nint wParam, nint lParam,
+                                                 uint flags, uint timeout, out nint result);
+
+    [DllImport("user32.dll", EntryPoint = "GetClassLongPtrW")]
+    public static extern nint GetClassLongPtr(nint hWnd, int index);
+
+    public const uint WM_GETICON = 0x007F;
+    public const nint ICON_BIG = 1;
+    /// <summary>O ícone pequeno, ou o que o Windows gera a partir do grande quando não há um.</summary>
+    public const nint ICON_SMALL2 = 2;
+    public const int GCLP_HICON = -14;
+    public const int GCLP_HICONSM = -34;
+
+    /// <summary>Não espera por janela travada: o <c>SendMessageTimeout</c> volta na hora.</summary>
+    public const uint SMTO_ABORTIFHUNG = 0x0002;
+
     [DllImport("comctl32.dll", SetLastError = true)]
     public static extern int LoadIconWithScaleDown(nint hinst, string name, int cx, int cy, out nint icon);
 

@@ -16,7 +16,8 @@ public sealed record TaskWindow(nint Handle, string Title, string ExePath, strin
 
 /// <summary>
 /// Descobre as janelas que valem um botao na dock e faz as acoes sobre elas.
-/// O criterio e o mesmo do Alt+Tab: visivel, sem dono, nao "tool window", nao cloaked.
+/// O criterio e o mesmo do Alt+Tab: visivel, sem dono (ou pedindo botao mesmo com dono),
+/// nao "tool window", nao cloaked.
 /// </summary>
 public static class WindowService
 {
@@ -93,7 +94,7 @@ public static class WindowService
     {
         if (!IsWindowVisible(hWnd)) return false;
         if (GetWindowTextLength(hWnd) == 0) return false;
-        if (GetWindow(hWnd, GW_OWNER) != 0) return false;     // janelas-filhas/dialogos
+        if (OwnedWithoutButton(hWnd)) return false;     // janelas-filhas/dialogos
 
         var ex = (long)GetWindowLongPtr(hWnd, GWL_EXSTYLE);
         if ((ex & WS_EX_TOOLWINDOW) != 0 && (ex & WS_EX_APPWINDOW) == 0) return false;
@@ -104,6 +105,19 @@ public static class WindowService
 
         return true;
     }
+
+    /// <summary>
+    /// A janela tem dono e não pede botão — um diálogo, um formulário secundário.
+    ///
+    /// É a regra da barra do Windows: janela com dono fica sem botão, a não ser que peça um com
+    /// <see cref="WS_EX_APPWINDOW"/>. As Opções da Internet são o caso que faltava (26/10/2026):
+    /// o <c>inetcpl.cpl</c> roda dentro do <c>rundll32</c>, que cria uma janela invisível e põe o
+    /// diálogo como filho dela, com o pedido de botão. Recusando toda janela com dono, a dock
+    /// simplesmente não mostrava esse diálogo aberto.
+    /// </summary>
+    internal static bool OwnedWithoutButton(nint hWnd) =>
+        GetWindow(hWnd, GW_OWNER) != 0 &&
+        ((long)GetWindowLongPtr(hWnd, GWL_EXSTYLE) & WS_EX_APPWINDOW) == 0;
 
     /// <summary>
     /// A classe da janela — o nome que o programa deu ao molde dela ao registrá-la no Windows.

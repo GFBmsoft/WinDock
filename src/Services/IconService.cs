@@ -23,11 +23,15 @@ public static class IconService
     /// 2. a pasta de aplicativos do shell, quando a identidade e um AppUserModelID — e o
     ///    unico jeito de ter o icone de um app da Store, cujo executavel (o SystemSettings
     ///    das Configuracoes, por exemplo) traz so o icone generico de aplicativo;
-    /// 3. o executavel.
+    /// 3. o pacote, quando o executavel e de um app empacotado e nao traz desenho proprio;
+    /// 4. a janela aberta (<paramref name="window"/>), quando o executavel nao traz desenho e
+    ///    nao e de pacote — o rundll32 que hospeda as Opcoes da Internet;
+    /// 5. o executavel.
     /// </summary>
-    public static BitmapSource? ForApp(string id, string launchPath) => Fill(RawForApp(id, launchPath));
+    public static BitmapSource? ForApp(string id, string launchPath, nint window = 0) =>
+        Fill(RawForApp(id, launchPath, window));
 
-    private static BitmapSource? RawForApp(string id, string launchPath)
+    private static BitmapSource? RawForApp(string id, string launchPath, nint window)
     {
         // Perfil do Chrome: o icone que o Chrome gera para o perfil vem antes ate do atalho. O
         // atalho de perfil e apagado e recriado pelo Chrome quando o perfil muda — o fixado
@@ -40,16 +44,74 @@ public static class IconService
 
         if (IsAumid(id) && Shell($@"shell:AppsFolder\{id}") is { } fromShell) return fromShell;
 
-        // App da Store fixado pelo caminho, e o caminho envelheceu: a pasta do pacote leva a
-        // versão no nome e some a cada atualização. O identificador do pacote não muda, e por ele
-        // o shell entrega o ícone — sem depender de o arquivo existir nem de a dock ter subido
-        // depois da atualização para consertar o caminho gravado.
-        if (!File.Exists(launchPath) &&
-            PackagedApps.AumidOf(launchPath) is { } doPacote &&
+        // App da Store pelo caminho do executável, e o executável não tem desenho para dar. Dois
+        // jeitos de chegar aqui. O caminho envelheceu: a pasta do pacote leva a versão no nome e
+        // some a cada atualização. Ou o executável existe mas não traz ícone nenhum gravado
+        // dentro — o Photos.exe do Fotos (26/10/2026, EV03): o desenho do app mora no manifesto
+        // do pacote, e o shell dava ao arquivo o ícone genérico de aplicativo. Nos dois casos o
+        // identificador do pacote não muda, e por ele o shell entrega o ícone do app.
+        //
+        // O ícone próprio é perguntado antes do pacote de propósito: achar o pacote passa pelo
+        // catálogo de apps, e montá-lo custa caro na subida da dock — o Terminal e o Spotify,
+        // que têm desenho no executável, não precisam dele.
+        if (!HasOwnIcon(launchPath) && PackagedApps.AumidOf(launchPath) is { } doPacote &&
             Shell($@"shell:AppsFolder\{doPacote}") is { } fromPackage) return fromPackage;
+
+        // Executável sem desenho fora de pacote: um hospedeiro, que roda o app de outro arquivo.
+        // O rundll32 é o exemplo — é ele quem abre o inetcpl.cpl e os outros itens do Painel de
+        // Controle. O desenho do app quem tem é a janela, e é dela que a barra do Windows o tira.
+        if (window != 0 && !HasOwnIcon(launchPath) && OfWindow(window) is { } daJanela) return daJanela;
 
         return For(launchPath);
     }
+
+    /// <summary>
+    /// O executável traz ícone gravado dentro? Sem nenhum, o que o shell devolve para ele é o
+    /// desenho genérico de aplicativo — que não diz de que app é. Arquivo que não existe também
+    /// responde não.
+    /// </summary>
+    private static bool HasOwnIcon(string path)
+    {
+        if (string.IsNullOrEmpty(path)) return false;
+        try { return ExtractIconCount(path, -1, 0, 0, 0) > 0; }
+        catch { return false; }
+    }
+
+    /// <summary>
+    /// O ícone que a janela anuncia, na ordem em que a barra do Windows procura: o que ela
+    /// mesma diz (<c>WM_GETICON</c>), o da classe, o grande antes do pequeno. Sem nada, pergunta
+    /// ao dono — as Opções da Internet não respondem por si, mas a janela invisível do rundll32
+    /// que é dona delas carrega o ícone do item do Painel de Controle.
+    ///
+    /// O ícone é da janela, não nosso: copiado para a imagem e nunca destruído aqui.
+    /// </summary>
+    private static BitmapSource? OfWindow(nint hWnd)
+    {
+        for (var (w, passos) = (hWnd, 0); w != 0 && passos < 4; w = GetWindow(w, GW_OWNER), passos++)
+        {
+            var icone = Announced(w, ICON_BIG);
+            if (icone == 0) icone = GetClassLongPtr(w, GCLP_HICON);
+            if (icone == 0) icone = Announced(w, ICON_SMALL2);
+            if (icone == 0) icone = GetClassLongPtr(w, GCLP_HICONSM);
+            if (icone == 0) continue;
+
+            try
+            {
+                var result = Imaging.CreateBitmapSourceFromHIcon(icone, Int32Rect.Empty,
+                                                                 BitmapSizeOptions.FromEmptyOptions());
+                result.Freeze();
+                return result;
+            }
+            catch { /* a janela trocou de ícone no meio da leitura: tenta o dono */ }
+        }
+
+        return null;
+    }
+
+    /// <summary>A resposta da janela ao <c>WM_GETICON</c>. Com prazo curto: janela travada não
+    /// responde, e quem pergunta é a thread da interface.</summary>
+    private static nint Announced(nint hWnd, nint tipo) =>
+        SendMessageTimeout(hWnd, WM_GETICON, tipo, 0, SMTO_ABORTIFHUNG, 100, out var icone) != 0 ? icone : 0;
 
     /// <summary>
     /// O desenho do icone esticado ate as bordas do quadrado, para todos ocuparem o mesmo

@@ -389,7 +389,7 @@ public sealed class TilingService : IDisposable
     }
 
     /// <summary>O mesmo critério que o <see cref="WindowService.Enumerate"/> já usa (visível,
-    /// sem dono, não "tool window", não cloaked) — uma versão mais fraca daqui (sem checar
+    /// sem dono ou pedindo botão, não "tool window", não cloaked) — uma versão mais fraca daqui (sem checar
     /// visibilidade/cloaked) deixava passar coisas como o overlay do Alt+Tab do Windows, que
     /// ganhava contorno e disparava recálculo só de segurar Alt.</summary>
     private bool Concerns(nint hWnd) =>

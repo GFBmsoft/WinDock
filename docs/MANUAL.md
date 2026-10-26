@@ -145,7 +145,9 @@ com os privilégios mais altos.
 Cada janela aberta de um app ganha uma **bolinha** embaixo do ícone: apagada enquanto o app está
 só aberto, acesa quando ele está na frente. Os ícones são igualados no tamanho — a folga
 transparente que cada programa desenha em volta do próprio ícone é recortada, para nenhum parecer
-menor que o vizinho.
+menor que o vizinho. Programa que não traz ícone no executável — o Fotos, ou as Opções da Internet,
+que o Windows abre dentro do `rundll32` — aparece com o desenho do app (o do pacote da Store, ou o
+da própria janela), e não com o genérico.
 
 ![O menu de um ícone](img/menu-dock.png)
 

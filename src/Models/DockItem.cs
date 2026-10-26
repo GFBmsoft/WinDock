@@ -107,15 +107,18 @@ public sealed class DockItem : INotifyPropertyChanged
     /// <summary>Caminho da imagem sobreposta, para o config lembrar dela.</summary>
     public string OverlayPath { get; private set; }
 
+    /// <param name="window">A janela aberta que trouxe o app para a dock, quando é o caso: é dela
+    /// que vem o ícone se o executável não tiver desenho próprio (veja
+    /// <see cref="IconService.ForApp"/>).</param>
     public DockItem(string id, string launchPath, string launchArgs, string label, bool pinned,
-                    string overlayIcon = "")
+                    string overlayIcon = "", nint window = 0)
     {
         Id = id;
         LaunchPath = launchPath;
         LaunchArgs = launchArgs;
         _label = string.IsNullOrWhiteSpace(label) ? Path.GetFileNameWithoutExtension(launchPath) : label;
         _isPinned = pinned;
-        _icon = IconService.ForApp(id, launchPath);
+        _icon = IconService.ForApp(id, launchPath, window);
         OverlayPath = overlayIcon;
         // o icone do perfil do Chrome ja traz o avatar no canto: a foto por cima seria repetida
         _overlay = ChromeProfiles.ByAumid(id) is { IconPath.Length: > 0 } ? null : IconService.Image(overlayIcon);
@@ -132,7 +135,7 @@ public sealed class DockItem : INotifyPropertyChanged
         LaunchPath = launchPath;
         LaunchArgs = launchArgs;
         if (!string.IsNullOrWhiteSpace(label)) Label = label;
-        Icon = IconService.ForApp(Id, launchPath);
+        Icon = IconService.ForApp(Id, launchPath, _windows.Count > 0 ? _windows[0].Handle : 0);
     }
 
     /// <summary>
