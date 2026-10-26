@@ -2009,8 +2009,9 @@
           </Border.Effect>
           <Grid>
             <!-- enquanto a leitura não volta, o cartão mostra que está trabalhando em vez
-                 de aparecer vazio e depois pular para a lista cheia -->
-            <TextBlock Text="Lendo a bandeja…" Foreground="#FF9D9D9D" FontSize="12"
+                 de aparecer vazio e depois pular para a lista cheia; se ela falhar, diz isso
+                 (antes ficava "Lendo a bandeja…" para sempre) -->
+            <TextBlock Text="{Binding TrayPlaceholder}" Foreground="#FF9D9D9D" FontSize="12"
                        Margin="10,14" HorizontalAlignment="Center" VerticalAlignment="Center"
                        Visibility="{Binding HasTrayIcons, Converter={StaticResource BoolToCollapsed}}" />
 

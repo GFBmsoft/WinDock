@@ -1179,6 +1179,20 @@ public sealed class PanelModel : INotifyPropertyChanged, IDisposable
 
     public bool HasTrayIcons => _trayIcons.Count > 0;
 
+    private bool _trayReading;
+
+    /// <summary>
+    /// O que o cartão diz quando não há ícone para mostrar.
+    ///
+    /// Era sempre "Lendo a bandeja…", e uma leitura que falhava deixava essa frase na tela
+    /// para sempre: num Windows em inglês a seta do Windows não era reconhecida, e quem abria
+    /// o cartão via a dock "lendo" sem nada acontecer. Lendo, falhou e vazia são três coisas.
+    /// </summary>
+    public string TrayPlaceholder =>
+        _trayReading ? "Lendo a bandeja…" :
+        TrayService.LastReadFailed ? "Não deu para ler a bandeja do Windows" :
+        "Nenhum ícone na bandeja";
+
     /// <summary>
     /// Colunas da grade do cartão.
     ///
@@ -2265,10 +2279,19 @@ public sealed class PanelModel : INotifyPropertyChanged, IDisposable
     {
         if (!_config.PanelTray) { TrayIcons = Array.Empty<TrayIcon>(); done?.Invoke(); return; }
 
+        _trayReading = true;
+        OnChanged(nameof(TrayPlaceholder));
+
         var started = TrayReader.Run(() =>
         {
             var icons = Rename(TrayService.Read());
-            _dispatcher.InvokeAsync(() => { TrayIcons = icons; done?.Invoke(); });
+            _dispatcher.InvokeAsync(() =>
+            {
+                TrayIcons = icons;
+                _trayReading = false;
+                OnChanged(nameof(TrayPlaceholder));
+                done?.Invoke();
+            });
         });
 
         // pedido descartado (já havia uma leitura em curso): o aviso tem que sair na mesma,

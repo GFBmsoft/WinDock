@@ -335,6 +335,7 @@ public static class TrayService
 
         var icons = WithShell(Capture);
         _read = DateTime.UtcNow;
+        LastReadFailed = icons is null;
 
         // os nomes vão junto de propósito: só assim o log distingue "o painel listou o mesmo
         // ícone duas vezes" de "a lista mudou entre uma leitura e outra"
@@ -364,6 +365,13 @@ public static class TrayService
 
     /// <summary>A última leitura que deu certo — o que o cartão mostra se a próxima falhar.</summary>
     private static IReadOnlyList<TrayIcon> _cache = Array.Empty<TrayIcon>();
+
+    /// <summary>
+    /// A última leitura não chegou a abrir o painel do Windows (a seta não foi achada, o
+    /// explorer não respondeu). É o que separa, no cartão vazio, "não consegui ler" de "não há
+    /// ícone" — o motivo fica no log.
+    /// </summary>
+    public static bool LastReadFailed { get; private set; }
 
     /// <summary>
     /// A última lista lida, sem custo nenhum.
@@ -1645,14 +1653,50 @@ public static class TrayService
     private static AutomationElement? _chevron;
 
     /// <summary>
-    /// A seta já foi achada alguma vez nesta sessão — o que separa "a barra ainda está
+    /// A seta já foi procurada alguma vez nesta sessão — o que separa "a barra ainda está
     /// subindo" de "alguma coisa quebrou". Diferente do <see cref="_chevron"/>, isto não se
     /// apaga quando o elemento morre: o explorer reiniciado continua tendo uma barra pronta.
+    ///
+    /// **Procurada, e não achada.** Era "achada", e numa máquina em que a seta nunca é
+    /// reconhecida o prazo folgado do logon valia para sempre: cada abertura do cartão
+    /// esperava os 10 s inteiros (17 s de relógio, veja o laço), com "Lendo a bandeja…" na
+    /// tela. Foi o que se viu num Windows em inglês em 26/10/2026.
     /// </summary>
-    private static bool _chevronJaVisto;
+    private static bool _chevronProcurado;
 
     /// <summary>Quanto se espera pela seta **na primeira vez**, logo depois do logon.</summary>
     private static readonly TimeSpan FirstChevron = TimeSpan.FromSeconds(10);
+
+    /// <summary>
+    /// Os desenhos de seta da fonte de ícones do Windows. A seta da bandeja é um botão como os
+    /// outros ícones de sistema — mesma classe (<c>SystemTray.AccentButton</c>), mesmo
+    /// <c>AutomationId</c> —, e o que a separa deles sem depender do idioma é o glifo do texto
+    /// dentro dela: U+E972 com a barra no topo e o painel aberto (medido em 26/10/2026). A
+    /// faixa cobre as quatro direções, nos tamanhos pequeno e médio, e a seta comum, para a
+    /// barra em qualquer borda e o painel aberto ou fechado.
+    /// </summary>
+    private static bool IsChevronGlyph(char c) =>
+        c is >= '' and <= '' or '' or '' or '' or '';
+
+    /// <summary>
+    /// O nome da seta, como reserva do glifo. **O nome muda com o idioma do Windows**: só o
+    /// "Ícones Ocultos" do português fazia a bandeja inteira não funcionar num Windows em
+    /// inglês, onde ela se chama "Show Hidden Icons".
+    /// </summary>
+    private static readonly string[] ChevronNames = ["Ícones Ocultos", "Hidden Icons"];
+
+    private static bool IsChevron(AutomationElement icon)
+    {
+        try
+        {
+            foreach (AutomationElement filho in icon.CachedChildren)
+                if (filho.Cached.Name is { Length: 1 } desenho && IsChevronGlyph(desenho[0])) return true;
+        }
+        catch (InvalidOperationException) { }   // filhos fora do cache: decide o nome
+
+        var nome = icon.Cached.Name;
+        return ChevronNames.Any(n => nome.Contains(n, StringComparison.CurrentCultureIgnoreCase));
+    }
 
     private static AutomationElement? WaitForChevron(nint taskbar)
     {
@@ -1677,9 +1721,22 @@ public static class TrayService
         // mais não traz nada. A primeira é o aquecimento logo depois do logon, quando a
         // árvore de automação da barra ainda está subindo: com os 2 s de sempre, ela estourava
         // e o aquecimento voltava sem ícone nenhum (log de 24/09, 07:50).
-        var prazo = _chevronJaVisto ? Timeout : FirstChevron;
+        var prazo = _chevronProcurado ? Timeout : FirstChevron;
+        _chevronProcurado = true;
 
-        for (var waited = TimeSpan.Zero; waited < prazo; waited += Poll)
+        // Os ícones de sistema vêm com o nome e os filhos (o glifo da seta mora num filho) num
+        // pedido só: sem o cache, cada propriedade é uma ida e volta ao explorer.
+        var pedido = new CacheRequest { TreeScope = TreeScope.Element | TreeScope.Children,
+                                        TreeFilter = Automation.RawViewCondition };
+        pedido.Add(AutomationElement.NameProperty);
+
+        // O tempo é medido, e não contado em múltiplos do `Poll` — o mesmo erro que o
+        // `WaitForItems` já teve: cada volta é o `FindAll` mais um `Sleep` que dorme ~31 ms, e
+        // os "10 s" do prazo duravam 17 s de relógio.
+        var relogio = Stopwatch.StartNew();
+        IReadOnlyList<AutomationElement> vistos = Array.Empty<AutomationElement>();
+
+        while (relogio.Elapsed < prazo)
         {
             // a árvore da barra só aparece pela janela filha; na Shell_TrayWnd ela vem vazia
             var bridge = FindWindowEx(taskbar, 0, "Windows.UI.Composition.DesktopWindowContentBridge", null);
@@ -1688,21 +1745,32 @@ public static class TrayService
                 // a condição vai para a automação: a árvore da barra tem dezenas de
                 // elementos, e trazer todos para filtrar em C# custava mais de cem
                 // milissegundos por leitura
-                var chevron = AutomationElement.FromHandle(bridge)
-                    .FindAll(TreeScope.Descendants,
-                             new PropertyCondition(AutomationElement.AutomationIdProperty, "SystemTrayIcon"))
-                    .Cast<AutomationElement>()
-                    .FirstOrDefault(e => e.Current.Name.Contains("Ícones Ocultos",
-                                                                 StringComparison.CurrentCultureIgnoreCase));
-                if (chevron is not null) { _chevron = chevron; _chevronJaVisto = true; return chevron; }
+                using (pedido.Activate())
+                    vistos = AutomationElement.FromHandle(bridge)
+                        .FindAll(TreeScope.Descendants,
+                                 new PropertyCondition(AutomationElement.AutomationIdProperty, "SystemTrayIcon"))
+                        .Cast<AutomationElement>()
+                        .ToList();
+
+                var chevron = vistos.FirstOrDefault(IsChevron);
+                if (chevron is not null) { _chevron = chevron; return chevron; }
             }
 
             Thread.Sleep(Poll);
         }
 
-        Log.Write("o botão \"mostrar ícones ocultos\" não foi encontrado na barra do Windows");
+        // Com os nomes do que havia no lugar: é o que diz, num log que chega de outra máquina,
+        // se a seta não existe (o Windows a tira quando não há ícone oculto) ou se existe e
+        // não foi reconhecida.
+        Log.Write("o botão \"mostrar ícones ocultos\" não foi encontrado na barra do Windows " +
+                  $"em {relogio.ElapsedMilliseconds} ms; ícones de sistema vistos: " +
+                  (vistos.Count == 0 ? "nenhum"
+                                     : string.Join(" | ", vistos.Select(e => $"'{OneLine(e.Cached.Name)}'"))));
         return null;
     }
+
+    private static string OneLine(string text) =>
+        string.Join(' ', text.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
 
 
     /// <summary>A classe das janelas que hospedam os balões XAML do shell.</summary>

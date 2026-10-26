@@ -11,6 +11,10 @@
   tag que leva a nota junto. Escrito para quem usa a dock: o que mudou na tela, e não no código.
 -->
 
+## 1.0.0.57 — 26/10/2026
+- Bandeja no Windows em inglês (e em qualquer idioma): a dock passa a achar a seta "mostrar ícones ocultos" do Windows pelo desenho dela, e não pelo nome em português. Antes, num Windows em inglês, o cartão da bandeja ficava em "Lendo a bandeja…" e nenhum ícone aparecia.
+- Quando não dá para ler a bandeja, o cartão diz isso, em vez de ficar em "Lendo a bandeja…" para sempre. E a tentativa que falha desiste em 2 segundos, e não mais em 17 (a primeira depois de ligar a dock ainda espera até 10, porque a barra do Windows pode estar subindo).
+
 ## 1.0.0.56 — 23/10/2026
 - Ordem dos itens da barra: cada toque numa seta muda a barra. Antes, a seta podia trocar o item com um vizinho que não estava aparecendo (o relógio no centro, o brilho desligado, a música parada), e nada mudava na tela.
 - A lista mostra só os itens ligados em Itens da barra; o relógio no centro também sai, porque não fica nos cantos. Um item desligado guarda o lugar e volta ali ao ser religado. O que está ligado mas sem nada para mostrar agora aparece apagado.
