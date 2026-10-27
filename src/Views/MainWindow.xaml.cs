@@ -24,6 +24,10 @@ public partial class MainWindow : Window
     /// acontece em qualquer modo.</summary>
     private readonly ShellPopupGuard _shellPopups = new();
 
+    /// <summary>Traz a dock e a barra de volta quando o Win+D sobe a área de trabalho por cima
+    /// delas.</summary>
+    private DesktopRaiseGuard? _desktopRaise;
+
     private AppBar? _appBar;
     private DockModel? _model;
     private SettingsWindow? _settings;
@@ -164,6 +168,11 @@ public partial class MainWindow : Window
         // sozinha quando a janela deixa de ocupar a tela inteira
         _fullScreen.Changed += OnFullScreenChanged;
         _fullScreen.Start();
+
+        // Win+D: o Windows não minimiza a dock nem a barra, mas cobre com a área de trabalho
+        // a que estiver abaixo da barra do Windows na pilha
+        _desktopRaise = new DesktopRaiseGuard(() =>
+            [hWnd, _panel is null ? 0 : new WindowInteropHelper(_panel).Handle]);
 
         _config.PropertyChanged += OnConfigChanged;
 
@@ -1021,6 +1030,7 @@ public partial class MainWindow : Window
         _appBar?.Dispose();   // devolve a area de trabalho ao tamanho normal
         _taskbar.Dispose();   // e a barra do Windows ao estado em que estava
         _shellPopups.Dispose();
+        _desktopRaise?.Dispose();
         _fullScreen.Dispose();
 
         // o log fica com o arquivo aberto enquanto a dock vive; aqui ele solta o handle. Não há

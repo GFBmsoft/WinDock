@@ -535,6 +535,9 @@ internal static class Native
 
     public const uint GW_OWNER = 4;
 
+    /// <summary>A janela logo acima na ordem z — subindo por ela se chega a quem está por cima.</summary>
+    public const uint GW_HWNDPREV = 3;
+
     /// <summary>A janela de topo da arvore de uma janela — a mesma, se ela ja for de topo.</summary>
     public const uint GA_ROOT = 2;
 

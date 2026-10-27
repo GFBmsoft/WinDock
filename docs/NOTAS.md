@@ -11,6 +11,9 @@
   tag que leva a nota junto. Escrito para quem usa a dock: o que mudou na tela, e não no código.
 -->
 
+## 1.0.0.63 — 26/10/2026
+- Win+D (Mostrar área de trabalho): a barra de cima e a dock continuam na tela. Antes, a área de trabalho do Windows subia por cima da barra de cima, que sumia até as janelas voltarem.
+
 ## 1.0.0.62 — 26/10/2026
 - Teclado na barra: a sigla muda logo depois do clique. Antes ela podia ficar para trás da troca, e mais ainda logo depois de ligar a máquina, quando a dock está ocupada com tudo o que sobe junto.
 - Dois cliques seguidos na sigla voltam ao teclado de partida. Antes, o segundo clique pedia de novo o mesmo teclado do primeiro.
