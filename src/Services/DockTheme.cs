@@ -158,13 +158,21 @@ public sealed class DockTheme : INotifyPropertyChanged
         ? (_config.Centered ? VerticalAlignment.Center : VerticalAlignment.Top)
         : VerticalAlignment.Center;
 
-    /// <summary>Cor da pilula com a opacidade escolhida aplicada no alfa.</summary>
+    /// <summary>
+    /// Cor da pilula com a opacidade escolhida aplicada no alfa.
+    ///
+    /// <para><b>Nunca zero.</b> A dock é janela em camada, e nela o Windows manda o clique de
+    /// pixel com alfa zero para a janela de baixo. Com a opacidade em 0 só o desenho do ícone
+    /// segurava o clique: medido em 27/10/2026, 22 dos ~38 px de cada botão na linha do meio, e
+    /// nada na faixa da bolinha — o resto ia para a área de trabalho, e o clique "não pegava".
+    /// Um de 255 não se vê e segura a pílula inteira.</para>
+    /// </summary>
     public Brush PillBrush
     {
         get
         {
             var color = ParseColor(_config.Background);
-            color.A = (byte)Math.Round(_config.Opacity * 2.55);
+            color.A = (byte)Math.Max(1, Math.Round(_config.Opacity * 2.55));
             var brush = new SolidColorBrush(color);
             brush.Freeze();
             return brush;

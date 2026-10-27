@@ -17,6 +17,7 @@ public sealed class AppBar : IDisposable
     private readonly Window _window;
     private nint _hWnd;
     private uint _callbackMessage;
+    private uint _taskbarCreated;
     private bool _registered;
     private bool _reserving = true;
 
@@ -50,6 +51,18 @@ public sealed class AppBar : IDisposable
         _reserving = reserveSpace;
         _callbackMessage = RegisterWindowMessage("WinDockAppBarMessage");
 
+        // A dock roda como administrador e o explorer não: sem a licença, o aviso de que ele
+        // renasceu é descartado no caminho e a faixa nunca volta a ser pedida
+        _taskbarCreated = RegisterWindowMessage("TaskbarCreated");
+        ChangeWindowMessageFilterEx(_hWnd, _taskbarCreated, MSGFLT_ALLOW, 0);
+
+        New();
+        HwndSource.FromHwnd(_hWnd)?.AddHook(WndProc);
+        UpdatePosition();
+    }
+
+    private void New()
+    {
         var data = new APPBARDATA
         {
             cbSize = Marshal.SizeOf<APPBARDATA>(),
@@ -58,9 +71,6 @@ public sealed class AppBar : IDisposable
         };
         SHAppBarMessage(ABM_NEW, ref data);
         _registered = true;
-
-        HwndSource.FromHwnd(_hWnd)?.AddHook(WndProc);
-        UpdatePosition();
     }
 
     public void Resize(DockEdge edge, int thickness, bool reserveSpace)
@@ -142,6 +152,19 @@ public sealed class AppBar : IDisposable
 
     private nint WndProc(nint hwnd, int msg, nint wParam, nint lParam, ref bool handled)
     {
+        // O explorer caiu e voltou: o novo não sabe das AppBars do anterior, e a área de
+        // trabalho volta a incluir a faixa da dock — as janelas maximizadas passavam por baixo
+        // dela até a dock ser reaberta (27/10/2026, explorer reiniciado pelo Winlogon às 10:45).
+        // A barra de cima escapava só porque o TaskbarService segura o topo por conta própria.
+        if (msg == (int)_taskbarCreated && _registered)
+        {
+            Services.Log.Write($"o explorer reiniciou; a faixa de '{_window.Title}' ({Thickness} px) foi pedida de novo");
+            New();
+            UpdatePosition();
+            PositionChanged?.Invoke();
+            return 0;
+        }
+
         if (msg == (int)_callbackMessage && (uint)wParam == ABN_POSCHANGED)
         {
             UpdatePosition();

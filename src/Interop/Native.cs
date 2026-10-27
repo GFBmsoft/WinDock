@@ -298,6 +298,13 @@ internal static class Native
     [DllImport("user32.dll", CharSet = CharSet.Unicode)]
     public static extern uint RegisterWindowMessage(string message);
 
+    /// <summary>Deixa uma mensagem de processo comum chegar a esta janela, que roda como
+    /// administrador: sem isso o Windows a descarta no caminho (UIPI).</summary>
+    [DllImport("user32.dll", SetLastError = true)]
+    public static extern bool ChangeWindowMessageFilterEx(nint hWnd, uint message, uint action, nint filterStatus);
+
+    public const uint MSGFLT_ALLOW = 1;
+
     // ── instância única: a segunda avisa a primeira ──────────
     public const int ASFW_ANY = -1;
 
