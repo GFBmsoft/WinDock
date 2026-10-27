@@ -11,6 +11,10 @@
   tag que leva a nota junto. Escrito para quem usa a dock: o que mudou na tela, e não no código.
 -->
 
+## 1.0.0.65 — 27/10/2026
+- Barra de cima: o clique pega na coluna inteira de cada ícone, da borda de cima da tela até o fim da barra. Antes havia uma faixa morta acima e abaixo do ícone, e com a barra transparente só o desenho dele respondia.
+- Sem a mãozinha no cursor: a barra, os cartões, a dock e a prévia das janelas ficam na seta, como os ícones do Windows.
+
 ## 1.0.0.64 — 27/10/2026
 - Dock transparente: o clique pega em qualquer ponto do botão. Com a opacidade em 0, só o desenho do ícone respondia; a borda do botão e a faixa da bolinha deixavam o clique passar para a área de trabalho.
 - Quando o Windows reinicia o explorer, a dock e a barra de cima voltam a reservar a faixa delas. Antes, as janelas maximizadas passavam por baixo da dock até ela ser reaberta.

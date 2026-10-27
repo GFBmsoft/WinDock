@@ -19,7 +19,7 @@
       <Setter Property="Background" Value="Transparent" />
       <Setter Property="BorderThickness" Value="0" />
       <Setter Property="Padding" Value="0" />
-      <Setter Property="Cursor" Value="Hand" />
+      <!-- sem a mãozinha, como os ícones da barra do Windows (pedido de 27/10/2026) -->
       <Setter Property="Template">
         <Setter.Value>
           <ControlTemplate TargetType="Button">

@@ -18,7 +18,7 @@
   -->
 
   <Border x:Name="Face" Background="#F7242424" BorderBrush="#2EFFFFFF" BorderThickness="1" CornerRadius="10"
-          Padding="12,10" Margin="10" Cursor="Hand" MouseLeftButtonUp="OnOpen">
+          Padding="12,10" Margin="10" MouseLeftButtonUp="OnOpen">
     <Border.Effect>
       <DropShadowEffect BlurRadius="18" ShadowDepth="4" Opacity="0.45" Color="Black" />
     </Border.Effect>

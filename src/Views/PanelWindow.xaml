@@ -45,7 +45,6 @@
     <!-- a seta e os atalhos do rodapé dos cartões: só o realce ao passar o mouse, como os do
          rodapé da cota -->
     <Style x:Key="CardFooterButton" TargetType="Button">
-      <Setter Property="Cursor" Value="Hand" />
       <Setter Property="Padding" Value="8,3" />
       <Setter Property="Template">
         <Setter.Value>
@@ -69,7 +68,6 @@
          de 16). Enquanto o rádio muda de estado o botão fica desabilitado, e a opacidade é o que
          mostra isso. -->
     <Style x:Key="RadioSwitch" TargetType="Button">
-      <Setter Property="Cursor" Value="Hand" />
       <Setter Property="HorizontalAlignment" Value="Right" />
       <Setter Property="VerticalAlignment" Value="Center" />
       <Setter Property="Template">
@@ -129,16 +127,24 @@
       </Setter>
     </Style>
 
+    <!-- Sem a mãozinha, aqui e nos cartões: os ícones da barra do Windows e os painéis dele
+         ficam na seta (pedido de 27/10/2026). Os estilos derivados deste herdam. -->
     <Style x:Key="PanelButton" TargetType="Button">
-      <Setter Property="Cursor" Value="Hand" />
       <Setter Property="Foreground" Value="#FFE8E8EA" />
       <Setter Property="Template">
         <Setter.Value>
           <ControlTemplate TargetType="Button">
-            <Border x:Name="Bg" Background="Transparent" CornerRadius="6" Padding="9,2" Margin="1,0">
-              <ContentPresenter VerticalAlignment="Center" HorizontalAlignment="Center" />
-            </Border>
+            <Grid>
+              <!-- o alcance do clique na coluna inteira da barra; veja Ui/BarReach -->
+              <Rectangle x:Name="Alcance" Fill="#01000000" Margin="0,-60" Visibility="Collapsed" />
+              <Border x:Name="Bg" Background="Transparent" CornerRadius="6" Padding="9,2" Margin="1,0">
+                <ContentPresenter VerticalAlignment="Center" HorizontalAlignment="Center" />
+              </Border>
+            </Grid>
             <ControlTemplate.Triggers>
+              <Trigger Property="ui:BarReach.IsOn" Value="True">
+                <Setter TargetName="Alcance" Property="Visibility" Value="Visible" />
+              </Trigger>
               <!-- ícones compactos: metade do respiro, o mesmo desenho. A busca vai à janela, e
                    não ao DataContext do botão, porque os ícones da bandeja têm o item como
                    contexto -->
@@ -201,10 +207,16 @@
       <Setter Property="Template">
         <Setter.Value>
           <ControlTemplate TargetType="Button">
-            <Border x:Name="Bg" Background="Transparent" CornerRadius="6" Padding="6,2">
-              <ContentPresenter VerticalAlignment="Center" />
-            </Border>
+            <Grid>
+              <Rectangle x:Name="Alcance" Fill="#01000000" Margin="0,-60" Visibility="Collapsed" />
+              <Border x:Name="Bg" Background="Transparent" CornerRadius="6" Padding="6,2">
+                <ContentPresenter VerticalAlignment="Center" />
+              </Border>
+            </Grid>
             <ControlTemplate.Triggers>
+              <Trigger Property="ui:BarReach.IsOn" Value="True">
+                <Setter TargetName="Alcance" Property="Visibility" Value="Visible" />
+              </Trigger>
               <Trigger Property="IsMouseOver" Value="True">
                 <Setter TargetName="Bg" Property="Background" Value="#22FFFFFF" />
               </Trigger>
@@ -264,10 +276,16 @@
       <Setter Property="Template">
         <Setter.Value>
           <ControlTemplate TargetType="Button">
-            <Border x:Name="Bg" Background="Transparent" CornerRadius="5" Padding="4,3" Margin="1,0">
-              <ContentPresenter VerticalAlignment="Center" HorizontalAlignment="Center" />
-            </Border>
+            <Grid>
+              <Rectangle x:Name="Alcance" Fill="#01000000" Margin="0,-60" Visibility="Collapsed" />
+              <Border x:Name="Bg" Background="Transparent" CornerRadius="5" Padding="4,3" Margin="1,0">
+                <ContentPresenter VerticalAlignment="Center" HorizontalAlignment="Center" />
+              </Border>
+            </Grid>
             <ControlTemplate.Triggers>
+              <Trigger Property="ui:BarReach.IsOn" Value="True">
+                <Setter TargetName="Alcance" Property="Visibility" Value="Visible" />
+              </Trigger>
               <Trigger Property="IsMouseOver" Value="True">
                 <Setter TargetName="Bg" Property="Background" Value="#22FFFFFF" />
               </Trigger>
@@ -413,10 +431,12 @@
       <!-- Canto esquerdo (pedido de 02/10/2026 — era o único canto vazio da barra). Começa
            vazio no XAML: quem decide o que vem para cá é a ordem dos itens, que tem uma divisória
            entre os dois cantos (veja `ApplyPanelOrder`). De fábrica, a busca e os locais. -->
-      <StackPanel x:Name="LeftItems" Orientation="Horizontal" HorizontalAlignment="Left" />
+      <!-- o BarReach.IsOn das três filas é o que dá aos botões da barra o clique na coluna
+           inteira; os cartões não estão debaixo delas e ficam de fora -->
+      <StackPanel x:Name="LeftItems" Orientation="Horizontal" HorizontalAlignment="Left" ui:BarReach.IsOn="True" />
 
       <!-- relogio no meio, quando a opção estiver ligada — uma ilha só dele -->
-      <Border Style="{StaticResource Island}" HorizontalAlignment="Center"
+      <Border Style="{StaticResource Island}" HorizontalAlignment="Center" ui:BarReach.IsOn="True"
               Visibility="{Binding ClockCentered, Converter={StaticResource BoolToVisible}}">
       <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
         <Button x:Name="CenterDateButton" Style="{StaticResource ClockButton}" Click="OnCalendar"
@@ -443,7 +463,7 @@
            tem a altura do item mais alto — o texto de CPU e memória, 19 px nos compactos —, e 19
            num espaço de 22 sobra 1,5, que o arredondamento do layout leva para baixo. Cada
            ícone, com 16, cai em 3 inteiros. Medido na tela em 02/10/2026. -->
-      <StackPanel x:Name="RightItems" Orientation="Horizontal" HorizontalAlignment="Right">
+      <StackPanel x:Name="RightItems" Orientation="Horizontal" HorizontalAlignment="Right" ui:BarReach.IsOn="True">
 
         <!-- A busca e os locais nascem aqui, como todo item, e o ApplyPanelOrder os leva para o
              canto esquerdo — é a divisória da ordem, e não o XAML, que diz de que lado cada um
@@ -1330,7 +1350,7 @@
                        três linhas do texto — o resto fica na dica do mouse -->
                   <!-- o balão inteiro é clicável: leva ao app, ou à aba do site, que mandou -->
                   <DataTemplate>
-                    <Button Click="OnOpenNotification" Cursor="Hand" ToolTip="Abrir"
+                    <Button Click="OnOpenNotification" ToolTip="Abrir"
                             HorizontalContentAlignment="Stretch">
                       <Button.Template>
                         <ControlTemplate TargetType="Button">
@@ -1657,7 +1677,7 @@
             <!-- progresso: o trilho inteiro é clicável, e a conta de onde se clicou vira o
                  ponto da faixa (veja OnMediaSeek) -->
             <Border x:Name="MediaTrack" Height="4" CornerRadius="2" Background="#33FFFFFF"
-                    Margin="0,14,0,0" Cursor="Hand" MouseLeftButtonUp="OnMediaSeek">
+                    Margin="0,14,0,0" MouseLeftButtonUp="OnMediaSeek">
               <Rectangle x:Name="MediaFill" Fill="#FF4CC2FF" RadiusX="2" RadiusY="2"
                          HorizontalAlignment="Left" />
             </Border>
@@ -2189,7 +2209,7 @@
                 </ItemsControl.ItemsPanel>
                 <ItemsControl.ItemTemplate>
                   <DataTemplate>
-                    <Button Click="OnPowerPlan" Tag="{Binding Id}" Cursor="Hand" Margin="0,0,6,6"
+                    <Button Click="OnPowerPlan" Tag="{Binding Id}" Margin="0,0,6,6"
                             ToolTip="Usar este plano">
                       <Button.Template>
                         <ControlTemplate TargetType="Button">
@@ -2330,7 +2350,7 @@
                 <DataTemplate>
                   <!-- o dia inteiro é clicável: é assim que se escreve a anotação dele -->
                   <Border x:Name="Cell" Width="32" Height="30" CornerRadius="15" Background="Transparent"
-                          Cursor="Hand" MouseLeftButtonUp="OnCalendarDay"
+                          MouseLeftButtonUp="OnCalendarDay"
                           ToolTip="{Binding Tooltip}" ToolTipService.IsEnabled="{Binding HasTooltip}">
                     <Grid>
                       <TextBlock x:Name="Number" Text="{Binding Text}" FontSize="12"

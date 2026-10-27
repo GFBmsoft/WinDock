@@ -2688,6 +2688,14 @@ public sealed class PanelModel : INotifyPropertyChanged, IDisposable
         UpdateVolume();
     }
     // ── aparencia ───────────────────────────────────────────
+    /// <summary>
+    /// O fundo da barra, ou das ilhas, com a opacidade escolhida no alfa.
+    ///
+    /// <para><b>Nunca zero</b>, pelo mesmo motivo da <see cref="DockTheme.PillBrush"/>: a barra
+    /// é janela em camada, e com a opacidade em 0 o clique no vazio de dentro da ilha ia para a
+    /// janela de baixo. Um de 255 não se vê. O vão entre as ilhas continua deixando passar,
+    /// porque lá o fundo é nulo. A coluna de cada botão é outra conta: veja <c>Ui/BarReach</c>.</para>
+    /// </summary>
     public Brush PanelBrush
     {
         get
@@ -2696,7 +2704,7 @@ public sealed class PanelModel : INotifyPropertyChanged, IDisposable
             try { color = (Color)ColorConverter.ConvertFromString(_config.PanelBackground)!; }
             catch { color = Color.FromRgb(0x20, 0x21, 0x24); }
 
-            color.A = (byte)Math.Round(_config.PanelOpacity * 2.55);
+            color.A = (byte)Math.Max(1, Math.Round(_config.PanelOpacity * 2.55));
             var brush = new SolidColorBrush(color);
             brush.Freeze();
             return brush;

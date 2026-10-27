@@ -164,7 +164,6 @@
     <Style x:Key="ExpandButton" TargetType="Button">
       <Setter Property="Background" Value="Transparent" />
       <Setter Property="BorderThickness" Value="0" />
-      <Setter Property="Cursor" Value="Hand" />
       <Setter Property="Padding" Value="10,2" />
       <Setter Property="Template">
         <Setter.Value>
