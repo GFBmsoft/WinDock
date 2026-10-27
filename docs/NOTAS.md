@@ -11,6 +11,10 @@
   tag que leva a nota junto. Escrito para quem usa a dock: o que mudou na tela, e não no código.
 -->
 
+## 1.0.0.62 — 26/10/2026
+- Teclado na barra: a sigla muda logo depois do clique. Antes ela podia ficar para trás da troca, e mais ainda logo depois de ligar a máquina, quando a dock está ocupada com tudo o que sobe junto.
+- Dois cliques seguidos na sigla voltam ao teclado de partida. Antes, o segundo clique pedia de novo o mesmo teclado do primeiro.
+
 ## 1.0.0.61 — 26/10/2026
 - Dock: o Fotos aberto aparece com o ícone dele, e não mais com o desenho genérico de aplicativo do Windows. O mesmo vale para outros apps da Store cujo programa não traz ícone próprio.
 - Dock: as Opções da Internet ganham botão quando estão abertas, com o globo delas. Antes elas não apareciam na dock: o Windows as abre presas a uma janela invisível, e a dock deixava de fora toda janela presa a outra, mesmo a que pede botão na barra.

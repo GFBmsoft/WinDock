@@ -404,6 +404,20 @@ public sealed class PanelModel : INotifyPropertyChanged, IDisposable
     private KeyboardLayout? _keyboard;
     private DispatcherTimer? _keyboardTimer;
 
+    private static readonly TimeSpan KeyboardEvery = TimeSpan.FromMilliseconds(250);
+    private static readonly TimeSpan KeyboardAfterClick = TimeSpan.FromMilliseconds(20);
+    private const int KeyboardGiveUpMs = 2000;
+
+    /// <summary>
+    /// O teclado pedido no último clique, enquanto a janela não troca para ele — e quando, para
+    /// quem e com quantas leituras no meio, que é o que o log precisa para dizer de quem foi a
+    /// demora (veja <see cref="FollowAsked"/>).
+    /// </summary>
+    private KeyboardLayout? _keyboardAsked;
+    private readonly System.Diagnostics.Stopwatch _keyboardAskedAt = new();
+    private string _keyboardAskedOf = string.Empty;
+    private int _keyboardReads;
+
     /// <summary>
     /// Com um teclado só não há o que trocar nem dúvida sobre qual está valendo, e o item some —
     /// como o do pen-drive sem pen-drive.
@@ -435,6 +449,11 @@ public sealed class PanelModel : INotifyPropertyChanged, IDisposable
     /// poderia ficar um segundo inteiro no teclado velho, o tempo das primeiras letras. A
     /// leitura são três chamadas ao Windows, sem registro nem disco; a lista é relida só quando
     /// aparece um teclado que ela não conhece.
+    ///
+    /// <para><b>Na prioridade de entrada, e não na de fundo</b> como os outros relógios da dock.
+    /// Na de fundo a leitura entra na fila atrás da dock, do mosaico e dos ícones — e logo depois
+    /// de ligar a máquina, com todos eles ocupados, a sigla demorou a acompanhar o clique
+    /// (26/10/2026). Ler custa nada; ficar na frente deles também não.</para>
     /// </summary>
     private void WatchKeyboard()
     {
@@ -442,13 +461,46 @@ public sealed class PanelModel : INotifyPropertyChanged, IDisposable
         ReadKeyboard();
         OnChanged(nameof(HasKeyboard));
 
-        _keyboardTimer ??= new DispatcherTimer(DispatcherPriority.Background) { Interval = TimeSpan.FromMilliseconds(250) };
+        _keyboardTimer ??= new DispatcherTimer(DispatcherPriority.Input) { Interval = KeyboardEvery };
         _keyboardTimer.Tick -= OnKeyboardTick;
         _keyboardTimer.Tick += OnKeyboardTick;
         _keyboardTimer.Start();
     }
 
-    private void OnKeyboardTick(object? sender, EventArgs e) => ReadKeyboard();
+    private void OnKeyboardTick(object? sender, EventArgs e)
+    {
+        ReadKeyboard();
+        if (_keyboardAsked is not null) FollowAsked();
+    }
+
+    /// <summary>
+    /// Depois do clique a leitura é de 20 em 20 ms, até a janela trocar ou passarem dois
+    /// segundos, e aí volta ao quarto de segundo. A janela costuma trocar em 15 a 40 ms; no
+    /// relógio normal a sigla ficava até 250 ms para trás dela.
+    ///
+    /// Demora de mais de um segundo vai para o log com o número de leituras que couberam na
+    /// espera, porque é ele que diz de quem foi a demora: muitas, e foi a janela que custou a
+    /// trocar; poucas, e foi a dock que não teve vez de olhar.
+    /// </summary>
+    private void FollowAsked()
+    {
+        var pedido = _keyboardAsked!;
+        var esperou = _keyboardAskedAt.ElapsedMilliseconds;
+        var trocou = _keyboard is not null && KeyboardService.Same(_keyboard.Hkl, pedido.Hkl);
+        _keyboardReads++;
+
+        if (!trocou && esperou < KeyboardGiveUpMs) return;
+
+        if (!trocou)
+            Log.Write($"a janela em primeiro plano ({_keyboardAskedOf}) não passou para o teclado {pedido.Name} em {esperou} ms ({_keyboardReads} leituras)");
+        else if (esperou > 1000)
+            Log.Write($"o teclado {pedido.Name} levou {esperou} ms para valer em {_keyboardAskedOf} ({_keyboardReads} leituras)");
+        else
+            Log.Trace($"teclado {pedido.Name} valendo em {esperou} ms ({_keyboardReads} leituras), {_keyboardAskedOf}");
+
+        _keyboardAsked = null;
+        if (_keyboardTimer is not null) _keyboardTimer.Interval = KeyboardEvery;
+    }
 
     private void ReadKeyboard()
     {
@@ -469,18 +521,31 @@ public sealed class PanelModel : INotifyPropertyChanged, IDisposable
     }
 
     /// <summary>
-    /// O clique: o próximo teclado da lista, na janela em primeiro plano. A sigla muda no
-    /// próximo tique, quando a janela já trocou — e não aqui, de antemão: se ela recusar, a barra
-    /// continua dizendo a verdade.
+    /// O clique: o próximo teclado da lista, na janela em primeiro plano. A sigla muda quando a
+    /// janela já trocou — e não aqui, de antemão: se ela recusar, a barra continua dizendo a
+    /// verdade. Para isso não custar o quarto de segundo do relógio, a leitura acelera até a
+    /// troca aparecer (veja <see cref="FollowAsked"/>).
     /// </summary>
     public void NextKeyboard()
     {
         _keyboards = KeyboardService.List();   // um teclado tirado em Hora e idioma sai da roda já
         OnChanged(nameof(HasKeyboard));
 
-        if (KeyboardService.After(_keyboard?.Hkl ?? 0, _keyboards) is not { } proximo) return;
+        // um segundo clique antes de a janela trocar continua de onde o primeiro parou, e não do
+        // que a sigla ainda mostra: senão pediria o mesmo teclado duas vezes
+        var de = _keyboardAsked?.Hkl ?? _keyboard?.Hkl ?? 0;
+        if (KeyboardService.After(de, _keyboards) is not { } proximo) return;
         if (!KeyboardService.Activate(proximo.Hkl))
+        {
             Log.Write($"a janela em primeiro plano não aceitou o pedido de trocar para o teclado {proximo.Name}");
+            return;
+        }
+
+        _keyboardAsked = proximo;
+        _keyboardAskedOf = WindowService.ClassOf(GetForegroundWindow());
+        _keyboardReads = 0;
+        _keyboardAskedAt.Restart();
+        if (_keyboardTimer is not null) _keyboardTimer.Interval = KeyboardAfterClick;
     }
 
     // ── rede e sistema ──────────────────────────────────────
