@@ -11,6 +11,9 @@
   tag que leva a nota junto. Escrito para quem usa a dock: o que mudou na tela, e não no código.
 -->
 
+## 1.0.0.66 — 27/10/2026
+- Cartão do bluetooth: fones de ouvido conectados mostram a bateria, como o Windows mostra. Antes só os aparelhos de baixa energia, como teclado e mouse, traziam a porcentagem; o fone aparecia sem número. A dica do ícone na barra também passa a trazer a bateria do fone.
+
 ## 1.0.0.65 — 27/10/2026
 - Barra de cima: o clique pega na coluna inteira de cada ícone, da borda de cima da tela até o fim da barra. Antes havia uma faixa morta acima e abaixo do ícone, e com a barra transparente só o desenho dele respondia.
 - Sem a mãozinha no cursor: a barra, os cartões, a dock e a prévia das janelas ficam na seta, como os ícones do Windows.

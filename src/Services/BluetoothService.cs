@@ -101,6 +101,8 @@ public static class BluetoothService
         var set = SetupDiGetClassDevs(ref guid, null, 0, 0);
         if (set == nint.Zero || set == -1) return found;
 
+        Dictionary<string, int>? services = null;
+
         try
         {
             var info = new SP_DEVINFO_DATA { cbSize = Marshal.SizeOf<SP_DEVINFO_DATA>() };
@@ -119,9 +121,20 @@ public static class BluetoothService
 
                 if (string.IsNullOrWhiteSpace(name)) continue;
 
-                found.Add(new BluetoothDevice(name!.Trim(),
-                                              Connected(set, ref info),
-                                              Battery(set, ref info)));
+                var connected = Connected(set, ref info);
+                var battery = Battery(set, ref info);
+
+                // classico conectado sem bateria no aparelho: ela pode estar no servico de
+                // maos-livres dele. A lista dos servicos so e montada quando alguem precisa.
+                if (battery is null && connected &&
+                    id.StartsWith(@"BTHENUM\", StringComparison.OrdinalIgnoreCase) &&
+                    Text(set, ref info, DEVPKEY_Bluetooth_DeviceAddress) is { } address)
+                {
+                    services ??= ServiceBatteries();
+                    if (services.TryGetValue(address, out var b)) battery = b;
+                }
+
+                found.Add(new BluetoothDevice(name!.Trim(), connected, battery));
             }
         }
         finally { SetupDiDestroyDeviceInfoList(set); }
@@ -149,12 +162,60 @@ public static class BluetoothService
     /// <summary>
     /// Bateria de 0 a 100, ou <c>null</c> quando o aparelho nao informa.
     ///
-    /// A propriedade so existe para quem publica o servico de bateria — na pratica, os
-    /// aparelhos Bluetooth LE. Quando ela existe mas vale mais que 100 (o 255 que aparece
-    /// em aparelho classico) e um "nao sei", nao um valor.
+    /// No proprio aparelho a propriedade so existe para quem publica o servico de bateria —
+    /// na pratica, os Bluetooth LE; fone classico guarda a dele num servico, ver
+    /// <see cref="ServiceBatteries"/>. Quando ela existe mas vale mais que 100 (o 255 que
+    /// aparece em aparelho classico) e um "nao sei", nao um valor.
     /// </summary>
     private static int? Battery(nint set, ref SP_DEVINFO_DATA info) =>
         Byte(set, ref info, DEVPKEY_Bluetooth_Battery) is { } b && b <= 100 ? b : null;
+
+    /// <summary>
+    /// Bateria dos aparelhos classicos, pelo endereco de cada um.
+    ///
+    /// Fone classico informa a bateria pelo perfil de maos-livres, e o Windows guarda o
+    /// numero no servico <b>Hands-Free AG</b> daquele aparelho
+    /// (<c>BTHENUM\{0000111E-...}_..._&lt;endereco&gt;_...</c>), nao no aparelho em si. Esse
+    /// servico nem e da classe Bluetooth (vem como "Sistema"), por isso a busca aqui e por
+    /// tudo que o enumerador <c>BTHENUM</c> criou. Conferido nesta maquina: o JBL Tune 720BT
+    /// conectado devolve 70% no Hands-Free AG e nada no <c>BTHENUM\DEV_</c>.
+    ///
+    /// So vale para aparelho conectado: o servico continua montado um tempo depois que o
+    /// fone desliga, e o numero que ficou nele e o da ultima conversa.
+    /// </summary>
+    private static Dictionary<string, int> ServiceBatteries()
+    {
+        var found = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+
+        var set = SetupDiGetClassDevs(0, "BTHENUM", 0, DIGCF_PRESENT | DIGCF_ALLCLASSES);
+        if (set == nint.Zero || set == -1) return found;
+
+        try
+        {
+            var info = new SP_DEVINFO_DATA { cbSize = Marshal.SizeOf<SP_DEVINFO_DATA>() };
+            for (uint i = 0; SetupDiEnumDeviceInfo(set, i, ref info); i++)
+            {
+                if (Battery(set, ref info) is not { } battery) continue;
+                if (Text(set, ref info, DEVPKEY_Bluetooth_DeviceAddress) is not { } address) continue;
+
+                found.TryAdd(address, battery);
+            }
+        }
+        finally { SetupDiDestroyDeviceInfoList(set); }
+
+        return found;
+    }
+
+    private static string? Text(nint set, ref SP_DEVINFO_DATA info, DEVPROPKEY key)
+    {
+        var buffer = new byte[256];
+        if (!SetupDiGetDeviceProperty(set, ref info, ref key, out var type, buffer, buffer.Length, out var size, 0) ||
+            type != DEVPROP_TYPE_STRING)
+            return null;
+
+        var text = Encoding.Unicode.GetString(buffer, 0, (int)Math.Min(size, buffer.Length)).TrimEnd('\0');
+        return string.IsNullOrWhiteSpace(text) ? null : text;
+    }
 
     private static byte? Byte(nint set, ref SP_DEVINFO_DATA info, DEVPROPKEY key)
     {
@@ -187,6 +248,15 @@ public static class BluetoothService
     private const uint SPDRP_DEVICEDESC = 0x00;
     private const uint SPDRP_FRIENDLYNAME = 0x0C;
 
+    private const uint DIGCF_PRESENT = 0x02;
+    private const uint DIGCF_ALLCLASSES = 0x04;
+
+    private const uint DEVPROP_TYPE_STRING = 0x12;
+
+    /// <summary>Endereco do aparelho, o mesmo no aparelho e nos servicos dele (texto, "84D352AB7ED7").</summary>
+    private static readonly DEVPROPKEY DEVPKEY_Bluetooth_DeviceAddress =
+        new() { fmtid = new Guid("2bd67d8b-8beb-48d5-87e0-6cda3428040a"), pid = 1 };
+
     /// <summary>Bateria do aparelho, 0 a 100 (<c>DEVPROP_TYPE_BYTE</c>).</summary>
     private static readonly DEVPROPKEY DEVPKEY_Bluetooth_Battery =
         new() { fmtid = new Guid("104ea319-6ee2-4701-bd47-8ddbf425bbe5"), pid = 2 };
@@ -209,6 +279,10 @@ public static class BluetoothService
 
     [DllImport("setupapi.dll", CharSet = CharSet.Unicode, SetLastError = true)]
     private static extern nint SetupDiGetClassDevs(ref Guid classGuid, string? enumerator, nint parent, uint flags);
+
+    /// <summary>Sem classe: junto com <c>DIGCF_ALLCLASSES</c>, tudo de um enumerador.</summary>
+    [DllImport("setupapi.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    private static extern nint SetupDiGetClassDevs(nint classGuid, string? enumerator, nint parent, uint flags);
 
     [DllImport("setupapi.dll", SetLastError = true)]
     private static extern bool SetupDiEnumDeviceInfo(nint set, uint index, ref SP_DEVINFO_DATA info);
