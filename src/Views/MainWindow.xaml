@@ -23,8 +23,11 @@
       <Setter Property="Template">
         <Setter.Value>
           <ControlTemplate TargetType="Button">
-            <Border x:Name="Bg" Background="Transparent" CornerRadius="6" Margin="1">
-              <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+            <!-- o conteúdo ocupa o realce inteiro: a bolinha encosta na borda dele e o ícone
+                 se centra sozinho, sem a faixa dela empurrar o ícone para cima -->
+            <Border x:Name="Bg" Background="Transparent" CornerRadius="6"
+                    Margin="{Binding DataContext.Theme.HoverMargin, RelativeSource={RelativeSource AncestorType=Window}}">
+              <ContentPresenter />
             </Border>
             <ControlTemplate.Triggers>
               <Trigger Property="IsMouseOver" Value="True">
@@ -105,17 +108,17 @@
               -->
 
               <!--
-                O DockPanel da a faixa das bolinhas primeiro e deixa o resto para o icone:
-                assim elas ficam embaixo dele (ou ao lado, em dock lateral) em vez de por
-                cima do desenho do app.
+                A faixa das bolinhas e o ícone dividem o mesmo quadrado: ela encostada na
+                borda do lado da tela, ele no centro. Empilhados, como foram até 28/10/2026, o
+                bloco é que ficava no centro, e o ícone sobrava 4 px em cima e 11 embaixo do
+                realce (EV04). O ícone só sai do centro quando a margem dele não cabe a bolinha.
               -->
-              <DockPanel>
+              <Grid>
 
               <!-- uma bolinha por janela aberta, do lado da borda da tela -->
               <ItemsControl ItemsSource="{Binding Indicators}"
                             Width="{Binding DataContext.Theme.IndicatorLaneWidth, RelativeSource={RelativeSource AncestorType=Window}}"
                             Height="{Binding DataContext.Theme.IndicatorLaneHeight, RelativeSource={RelativeSource AncestorType=Window}}"
-                            DockPanel.Dock="{Binding DataContext.Theme.IndicatorDock, RelativeSource={RelativeSource AncestorType=Window}}"
                             VerticalAlignment="{Binding DataContext.Theme.IndicatorVertical, RelativeSource={RelativeSource AncestorType=Window}}"
                             HorizontalAlignment="{Binding DataContext.Theme.IndicatorHorizontal, RelativeSource={RelativeSource AncestorType=Window}}">
                 <ItemsControl.ItemsPanel>
@@ -152,8 +155,9 @@
                 </ItemsControl.ItemTemplate>
               </ItemsControl>
 
-                <!-- o que sobra da faixa e do icone; a foto do perfil vai no canto dele -->
-                <Grid>
+                <!-- o ícone, do tamanho dele, para a foto do perfil cair no canto do desenho -->
+                <Grid HorizontalAlignment="Center" VerticalAlignment="Center"
+                      Margin="{Binding DataContext.Theme.IconShift, RelativeSource={RelativeSource AncestorType=Window}}">
                   <Image Source="{Binding Icon}"
                          Width="{Binding DataContext.Theme.IconSize, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
                          Height="{Binding DataContext.Theme.IconSize, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
@@ -169,7 +173,7 @@
                   </Border>
                 </Grid>
 
-              </DockPanel>
+              </Grid>
             </Grid>
           </Button>
          </StackPanel>

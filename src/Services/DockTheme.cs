@@ -42,6 +42,39 @@ public sealed class DockTheme : INotifyPropertyChanged
         ? _config.IconSize
         : Math.Max(8, ButtonSize - _config.IconPadding * 2 - Math.Max(0, IndicatorLane - _config.IconPadding));
     public Thickness IconMargin => new(_config.IconPadding);
+
+    /// <summary>
+    /// Folga do realce do mouse dentro do botão: 1 px, e mais 1 à direita e embaixo quando a
+    /// sobra em volta do ícone é ímpar. 37 − 22 = 15 não se divide em duas margens iguais, e o
+    /// arredondamento dava 8 de um lado e 7 do outro (EV04); com o realce 1 px menor sai 7 e 7.
+    /// </summary>
+    public Thickness HoverMargin => new(1, 1, 1 + HoverOdd, 1 + HoverOdd);
+
+    private int HoverOdd => (int)Math.Round(ButtonSize - 2 - IconSize) % 2 != 0 ? 1 : 0;
+
+    private double HoverSide => ButtonSize - 2 - HoverOdd;
+
+    /// <summary>
+    /// Desvio do ícone para longe da bolinha, só quando a margem dele no centro do realce não
+    /// cabe a faixa dela — ícone grande escolhido à mão, ou dock fina. A margem posta do lado
+    /// da bolinha tira o centro do lugar pela metade dela; nunca a ponto de cortar o ícone do
+    /// outro lado.
+    /// </summary>
+    public Thickness IconShift
+    {
+        get
+        {
+            var push = Math.Clamp(2 * IndicatorLane - HoverSide + IconSize, 0, Math.Max(0, HoverSide - IconSize));
+            return _config.Edge switch
+            {
+                DockEdge.Top   => new Thickness(0, push, 0, 0),
+                DockEdge.Left  => new Thickness(push, 0, 0, 0),
+                DockEdge.Right => new Thickness(0, 0, push, 0),
+                _              => new Thickness(0, 0, 0, push)
+            };
+        }
+    }
+
     public CornerRadius PillCorner => new(_config.CornerRadius);
     public Thickness PillPadding => new(_config.PillPadding);
 
@@ -61,15 +94,6 @@ public sealed class DockTheme : INotifyPropertyChanged
     /// <summary>Tracos em fila: perpendicular a fila dos icones.</summary>
     public Orientation IndicatorOrientation => Vertical ? Orientation.Vertical : Orientation.Horizontal;
 
-    /// <summary>Lado do botao onde a faixa dos tracos fica encostada.</summary>
-    public Dock IndicatorDock => _config.Edge switch
-    {
-        DockEdge.Top   => Dock.Top,
-        DockEdge.Left  => Dock.Left,
-        DockEdge.Right => Dock.Right,
-        _              => Dock.Bottom
-    };
-
     /// <summary>
     /// Diametro da bolinha: 4 px numa dock de 40, e cresce com ela. Redonda nos dois estados —
     /// so a cor diz quem esta em foco.
@@ -82,9 +106,8 @@ public sealed class DockTheme : INotifyPropertyChanged
     public double IndicatorLane => IndicatorThickness + 3;
 
     /// <summary>
-    /// A faixa tem tamanho fixo, com ou sem bolinha dentro. Vazia, ela media zero, e o icone
-    /// de um app fechado se centrava na altura inteira do botao — ficava uns pixels mais
-    /// perto da borda que o vizinho aberto, e a fila saia torta.
+    /// A faixa tem tamanho fixo, com ou sem bolinha dentro, e a bolinha fica no meio dela: a
+    /// 1,5 px da borda do realce e do ícone. Encolhida até a bolinha, ela a grudaria na borda.
     /// </summary>
     public double IndicatorLaneWidth  => Vertical ? IndicatorLane : double.NaN;
     public double IndicatorLaneHeight => Vertical ? double.NaN : IndicatorLane;
@@ -193,12 +216,13 @@ public sealed class DockTheme : INotifyPropertyChanged
         foreach (var name in new[]
                  {
                      nameof(ButtonSize), nameof(IconSize), nameof(IconMargin), nameof(PillCorner),
+                     nameof(HoverMargin), nameof(IconShift),
                      nameof(PillPadding), nameof(PillMargin), nameof(Orientation),
                      nameof(PillHorizontal), nameof(PillVertical), nameof(PillBrush),
                      nameof(IndicatorOrientation), nameof(IndicatorHorizontal),
                      nameof(IndicatorVertical), nameof(IndicatorThickness),
                      nameof(IndicatorCorner), nameof(IndicatorSpacing),
-                     nameof(IndicatorDock), nameof(IndicatorLane),
+                     nameof(IndicatorLane),
                      nameof(IndicatorLaneWidth), nameof(IndicatorLaneHeight),
                      nameof(IndicatorBrush), nameof(IndicatorDimBrush),
                      nameof(DividerWidth), nameof(DividerHeight),

@@ -11,6 +11,9 @@
   tag que leva a nota junto. Escrito para quem usa a dock: o que mudou na tela, e não no código.
 -->
 
+## 1.0.0.67 — 28/10/2026
+- Dock: o ícone fica no centro do realce que aparece ao passar o mouse, com a mesma folga nos quatro lados. Antes ele ficava mais perto da borda de cima, e sobrava bem mais espaço embaixo, onde ficam as bolinhas das janelas abertas.
+
 ## 1.0.0.66 — 27/10/2026
 - Cartão do bluetooth: fones de ouvido conectados mostram a bateria, como o Windows mostra. Antes só os aparelhos de baixa energia, como teclado e mouse, traziam a porcentagem; o fone aparecia sem número. A dica do ícone na barra também passa a trazer a bateria do fone.
 
