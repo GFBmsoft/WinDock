@@ -267,13 +267,18 @@ public static class IconService
         BitmapSource? result = null;
         try
         {
-            // Um indice diferente de zero so pode ser resolvido por ExtractIconEx. E o executavel
-            // que nao termina em .exe tambem: o shell escolhe o icone pela extensao, e so no .exe
-            // abre o arquivo para ler o desenho gravado dentro. O instalador do Inno Setup roda
-            // como .tmp e aparecia na dock com a folha em branco do "Arquivo TMP" (21/10/2026).
-            // O que nao e executavel nao tem icone dentro: devolve nada e segue para o shell.
-            if ((iconIndex != 0 || !exePath.EndsWith(".exe", StringComparison.OrdinalIgnoreCase)) &&
-                File.Exists(exePath))
+            // O desenho gravado no arquivo vem primeiro, lido direto dele (ExtractIconEx), e o
+            // shell fica de reserva. Tres motivos:
+            // - indice diferente de zero so e resolvido por ExtractIconEx;
+            // - executavel que nao termina em .exe: o shell escolhe o icone pela extensao. O
+            //   instalador do Inno Setup roda como .tmp e aparecia na dock com a folha em branco
+            //   do "Arquivo TMP" (21/10/2026);
+            // - o shell guarda os icones num cache por caminho. Um programa republicado no mesmo
+            //   lugar (o GRemote, 29/10/2026) seguia com o desenho antigo: a dock relia ao ver a
+            //   data nova do arquivo, o shell ainda entregava o velho, e ele ficava guardado com a
+            //   data nova ate a dock reiniciar.
+            // O que nao tem icone dentro devolve nada e segue para o shell.
+            if (File.Exists(exePath))
                 result = FromExtract(exePath, iconIndex);
 
             result ??= FromShell(exePath, 0);
