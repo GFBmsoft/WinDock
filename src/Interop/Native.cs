@@ -494,6 +494,10 @@ internal static class Native
     [DllImport("shell32.dll", CharSet = CharSet.Unicode, EntryPoint = "ExtractIconExW")]
     public static extern uint ExtractIconCount(string file, int index, nint large, nint small, uint count);
 
+    [DllImport("shell32.dll", CharSet = CharSet.Unicode)]
+    public static extern int SHGetKnownFolderPath(ref Guid id, uint flags, nint token,
+                                                  [MarshalAs(UnmanagedType.LPWStr)] out string path);
+
     [DllImport("user32.dll", CharSet = CharSet.Unicode)]
     public static extern nint SendMessageTimeout(nint hWnd, uint msg, nint wParam, nint lParam,
                                                  uint flags, uint timeout, out nint result);

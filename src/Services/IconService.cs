@@ -95,14 +95,8 @@ public static class IconService
             if (icone == 0) icone = GetClassLongPtr(w, GCLP_HICONSM);
             if (icone == 0) continue;
 
-            try
-            {
-                var result = Imaging.CreateBitmapSourceFromHIcon(icone, Int32Rect.Empty,
-                                                                 BitmapSizeOptions.FromEmptyOptions());
-                result.Freeze();
-                return result;
-            }
-            catch { /* a janela trocou de ícone no meio da leitura: tenta o dono */ }
+            // sem imagem, a janela trocou de ícone no meio da leitura: tenta o dono
+            if (ToBitmap(icone) is { } result) return result;
         }
 
         return null;
@@ -242,61 +236,87 @@ public static class IconService
         catch { return 0; }
     }
 
+    /// <summary>
+    /// O arquivo de onde saiu o ícone guardado sob esta chave mudou depois da leitura? Só olha
+    /// datas, sem abrir nada. As chaves do <see cref="Ico"/> e do <see cref="Shell"/> não são
+    /// caminhos de arquivo: guardam 0 na primeira data, e essa comparação passa direto.
+    /// </summary>
+    private static bool Changed(string key) =>
+        Origens.TryGetValue(key, out var origem) &&
+        (origem.Caminho != Carimbo(key) || origem.DoAlvo != Carimbo(origem.Alvo));
+
+    /// <summary>
+    /// O ícone deste botão veio de um arquivo que mudou depois? É a pergunta de quem fica na dock
+    /// a sessão inteira: o <see cref="For"/> relê, mas só quando é chamado, e um botão fixado só o
+    /// chama ao nascer. AppUserModelID puro fica de fora: não há arquivo por trás para conferir.
+    /// </summary>
+    public static bool IsStale(string id, string launchPath) =>
+        Changed(launchPath) ||
+        (ChromeProfiles.ByAumid(id) is { IconPath.Length: > 0 } perfil && Changed($"ico::{perfil.IconPath}"));
+
     public static BitmapSource? For(string path)
     {
         if (string.IsNullOrEmpty(path)) return null;
-        if (Cache.TryGetValue(path, out var cached) && Origens.TryGetValue(path, out var origem) &&
-            origem.Caminho == Carimbo(path) && origem.DoAlvo == Carimbo(origem.Alvo)) return cached;
+        if (Cache.TryGetValue(path, out var cached) && Origens.ContainsKey(path) && !Changed(path)) return cached;
+
+        // As datas vêm antes da leitura, como no Ico: um arquivo trocado no meio dela fica com a
+        // data velha e é relido da próxima vez, em vez de guardar o desenho antigo com a data nova.
+        var carimbo = Carimbo(path);
 
         // Num .lnk o shell devolve o icone com a setinha de atalho colada. Numa dock isso
         // fica ruim, entao o icone vem do que o atalho aponta: o .ico proprio quando ele
         // define um (e o caso do atalho de perfil do Chrome), senao o executavel alvo.
         var exePath = path;
         var iconIndex = 0;
+        var alvo = string.Empty;   // so de atalho com icone proprio: a reserva, se esse nao vier
         if (path.EndsWith(".lnk", StringComparison.OrdinalIgnoreCase))
         {
             var lnk = ShortcutService.Read(path);
             if (lnk is not null)
             {
-                exePath = !string.IsNullOrWhiteSpace(lnk.IconPath) && File.Exists(lnk.IconPath)
-                          ? lnk.IconPath : lnk.Target;
-                iconIndex = lnk.IconIndex;
+                exePath = lnk.Target;
+                if (!string.IsNullOrWhiteSpace(lnk.IconPath) && File.Exists(lnk.IconPath))
+                    (exePath, iconIndex, alvo) = (lnk.IconPath, lnk.IconIndex, lnk.Target);
             }
         }
 
+        var doAlvo = Carimbo(exePath);
+
+        // O desenho gravado no arquivo vem primeiro, lido direto dele (ExtractIconEx), e o
+        // shell fica de reserva. Tres motivos:
+        // - indice diferente de zero so e resolvido por ExtractIconEx;
+        // - executavel que nao termina em .exe: o shell escolhe o icone pela extensao. O
+        //   instalador do Inno Setup roda como .tmp e aparecia na dock com a folha em branco
+        //   do "Arquivo TMP" (21/10/2026);
+        // - o shell guarda os icones num cache por caminho. Um programa republicado no mesmo
+        //   lugar (o GRemote, 29/10/2026) seguia com o desenho antigo: a dock relia ao ver a
+        //   data nova do arquivo, o shell ainda entregava o velho, e ele ficava guardado com a
+        //   data nova ate a dock reiniciar.
+        // O que nao tem icone dentro devolve nada e segue para o shell.
         BitmapSource? result = null;
-        try
+        if (doAlvo != 0)
+            result = FromExtract(exePath, iconIndex);
+
+        // O desenho que o atalho define nao veio (o do iSCSI e iscsicpl.dll,-1): o alvo e melhor
+        // reserva que o shell, que responderia a folha de "arquivo DLL". O indice nao vai junto:
+        // ele e do outro arquivo, e aqui apontaria para um desenho qualquer.
+        if (result is null && alvo.Length > 0)
         {
-            // O desenho gravado no arquivo vem primeiro, lido direto dele (ExtractIconEx), e o
-            // shell fica de reserva. Tres motivos:
-            // - indice diferente de zero so e resolvido por ExtractIconEx;
-            // - executavel que nao termina em .exe: o shell escolhe o icone pela extensao. O
-            //   instalador do Inno Setup roda como .tmp e aparecia na dock com a folha em branco
-            //   do "Arquivo TMP" (21/10/2026);
-            // - o shell guarda os icones num cache por caminho. Um programa republicado no mesmo
-            //   lugar (o GRemote, 29/10/2026) seguia com o desenho antigo: a dock relia ao ver a
-            //   data nova do arquivo, o shell ainda entregava o velho, e ele ficava guardado com a
-            //   data nova ate a dock reiniciar.
-            // O que nao tem icone dentro devolve nada e segue para o shell.
-            if (File.Exists(exePath))
-                result = FromExtract(exePath, iconIndex);
-
-            result ??= FromShell(exePath, 0);
-
-            if (result is null && File.Exists(exePath))
-                result = FromExtract(exePath, 0);
-
-            // O arquivo sumiu (desinstalado, ou mudou de pasta): sem nada para ler, o botao
-            // fixado ficava sem desenho nenhum — um vao na dock que nem parecia botao, e que
-            // por isso nao se achava para desafixar. Pelo tipo, sem abrir o arquivo, o shell
-            // ainda da o icone generico.
-            if (result is null && exePath.Length > 0)
-                result = FromShell(exePath, SHGFI_USEFILEATTRIBUTES);
+            (exePath, doAlvo) = (alvo, Carimbo(alvo));
+            if (doAlvo != 0) result = FromExtract(exePath, 0);
         }
-        catch { result = null; }
+
+        result ??= FromShell(exePath, 0);
+
+        // O arquivo sumiu (desinstalado, ou mudou de pasta): sem nada para ler, o botao
+        // fixado ficava sem desenho nenhum — um vao na dock que nem parecia botao, e que
+        // por isso nao se achava para desafixar. Pelo tipo, sem abrir o arquivo, o shell
+        // ainda da o icone generico.
+        if (result is null && exePath.Length > 0)
+            result = FromShell(exePath, SHGFI_USEFILEATTRIBUTES);
 
         Cache[path] = result;
-        Origens[path] = (exePath, Carimbo(path), Carimbo(exePath));
+        Origens[path] = (exePath, carimbo, doAlvo);
         return result;
     }
 
@@ -309,9 +329,7 @@ public static class IconService
                               SHGFI_ICON | SHGFI_LARGEICON | flags);
         if (h == 0 || info.hIcon == 0) return null;
 
-        var result = Imaging.CreateBitmapSourceFromHIcon(info.hIcon, Int32Rect.Empty,
-                                                         BitmapSizeOptions.FromEmptyOptions());
-        result.Freeze();
+        var result = ToBitmap(info.hIcon);
         DestroyIcon(info.hIcon);
         return result;
     }
@@ -320,17 +338,27 @@ public static class IconService
     {
         if (ExtractIconEx(file, index, out var large, out var small, 1) == 0) return null;
 
-        BitmapSource? result = null;
         var handle = large != 0 ? large : small;
-        if (handle != 0)
-        {
-            result = Imaging.CreateBitmapSourceFromHIcon(handle, Int32Rect.Empty,
-                                                         BitmapSizeOptions.FromEmptyOptions());
-            result.Freeze();
-        }
+        var result = handle != 0 ? ToBitmap(handle) : null;
         if (large != 0) DestroyIcon(large);
         if (small != 0) DestroyIcon(small);
         return result;
+    }
+
+    /// <summary>
+    /// A imagem de um HICON, ou nada se a conversão falhar. Não deixa a exceção subir: quem chama
+    /// ainda tem o handle para destruir e, no <see cref="For"/>, outras fontes para tentar.
+    /// </summary>
+    private static BitmapSource? ToBitmap(nint hIcon)
+    {
+        try
+        {
+            var result = Imaging.CreateBitmapSourceFromHIcon(hIcon, Int32Rect.Empty,
+                                                             BitmapSizeOptions.FromEmptyOptions());
+            result.Freeze();
+            return result;
+        }
+        catch { return null; }
     }
 
     /// <summary>
@@ -345,6 +373,9 @@ public static class IconService
 
         var key = $"shell::{size}::{parsingName}";
         if (Cache.TryGetValue(key, out var cached)) return cached;
+
+        var arquivo = FileBehind(parsingName);
+        var carimbo = Carimbo(arquivo);
 
         BitmapSource? result = null;
         nint bitmap = 0;
@@ -377,7 +408,63 @@ public static class IconService
         }
 
         Cache[key] = result;
+        if (arquivo.Length > 0) Origens[key] = (arquivo, 0, carimbo);
         return result;
+    }
+
+    /// <summary>
+    /// O arquivo por trás de um nome do shell, ou vazio quando não há um (AppUserModelID, a
+    /// Lixeira). A pasta de aplicativos dá os programas comuns pelo caminho, inteiro ou com a pasta
+    /// conhecida na frente: <c>{1AC14E77-…}\cmd.exe</c>.
+    /// </summary>
+    private static string FileBehind(string parsingName)
+    {
+        const string pasta = @"shell:AppsFolder\";
+        var nome = parsingName.StartsWith(pasta, StringComparison.OrdinalIgnoreCase)
+                   ? parsingName[pasta.Length..] : parsingName;
+
+        if (nome.Length > 38 && nome[38] == '\\' && Guid.TryParse(nome[..38], out var conhecida) &&
+            SHGetKnownFolderPath(ref conhecida, 0, 0, out var raiz) == 0)
+            nome = raiz + nome[38..];
+
+        return Path.IsPathFullyQualified(nome) ? nome : string.Empty;
+    }
+
+    /// <summary>
+    /// Troca os ícones do <see cref="Shell"/> cujo arquivo mudou depois da leitura. Roda ao abrir a
+    /// busca, numa thread própria, e não a cada consulta ao cache: a busca chama o Shell uma vez por
+    /// resultado, a cada tecla, e uma data de arquivo num disco de rede fora do ar ou num HD
+    /// parado seguraria a digitação por segundos.
+    ///
+    /// O desenho novo vem do arquivo, pelo For: perguntar de novo ao shell não adianta. Ele guarda
+    /// os ícones por caminho enquanto o processo vive (medido em 30/10/2026: exe trocado no lugar,
+    /// o shell seguia no desenho antigo depois de 1,5 s e de um SHChangeNotify, e um processo
+    /// novo já via o certo). Arquivo sem ícone próprio fica como estava, com a data em dia.
+    /// </summary>
+    public static void RefreshShell()
+    {
+        var thread = new Thread(() =>
+        {
+            try
+            {
+                foreach (var (chave, origem) in Origens)
+                {
+                    if (!chave.StartsWith("shell::", StringComparison.Ordinal) || !Changed(chave)) continue;
+
+                    var carimbo = Carimbo(origem.Alvo);
+                    if (HasOwnIcon(origem.Alvo) && For(origem.Alvo) is { } relido) Cache[chave] = relido;
+                    Origens[chave] = (origem.Alvo, 0, carimbo);
+                }
+            }
+            catch { /* nada aqui e essencial: o icone antigo continua valendo */ }
+        })
+        {
+            IsBackground = true,
+            Priority = ThreadPriority.BelowNormal
+        };
+
+        thread.SetApartmentState(ApartmentState.STA);   // o .lnk passa pelo COM do shell
+        thread.Start();
     }
 
     /// <summary>
@@ -412,7 +499,7 @@ public static class IconService
         var key = $"ico::{path}";
         var carimbo = Carimbo(path);
         if (Cache.TryGetValue(key, out var cached) && Origens.TryGetValue(key, out var origem) &&
-            origem.Caminho == carimbo) return cached;
+            origem.DoAlvo == carimbo) return cached;
 
         BitmapSource? result = null;
         try
@@ -429,7 +516,7 @@ public static class IconService
         catch { result = null; }
 
         Cache[key] = result;
-        Origens[key] = (path, carimbo, carimbo);
+        Origens[key] = (path, 0, carimbo);
         return result;
     }
 

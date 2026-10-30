@@ -416,9 +416,10 @@ public sealed class DockModel : IDisposable
     /// absorvido.
     ///
     /// Roda com a dock aberta, e não só na subida: o Discord se atualiza sozinho ao abrir, e a
-    /// dock já estava de pé havia horas. A conferência custa um <c>File.Exists</c> por fixado, mas
-    /// o <see cref="Refresh"/> chega a rodar várias vezes por segundo, então ela passa no máximo a
-    /// cada <see cref="PinCheckInterval"/>. Só toca no que está quebrado.
+    /// dock já estava de pé havia horas. A conferência custa um <c>File.Exists</c> por fixado, mais
+    /// as datas do arquivo do ícone, mas o <see cref="Refresh"/> chega a rodar várias vezes por
+    /// segundo, então ela passa no máximo a cada <see cref="PinCheckInterval"/>. Só toca no que está
+    /// quebrado, ou no ícone do que foi republicado no mesmo caminho.
     /// </summary>
     private void RepairStalePins()
     {
@@ -451,7 +452,12 @@ public sealed class DockModel : IDisposable
             }
 
             if (!PackagedApps.TryRepair(item.LaunchPath, out var atual) &&
-                !SquirrelApps.TryRepair(item.LaunchPath, out atual)) continue;
+                !SquirrelApps.TryRepair(item.LaunchPath, out atual))
+            {
+                // o alvo continua de pé, mas pode ter sido republicado no mesmo caminho
+                item.RefreshIcon();
+                continue;
+            }
 
             Log.Write($"fixado '{item.Label}': o app mudou de versão — {item.LaunchPath} → {atual}");
 

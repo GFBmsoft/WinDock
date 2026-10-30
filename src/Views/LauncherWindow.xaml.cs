@@ -45,6 +45,7 @@ public partial class LauncherWindow : Window
     public void Open(Point? below = null)
     {
         ApplyLook(compacta: below is not null);
+        IconService.RefreshShell();
 
         Query.Text = string.Empty;
         Refresh();

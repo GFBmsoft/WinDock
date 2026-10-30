@@ -161,9 +161,24 @@ public static class ShortcutService
                        ? info.szDisplayName ?? string.Empty
                        : string.Empty;
 
-            return new Shortcut(lnkPath, path, args.ToString(), aumid, icon.ToString(), iconIndex, nome);
+            return new Shortcut(lnkPath, path, args.ToString(), aumid, IconFile(icon.ToString()), iconIndex, nome);
         }
         catch { return null; }
+    }
+
+    /// <summary>
+    /// O arquivo de ícone de um atalho, do jeito que o Windows o acha. O .lnk guarda o texto cru:
+    /// variável por expandir (<c>%windir%\system32\filemgmt.dll</c>, um terço dos atalhos desta
+    /// máquina) ou só o nome (<c>imageres.dll</c>, que mora no System32). Sem isso o arquivo parecia
+    /// não existir, e o botão ficava com o ícone do alvo no lugar do que o atalho define.
+    /// </summary>
+    private static string IconFile(string location)
+    {
+        var caminho = Environment.ExpandEnvironmentVariables(location);
+        if (caminho.Length == 0 || Path.IsPathFullyQualified(caminho)) return caminho;
+
+        var doSistema = Path.Combine(Environment.SystemDirectory, caminho);
+        return File.Exists(doSistema) ? doSistema : caminho;
     }
 
     // ── COM do shell ────────────────────────────────────────

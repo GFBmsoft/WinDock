@@ -139,6 +139,16 @@ public sealed class DockItem : INotifyPropertyChanged
     }
 
     /// <summary>
+    /// Relê o ícone quando o arquivo de onde ele veio mudou. Um fixado é o mesmo objeto a sessão
+    /// inteira: fechar e reabrir o programa não passa de novo pelo construtor.
+    /// </summary>
+    public void RefreshIcon()
+    {
+        if (IconService.IsStale(Id, LaunchPath))
+            Icon = IconService.ForApp(Id, LaunchPath, _windows.Count > 0 ? _windows[0].Handle : 0);
+    }
+
+    /// <summary>
     /// Abrir por AppUserModelID (a pasta de aplicativos do shell) em vez de pelo caminho.
     ///
     /// E o unico jeito para os apps da Store, cujo executavel nem sempre pode ser chamado

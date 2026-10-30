@@ -11,6 +11,14 @@
   tag que leva a nota junto. Escrito para quem usa a dock: o que mudou na tela, e não no código.
 -->
 
+## 1.0.0.69 — 30/10/2026
+- Dock: programa fixado que foi republicado no mesmo caminho troca de ícone sozinho, em até 30 segundos, sem reiniciar a dock. A correção da 1.0.0.68 não chegava aos fixados. Vale também para o perfil do Chrome fixado quando a foto do perfil muda.
+- Busca: programa republicado passa a aparecer com o ícone novo depois de abrir a busca, em vez de seguir com o antigo até reiniciar a dock.
+- Atalhos com ícone próprio mostram esse ícone, como no Explorador de Arquivos. Antes, muitos apareciam com o ícone do programa que abrem.
+
+## 1.0.0.68 — 29/10/2026
+- Dock: programa republicado no mesmo caminho aparece com o ícone novo ao ser aberto de novo, sem reiniciar a dock. Os programas fixados só passaram a acompanhar na 1.0.0.69.
+
 ## 1.0.0.67 — 28/10/2026
 - Dock: o ícone fica no centro do realce que aparece ao passar o mouse, com a mesma folga nos quatro lados. Antes ele ficava mais perto da borda de cima, e sobrava bem mais espaço embaixo, onde ficam as bolinhas das janelas abertas.
 
