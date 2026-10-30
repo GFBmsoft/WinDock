@@ -230,7 +230,9 @@ public static class UpdatesService
     ///
     /// A tabela é texto formatado para gente, e traduzido: os títulos das colunas e a linha de
     /// resumo mudam com o idioma do Windows. O que não muda é a forma — cabeçalho, régua de
-    /// hifens, uma linha por pacote, linha em branco, resumo — e o alinhamento em colunas.
+    /// hifens, uma linha por pacote, resumo — e o alinhamento em colunas. A linha em branco antes
+    /// do resumo já não é garantida: no winget 1.29 ele vem colado no último pacote (EV05), e lido
+    /// como pacote aparecia no cartão como "1 atu … s disponí → veis.".
     ///
     /// Daí a leitura ser **pelas posições do cabeçalho**, e não por "separado por dois ou mais
     /// espaços": um nome que enche a coluna inteira deixa um espaço só antes do id, e a separação
@@ -281,8 +283,9 @@ public static class UpdatesService
                 continue;
             }
 
-            // acabou esta tabela. Pode vir outra depois — e é justamente a que interessa marcar
-            if (linha.Trim().Length == 0)
+            // Acabou esta tabela, pela linha em branco ou pelo resumo colado nela. Pode vir outra
+            // depois — e é justamente a que interessa marcar
+            if (linha.Trim().Length == 0 || !IsRow(linha, colunas))
             {
                 colunas = null;
                 cabecalho = null;
@@ -302,6 +305,17 @@ public static class UpdatesService
 
         return pacotes;
     }
+
+    /// <summary>
+    /// A linha cabe nas colunas da tabela? Numa linha de pacote, o id, a versão e a disponível
+    /// começam logo depois de um espaço, mesmo com o nome enchendo a coluna; a frase do resumo passa
+    /// por cima delas. A origem fica de fora porque pode faltar.
+    ///
+    /// São as três juntas porque uma só não basta: o nome de 14 letras põe a coluna do id logo
+    /// depois do espaço de "1 atualizações".
+    /// </summary>
+    private static bool IsRow(string linha, int[] colunas) =>
+        colunas.Skip(1).Take(3).All(c => c <= linha.Length && linha[c - 1] == ' ');
 
     /// <summary>Onde começa cada coluna, pelas palavras do cabeçalho.</summary>
     private static int[] Columns(string cabecalho) =>

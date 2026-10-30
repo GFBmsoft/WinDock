@@ -49,6 +49,56 @@ var en = UpdatesService.Parse(enUs);
 Check("tabela em inglês: o idioma não muda a leitura",
       en.Count == 1 && en[0].Id == "Git.Git", $"vieram {en.Count}");
 
+// ── o resumo colado na tabela ───────────────────────────────
+//
+// A saída de verdade desta máquina em 30/10/2026 (winget 1.29), a primeira atualização real que ela
+// viu: sem a linha em branco, o resumo vem logo depois do último pacote. Lido como pacote, ele virou
+// a linha "1 atu … s disponí → veis." no cartão (EV05) e somou um no contador.
+
+var colado = UpdatesService.Parse(string.Join("\r\n",
+    "Nome ID      Versão   Disponível Origem",
+    "---------------------------------------",
+    "Git  Git.Git 2.56.0.3 2.56.0.4   winget",
+    "1 atualizações disponíveis.",
+    ""));
+Check("resumo colado: só o pacote entra", colado.Count == 1, $"vieram {colado.Count}: " +
+      string.Join(" | ", colado.Select(p => p.Name)));
+Check("resumo colado: o pacote sai inteiro",
+      colado.Count > 0 && colado[0] is { Name: "Git", Id: "Git.Git", Current: "2.56.0.3", Available: "2.56.0.4" });
+
+// O nome de 14 letras põe a coluna do id logo depois do espaço de "1 atualizações": olhar só essa
+// coluna deixaria a frase passar. E a mesma coisa em inglês, que também não é lido.
+
+var coincide = UpdatesService.Parse(string.Join("\r\n",
+    "Nome           ID          Versão   Disponível Origem",
+    "-----------------------------------------------------",
+    "Git Credential Git.GCM     2.56.0.3 2.56.0.4   winget",
+    "1 atualizações disponíveis."));
+Check("resumo colado com o espaço bem na coluna do id", coincide.Count == 1, $"vieram {coincide.Count}");
+
+var coladoEn = UpdatesService.Parse(string.Join("\r\n",
+    "Name Id      Version  Available Source",
+    "--------------------------------------",
+    "Git  Git.Git 2.56.0.3 2.56.0.4  winget",
+    "1 upgrades available."));
+Check("resumo colado em inglês", coladoEn.Count == 1, $"vieram {coladoEn.Count}");
+
+// Colado ou não, depois do resumo ainda pode vir a tabela dos que exigem alvo explícito.
+
+var coladoDuas = UpdatesService.Parse(string.Join("\r\n",
+    "Nome ID      Versão   Disponível Origem",
+    "---------------------------------------",
+    "Git  Git.Git 2.56.0.3 2.56.0.4   winget",
+    "1 atualizações disponíveis.",
+    "Os pacotes a seguir têm uma atualização disponível, mas exigem uma segmentação explícita para atualização:",
+    "Nome    ID              Versão   Disponível Origem",
+    "--------------------------------------------------",
+    "Discord Discord.Discord 1.0.9259 1.0.9260   winget",
+    "1 atualizações disponíveis."));
+Check("resumo colado não engole a segunda tabela",
+      coladoDuas.Count == 2 && !coladoDuas[0].Explicit && coladoDuas[1].Explicit,
+      $"vieram {coladoDuas.Count}: " + string.Join(" | ", coladoDuas.Select(p => p.Name)));
+
 // ── máquina em dia ──────────────────────────────────────────
 //
 // Sem tabela nenhuma: é o que o winget responde quando não há o que atualizar, e foi o que esta

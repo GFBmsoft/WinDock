@@ -11,6 +11,9 @@
   tag que leva a nota junto. Escrito para quem usa a dock: o que mudou na tela, e não no código.
 -->
 
+## 1.0.0.70 — 30/10/2026
+- Cartão de atualizações: a lista do winget mostra só os programas. A frase de resumo do winget aparecia como uma linha a mais, com o texto picado ("1 atu… s disponí → veis."), e ainda contava como uma atualização a mais no ícone da barra.
+
 ## 1.0.0.69 — 30/10/2026
 - Dock: programa fixado que foi republicado no mesmo caminho troca de ícone sozinho, em até 30 segundos, sem reiniciar a dock. A correção da 1.0.0.68 não chegava aos fixados. Vale também para o perfil do Chrome fixado quando a foto do perfil muda.
 - Busca: programa republicado passa a aparecer com o ícone novo depois de abrir a busca, em vez de seguir com o antigo até reiniciar a dock.
