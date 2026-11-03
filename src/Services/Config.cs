@@ -284,6 +284,74 @@ public interface IGlyphChoice : INotifyPropertyChanged
     string Color { get; set; }
     string LookGlyph { get; }
     System.Windows.Media.Brush LookFill { get; }
+
+    /// <summary>
+    /// A fonte do <see cref="LookGlyph"/>; nulo é a dos glifos do Windows. Existe pelos ícones
+    /// desenhados, cujos logos vêm de uma Nerd Font: os códigos dela caem no mesmo intervalo dos
+    /// glifos do Windows, e desenhados com a fonte errada viram outro símbolo.
+    /// </summary>
+    System.Windows.Media.FontFamily? LookFont => null;
+}
+
+/// <summary>
+/// O desenho escolhido para um fixado, com os ícones desenhados ligados
+/// (<see cref="DockConfig.DrawnIcons"/>), pela identidade do botão (o <c>DockItem.Id</c>).
+///
+/// <para>Desenho e cor vazios: o automático (<see cref="IconDrawing"/>), que para os apps
+/// conhecidos é o da tabela e para o resto é o ícone do próprio programa. Fica numa lista à parte
+/// dos fixados porque a lista deles é refeita a cada arraste ou fixação, e só entra nela o
+/// fixado em que a pessoa mexeu.</para>
+/// </summary>
+public sealed class DrawnIconChoice : IGlyphChoice
+{
+    public string Key { get; set; } = string.Empty;
+
+    /// <summary>O nome do fixado, só para a linha das Configurações.</summary>
+    [JsonIgnore] public string Name { get; set; } = string.Empty;
+
+    private string _glyph = string.Empty;
+    public string Glyph
+    {
+        get => _glyph;
+        set { if (Set(ref _glyph, value)) RaiseLook(); }
+    }
+
+    private string _color = string.Empty;
+    public string Color
+    {
+        get => _color;
+        set { if (Set(ref _color, value)) RaiseLook(); }
+    }
+
+    /// <summary>Sem nada escolhido: o automático.</summary>
+    [JsonIgnore] public bool IsEmpty => _glyph.Length == 0 && _color.Length == 0;
+
+    [JsonIgnore] public string LookGlyph => IconDrawing.For(Key, this)?.Text ?? string.Empty;
+    [JsonIgnore] public System.Windows.Media.Brush LookFill =>
+        IconDrawing.For(Key, this)?.Fill ?? System.Windows.Media.Brushes.Gray;
+    [JsonIgnore] public System.Windows.Media.FontFamily? LookFont => IconDrawing.For(Key, this)?.Font;
+
+    /// <summary>A linha de baixo do nome: o que o botão mostra agora.</summary>
+    [JsonIgnore] public string Detail => IconDrawing.For(Key, this) is null
+        ? "Ícone do programa"
+        : IsEmpty ? "Desenho automático" : "Desenho escolhido";
+
+    private void RaiseLook()
+    {
+        Raise(nameof(LookGlyph)); Raise(nameof(LookFill)); Raise(nameof(LookFont));
+        Raise(nameof(Detail)); Raise(nameof(IsEmpty));
+    }
+
+    public event PropertyChangedEventHandler? PropertyChanged;
+    private void Raise(string name) => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
+    private bool Set(ref string field, string value, [CallerMemberName] string? name = null)
+    {
+        value ??= string.Empty;
+        if (field == value) return false;
+        field = value;
+        Raise(name!);
+        return true;
+    }
 }
 
 /// <summary>
@@ -1017,6 +1085,26 @@ public sealed class DockConfig : INotifyPropertyChanged
     private int _islandGap = 6;
     public int IslandGap { get => _islandGap; set => Set(ref _islandGap, Clamp(value, 0, 60)); }
 
+    private bool _panelIslandBorder;
+    /// <summary>
+    /// Um contorno em volta de cada ilha. Pedido de 03/11/2026: com a opacidade da barra em zero
+    /// a ilha some e só os ícones ficam, e o contorno é o que desenha o formato dela. Desligado
+    /// de fábrica, como as ilhas.
+    /// </summary>
+    public bool PanelIslandBorder { get => _panelIslandBorder; set => Set(ref _panelIslandBorder, value); }
+
+    private string _islandBorderColor = "#3A3F4B";
+    /// <summary>Cor do contorno das ilhas, em hex.</summary>
+    public string IslandBorderColor { get => _islandBorderColor; set => Set(ref _islandBorderColor, value); }
+
+    private int _islandBorderThickness = 1;
+    /// <summary>
+    /// Espessura do contorno, em pixels. O contorno é desenhado por dentro da ilha, que tem a
+    /// altura da barra menos as folgas: na barra de 24 com folga 1, a ilha tem 22 e o botão 16, e
+    /// passando de 3 o contorno começa a cortar os ícones.
+    /// </summary>
+    public int IslandBorderThickness { get => _islandBorderThickness; set => Set(ref _islandBorderThickness, Clamp(value, 1, 3)); }
+
     public void NotifyPanelIslandBreaksChanged() =>
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(PanelIslandBreaks)));
 
@@ -1173,6 +1261,20 @@ public sealed class DockConfig : INotifyPropertyChanged
     /// <summary>Apps fixados, na ordem em que aparecem.</summary>
     public List<PinnedApp> Pinned { get; set; } = new();
 
+    private bool _drawnIcons;
+    /// <summary>
+    /// Os fixados conhecidos trocam o ícone do programa por um desenho colorido, no estilo dos
+    /// programas do usuário (GRepos, GTest, GTerm), e a moldura escura deles aparece com o mouse
+    /// em cima. Pedido de 03/11/2026; desligado de fábrica. Veja <see cref="IconDrawing"/>.
+    /// </summary>
+    public bool DrawnIcons { get => _drawnIcons; set => Set(ref _drawnIcons, value); }
+
+    /// <summary>O desenho que a pessoa escolheu para cada fixado; quem não está aqui usa o automático.</summary>
+    public List<DrawnIconChoice> DrawnIconChoices { get; set; } = new();
+
+    public void NotifyDrawnIconChoicesChanged() =>
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(DrawnIconChoices)));
+
     // ── persistencia ────────────────────────────────────────
     /// <summary>A pasta do usuario onde ficam o config e o log.</summary>
     public static readonly string Dir =
@@ -1306,6 +1408,7 @@ public sealed class DockConfig : INotifyPropertyChanged
         Background = d.Background; Opacity = d.Opacity; CornerRadius = d.CornerRadius;
         IndicatorColor = d.IndicatorColor;
         IconPadding = d.IconPadding; PillPadding = d.PillPadding; IconSize = d.IconSize;
+        DrawnIcons = d.DrawnIcons;
         MarginTop = d.MarginTop; MarginBottom = d.MarginBottom;
         MarginLeft = d.MarginLeft; MarginRight = d.MarginRight;
         ShowRunning = d.ShowRunning; Taskbar = d.Taskbar; Launcher = d.Launcher;
@@ -1327,6 +1430,8 @@ public sealed class DockConfig : INotifyPropertyChanged
         IslandMarginTop = d.IslandMarginTop; IslandMarginBottom = d.IslandMarginBottom;
         IslandMarginLeft = d.IslandMarginLeft; IslandMarginRight = d.IslandMarginRight;
         IslandGap = d.IslandGap;
+        PanelIslandBorder = d.PanelIslandBorder;
+        IslandBorderColor = d.IslandBorderColor; IslandBorderThickness = d.IslandBorderThickness;
         PanelMediaTicker = d.PanelMediaTicker;
         PanelRemovable = d.PanelRemovable;
         Trace = d.Trace;

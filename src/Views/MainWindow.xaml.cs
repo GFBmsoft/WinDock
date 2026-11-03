@@ -258,6 +258,10 @@ public partial class MainWindow : Window
             case nameof(DockConfig.ShowRunning):
                 _model?.Refresh();
                 break;
+            case nameof(DockConfig.DrawnIcons):
+            case nameof(DockConfig.DrawnIconChoices):
+                _model?.DressAll();
+                break;
             case nameof(DockConfig.Taskbar):
                 _taskbar.Apply(_config.Taskbar);
                 SetPanel(_config.Panel);   // "recolher" desliga a barra de cima

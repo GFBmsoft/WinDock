@@ -46,6 +46,8 @@ public partial class SettingsWindow : Window
         foreach (var p in _config.Places) TrackPlace(p);
         NotificationSourcesList.ItemsSource = _sources;
         foreach (var s in _config.NotificationSources) TrackSource(s);
+        DrawnIconsList.ItemsSource = _drawings;
+        LoadDrawnIcons();
         ExcludedAppsList.ItemsSource = _excludedApps;
 
         FloatingSizesList.ItemsSource = _floatingSizes;
@@ -70,6 +72,9 @@ public partial class SettingsWindow : Window
         // basta a pessoa dar play em algo. Sem isto ela teria de fechar e reabrir as opções pra
         // ver o programa aparecer — e, sem saber disso, concluiria que a captura não funciona.
         Activated += (_, _) => LoadMediaApps();
+
+        // os fixados também mudam com a janela aberta: arrastar ou fixar na dock refaz a lista deles
+        Activated += (_, _) => LoadDrawnIcons();
 
         // marcar aquele interruptor la embaixo faz o WPF rolar ate ele; o painel tem que
         // abrir no comeco, e nao no meio da lista
@@ -147,6 +152,44 @@ public partial class SettingsWindow : Window
         _excludedApps.Remove(name);
         _config.TilingExcludedApps.Remove(name);
         _config.NotifyTilingExcludedAppsChanged();
+    }
+
+    // ── ícones desenhados ────────────────────────────────────
+
+    /// <summary>Uma linha por fixado, na ordem da dock (veja <see cref="DockConfig.DrawnIconChoices"/>).</summary>
+    private readonly ObservableCollection<DrawnIconChoice> _drawings = new();
+
+    /// <summary>
+    /// Os fixados de agora, cada um com a escolha guardada ou uma nova, vazia, que só entra na
+    /// config quando a pessoa mexer nela.
+    /// </summary>
+    private void LoadDrawnIcons()
+    {
+        foreach (var d in _drawings) d.PropertyChanged -= OnDrawingChanged;
+        _drawings.Clear();
+
+        foreach (var p in _config.Pinned)
+        {
+            var d = _config.DrawnIconChoices.FirstOrDefault(c => string.Equals(c.Key, p.Id, StringComparison.OrdinalIgnoreCase))
+                    ?? new DrawnIconChoice { Key = p.Id };
+            d.Name = p.Label.Length > 0 ? p.Label : System.IO.Path.GetFileNameWithoutExtension(p.Path);
+            d.PropertyChanged += OnDrawingChanged;
+            _drawings.Add(d);
+        }
+    }
+
+    /// <summary>Desenho e cor mudam por clique: a dock troca na hora, e o "Automático" tira o fixado da lista.</summary>
+    private void OnDrawingChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (sender is not DrawnIconChoice d ||
+            e.PropertyName is not (nameof(DrawnIconChoice.Glyph) or nameof(DrawnIconChoice.Color))) return;
+
+        var guardada = _config.DrawnIconChoices.Contains(d);
+        if (d.IsEmpty && guardada) _config.DrawnIconChoices.Remove(d);
+        else if (!d.IsEmpty && !guardada) _config.DrawnIconChoices.Add(d);
+
+        _config.Save();
+        _config.NotifyDrawnIconChoicesChanged();
     }
 
     // ── origens de notificação ───────────────────────────────

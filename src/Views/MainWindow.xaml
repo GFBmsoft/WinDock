@@ -25,14 +25,27 @@
           <ControlTemplate TargetType="Button">
             <!-- o conteúdo ocupa o realce inteiro: a bolinha encosta na borda dele e o ícone
                  se centra sozinho, sem a faixa dela empurrar o ícone para cima -->
-            <Border x:Name="Bg" Background="Transparent" CornerRadius="6"
-                    Margin="{Binding DataContext.Theme.HoverMargin, RelativeSource={RelativeSource AncestorType=Window}}">
+            <Grid Margin="{Binding DataContext.Theme.HoverMargin, RelativeSource={RelativeSource AncestorType=Window}}">
+              <Border x:Name="Bg" Background="Transparent" CornerRadius="6" />
+              <!-- a moldura dos irmãos (GRepos, GTest, GTerm), só num botão desenhado e só com o
+                   mouse em cima (DockConfig.DrawnIcons). Camada à parte do realce: a borda dentro
+                   dele empurraria a bolinha 1 px para dentro a cada passada do mouse -->
+              <Border x:Name="Moldura" Visibility="Collapsed" IsHitTestVisible="False"
+                      Background="#FF1B1F2A" BorderBrush="#FF2A303D" BorderThickness="1"
+                      CornerRadius="{Binding DataContext.Theme.HoverFrameCorner, RelativeSource={RelativeSource AncestorType=Window}}" />
               <ContentPresenter />
-            </Border>
+            </Grid>
             <ControlTemplate.Triggers>
               <Trigger Property="IsMouseOver" Value="True">
                 <Setter TargetName="Bg" Property="Background" Value="{StaticResource ItemHover}" />
               </Trigger>
+              <MultiDataTrigger>
+                <MultiDataTrigger.Conditions>
+                  <Condition Binding="{Binding IsMouseOver, RelativeSource={RelativeSource Self}}" Value="True" />
+                  <Condition Binding="{Binding IsDrawn}" Value="True" />
+                </MultiDataTrigger.Conditions>
+                <Setter TargetName="Moldura" Property="Visibility" Value="Visible" />
+              </MultiDataTrigger>
             </ControlTemplate.Triggers>
           </ControlTemplate>
         </Setter.Value>

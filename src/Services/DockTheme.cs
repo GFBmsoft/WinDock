@@ -55,6 +55,12 @@ public sealed class DockTheme : INotifyPropertyChanged
     private double HoverSide => ButtonSize - 2 - HoverOdd;
 
     /// <summary>
+    /// O canto da moldura que acende no realce de um ícone desenhado: a proporção dos ícones dos
+    /// irmãos (raio 54 num quadrado de 256), no tamanho do realce.
+    /// </summary>
+    public CornerRadius HoverFrameCorner => new(Math.Round(HoverSide * 54 / 256));
+
+    /// <summary>
     /// Desvio do ícone para longe da bolinha, só quando a margem dele no centro do realce não
     /// cabe a faixa dela — ícone grande escolhido à mão, ou dock fina. A margem posta do lado
     /// da bolinha tira o centro do lugar pela metade dela; nunca a ponto de cortar o ícone do
@@ -216,7 +222,7 @@ public sealed class DockTheme : INotifyPropertyChanged
         foreach (var name in new[]
                  {
                      nameof(ButtonSize), nameof(IconSize), nameof(IconMargin), nameof(PillCorner),
-                     nameof(HoverMargin), nameof(IconShift),
+                     nameof(HoverMargin), nameof(HoverFrameCorner), nameof(IconShift),
                      nameof(PillPadding), nameof(PillMargin), nameof(Orientation),
                      nameof(PillHorizontal), nameof(PillVertical), nameof(PillBrush),
                      nameof(IndicatorOrientation), nameof(IndicatorHorizontal),

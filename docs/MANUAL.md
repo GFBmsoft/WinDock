@@ -140,7 +140,7 @@ com os privilégios mais altos.
 | Configurações | botão direito > **Configurações...** |
 | Achar uma opção | as Configurações têm cinco páginas na coluna da esquerda: **Dock**, **Barra superior** (altura, cor, relógio, ilhas, ordem dos itens), **Itens da barra** (bandeja, música, ferramentas, CPU, atualizações, cota), **Mosaico** e **Geral** (barra do Windows, busca, iniciar com o Windows, log) |
 | Sair | botão direito > **Sair do WinDock** |
-| Escolher a cor da dock, do indicador, da barra ou da borda do mosaico | **Configurações** > clique na amostra ao lado do campo — abre a paleta; o campo continua aceitando hex |
+| Escolher a cor da dock, do indicador, da barra, do contorno das ilhas ou da borda do mosaico | **Configurações** > clique na amostra ao lado do campo — abre a paleta; o campo continua aceitando hex |
 
 Cada janela aberta de um app ganha uma **bolinha** embaixo do ícone: apagada enquanto o app está
 só aberto, acesa quando ele está na frente. Os ícones são igualados no tamanho — a folga
@@ -148,6 +148,18 @@ transparente que cada programa desenha em volta do próprio ícone é recortada,
 menor que o vizinho. Programa que não traz ícone no executável — o Fotos, ou as Opções da Internet,
 que o Windows abre dentro do `rundll32` — aparece com o desenho do app (o do pacote da Store, ou o
 da própria janela), e não com o genérico.
+
+**Ícones desenhados** (**Configurações > Dock**, abaixo de **Tamanho do ícone**) troca o ícone dos
+fixados que a dock conhece por um desenho colorido, no estilo de GRepos, GTest e GTerm: o Explorador
+vira a pasta amarela, o Terminal o prompt verde, as Configurações a engrenagem. Os logos (Chrome, VS
+Code, Discord, Spotify, Obsidian) vêm de uma Nerd Font instalada no Windows, como a CaskaydiaCove;
+sem ela, esses ficam com o ícone do programa. Com o mouse em cima, o realce do botão vira a moldura
+escura dos ícones desses programas. Os dois perfis do Chrome têm o mesmo logo e se distinguem pela
+inicial do perfil, no canto. App que a dock não conhece fica com o ícone dele.
+
+Logo abaixo, **Desenho de cada fixado** lista os fixados com o desenho de cada um: o botão abre o
+desenho e a cor, como nas ferramentas da barra, e **Automático** volta ao da dock. Um fixado que
+está com o ícone do programa também pode ganhar um desenho ali.
 
 ![O menu de um ícone](img/menu-dock.png)
 
@@ -776,6 +788,11 @@ da tela continua a mesma: janelas maximizadas não sobem para o vão entre as il
 Com as ilhas ligadas aparece **Margens das ilhas**, como as margens da pílula da dock: a folga de
 cima e de baixo (zero em cima encosta as ilhas no topo da tela), a distância das bordas da tela até
 as ilhas das pontas e o vão **entre ilhas**. As pontas continuam redondas em qualquer altura.
+
+**Contorno das ilhas** põe uma borda em volta de cada ilha, com **Cor do contorno** (em hex ou pela
+paleta) e **Espessura do contorno** (1 a 3 pixels). Com a opacidade da barra em zero a ilha não
+aparece, só os ícones, e o contorno é o que mostra o formato dela. Ele é desenhado por dentro da
+ilha, por isso a espessura para em 3: mais grosso, cortaria os ícones.
 
 ## Atualizar
 

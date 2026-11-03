@@ -388,12 +388,15 @@
 
     <!-- Uma ilha da barra (DockConfig.PanelIslands): a pílula com o fundo da barra. Com a opção
          desligada ela não desenha nada, e quem pinta é a faixa inteira, como sempre foi. As do
-         canto direito são criadas no código, pelo ApplyPanelOrder — quantas forem as quebras. -->
+         canto direito são criadas no código, pelo ApplyPanelOrder — quantas forem as quebras.
+         O contorno (DockConfig.PanelIslandBorder) vem com espessura zero quando está desligado. -->
     <Style x:Key="Island" TargetType="Border">
       <Setter Property="Background" Value="{x:Null}" />
       <Style.Triggers>
         <DataTrigger Binding="{Binding PanelIslands}" Value="True">
           <Setter Property="Background" Value="{Binding PanelBrush}" />
+          <Setter Property="BorderBrush" Value="{Binding IslandBorderBrush}" />
+          <Setter Property="BorderThickness" Value="{Binding IslandBorderThickness}" />
           <Setter Property="CornerRadius" Value="{Binding IslandCorner}" />
           <Setter Property="Padding" Value="5,0" />
           <Setter Property="Margin" Value="{Binding IslandMargin}" />

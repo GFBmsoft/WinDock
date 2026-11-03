@@ -2726,6 +2726,23 @@ public sealed class PanelModel : INotifyPropertyChanged, IDisposable
     public CornerRadius IslandCorner =>
         new(Math.Max(4, (_config.PanelSize - _config.IslandMarginTop - _config.IslandMarginBottom) / 2.0));
 
+    /// <summary>O contorno das ilhas — veja <c>DockConfig.PanelIslandBorder</c>. Desligado, espessura zero.</summary>
+    public Thickness IslandBorderThickness => new(_config.PanelIslandBorder ? _config.IslandBorderThickness : 0);
+
+    public Brush IslandBorderBrush
+    {
+        get
+        {
+            Color color;
+            try { color = (Color)ColorConverter.ConvertFromString(_config.IslandBorderColor)!; }
+            catch { color = Color.FromRgb(0x3A, 0x3F, 0x4B); }
+
+            var brush = new SolidColorBrush(color);
+            brush.Freeze();
+            return brush;
+        }
+    }
+
     public HorizontalAlignment ClockAlignment =>
         _config.PanelCenterClock ? HorizontalAlignment.Center : HorizontalAlignment.Right;
 
@@ -2742,6 +2759,8 @@ public sealed class PanelModel : INotifyPropertyChanged, IDisposable
         OnChanged(nameof(IslandMargin));
         OnChanged(nameof(IslandEdge));
         OnChanged(nameof(IslandCorner));
+        OnChanged(nameof(IslandBorderThickness));
+        OnChanged(nameof(IslandBorderBrush));
         OnChanged(nameof(ClockAlignment));
         OnChanged(nameof(ClockCentered));
         OnChanged(nameof(ClockAtRight));

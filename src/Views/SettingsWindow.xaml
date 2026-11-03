@@ -364,6 +364,56 @@
           </Grid>
         </Border>
 
+        <!-- os ícones desenhados (pedido de 03/11/2026), escolhidos numa prévia com os fixados
+             de verdade: o desenho sem a moldura, que aparece com o mouse em cima -->
+        <Border Style="{StaticResource FluentCardBorderStyle}">
+          <Grid>
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="*" />
+              <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <StackPanel VerticalAlignment="Center">
+              <TextBlock Text="Ícones desenhados" Style="{StaticResource FluentTitle}" />
+              <TextBlock Text="Os fixados que a dock conhece trocam o ícone do programa por um desenho colorido, no estilo de GRepos, GTest e GTerm, e a moldura escura aparece com o mouse em cima. Os outros ficam com o ícone deles."
+                         Style="{StaticResource FluentCaption}" TextWrapping="Wrap" />
+            </StackPanel>
+            <CheckBox Grid.Column="1" Style="{StaticResource FluentToggle}"
+                      AutomationProperties.Name="Ícones desenhados"
+                      IsChecked="{Binding DrawnIcons, Mode=TwoWay}" />
+          </Grid>
+        </Border>
+
+        <Border Style="{StaticResource FluentCardBorderStyle}"
+                Visibility="{Binding DrawnIcons, Converter={StaticResource BoolToVisible}}">
+          <StackPanel>
+            <TextBlock Text="Desenho de cada fixado" Style="{StaticResource FluentTitle}" />
+            <TextBlock Text="O botão abre o desenho e a cor; Automático volta ao da dock. Quem está com o ícone do programa também pode ganhar um desenho aqui."
+                       Style="{StaticResource FluentCaption}" TextWrapping="Wrap" />
+
+            <ItemsControl x:Name="DrawnIconsList" Margin="0,10,0,0">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate>
+                  <Border BorderBrush="{StaticResource FluentDivider}" BorderThickness="0,1,0,0" Padding="2,7">
+                    <Grid>
+                      <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="44" />
+                        <ColumnDefinition Width="*" />
+                      </Grid.ColumnDefinitions>
+                      <ui:GlyphPicker Tool="{Binding}" HorizontalAlignment="Left"
+                                      AutomationProperties.Name="{Binding Name, StringFormat={}Desenho de {0}}" />
+                      <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                        <TextBlock Text="{Binding Name}" Style="{StaticResource FluentTitle}"
+                                   TextTrimming="CharacterEllipsis" />
+                        <TextBlock Text="{Binding Detail}" Style="{StaticResource FluentCaption}" Margin="0,1,0,0" />
+                      </StackPanel>
+                    </Grid>
+                  </Border>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </StackPanel>
+        </Border>
+
         <TextBlock Text="Comportamento" Style="{StaticResource FluentSection}" />
 
         <Border Style="{StaticResource FluentCardBorderStyle}">
@@ -539,6 +589,65 @@
             </UniformGrid>
           </StackPanel>
         </Border>
+
+        <!-- o contorno das ilhas (pedido de 03/11/2026), com a cor e a espessura logo abaixo
+             quando ligado; só com as ilhas ligadas, como as margens -->
+        <StackPanel Visibility="{Binding PanelIslands, Converter={StaticResource BoolToVisible}}">
+          <Border Style="{StaticResource FluentCardBorderStyle}">
+            <Grid>
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+              </Grid.ColumnDefinitions>
+              <StackPanel VerticalAlignment="Center">
+                <TextBlock Text="Contorno das ilhas" Style="{StaticResource FluentTitle}" />
+                <TextBlock Text="Uma borda em volta de cada ilha. Com a opacidade da barra em zero, é ela que mostra o formato das ilhas."
+                           Style="{StaticResource FluentCaption}" TextWrapping="Wrap" />
+              </StackPanel>
+              <CheckBox Grid.Column="1" Style="{StaticResource FluentToggle}"
+                        AutomationProperties.Name="Contorno das ilhas"
+                        IsChecked="{Binding PanelIslandBorder, Mode=TwoWay}" />
+            </Grid>
+          </Border>
+
+          <StackPanel Visibility="{Binding PanelIslandBorder, Converter={StaticResource BoolToVisible}}">
+            <Border Style="{StaticResource FluentCardBorderStyle}">
+              <Grid>
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="*" />
+                  <ColumnDefinition Width="130" />
+                  <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <StackPanel VerticalAlignment="Center">
+                  <TextBlock Text="Cor do contorno" Style="{StaticResource FluentTitle}" />
+                  <TextBlock Text="Em hex, como a cor da barra" Style="{StaticResource FluentCaption}" />
+                </StackPanel>
+                <TextBox Grid.Column="1" Style="{StaticResource FluentTextBox}"
+                         AutomationProperties.Name="Cor do contorno"
+                         Text="{Binding IslandBorderColor, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                <ui:ColorPicker Grid.Column="2" Margin="8,0,0,0"
+                                Color="{Binding IslandBorderColor, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+              </Grid>
+            </Border>
+
+            <Border Style="{StaticResource FluentCardBorderStyle}">
+              <Grid>
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="*" />
+                  <ColumnDefinition Width="80" />
+                </Grid.ColumnDefinitions>
+                <StackPanel VerticalAlignment="Center">
+                  <TextBlock Text="Espessura do contorno" Style="{StaticResource FluentTitle}" />
+                  <TextBlock Text="Em pixels, de 1 a 3: o contorno fica por dentro da ilha, e mais grosso cortaria os ícones"
+                             Style="{StaticResource FluentCaption}" TextWrapping="Wrap" />
+                </StackPanel>
+                <TextBox Grid.Column="1" Style="{StaticResource FluentTextBox}"
+                         AutomationProperties.Name="Espessura do contorno"
+                         Text="{Binding IslandBorderThickness, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" />
+              </Grid>
+            </Border>
+          </StackPanel>
+        </StackPanel>
 
         <Border Style="{StaticResource FluentCardBorderStyle}">
           <Grid>

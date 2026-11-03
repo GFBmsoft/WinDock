@@ -24,10 +24,34 @@ public sealed class DockItem : INotifyPropertyChanged
     public string Label { get => _label; private set => Set(ref _label, value); }
 
     private BitmapSource? _icon;
+    /// <summary>O que o botão mostra: o ícone do programa, ou o desenho (veja <see cref="UseDrawing"/>).</summary>
     public BitmapSource? Icon { get => _icon; private set => Set(ref _icon, value); }
 
+    /// <summary>O ícone do programa, como o <see cref="IconService"/> o deu.</summary>
+    private BitmapSource? _raw;
+
+    /// <summary>
+    /// Com os ícones desenhados ligados, a escolha deste botão (vazia = automático); desligados,
+    /// nulo. Vale só enquanto ele está fixado.
+    /// </summary>
+    private DrawnIconChoice? _drawing;
+
+    private bool _isDrawn;
+    /// <summary>O botão mostra um desenho: é o que acende a moldura no realce do mouse.</summary>
+    public bool IsDrawn { get => _isDrawn; private set => Set(ref _isDrawn, value); }
+
     private bool _isPinned;
-    public bool IsPinned { get => _isPinned; set => Set(ref _isPinned, value); }
+    public bool IsPinned
+    {
+        get => _isPinned;
+        set
+        {
+            if (_isPinned == value) return;
+            _isPinned = value;
+            OnChanged();
+            Dress();
+        }
+    }
 
     private bool _isActive;
     /// <summary>Alguma janela deste app esta em primeiro plano.</summary>
@@ -118,7 +142,7 @@ public sealed class DockItem : INotifyPropertyChanged
         LaunchArgs = launchArgs;
         _label = string.IsNullOrWhiteSpace(label) ? Path.GetFileNameWithoutExtension(launchPath) : label;
         _isPinned = pinned;
-        _icon = IconService.ForApp(id, launchPath, window);
+        _icon = _raw = IconService.ForApp(id, launchPath, window);
         OverlayPath = overlayIcon;
         // o icone do perfil do Chrome ja traz o avatar no canto: a foto por cima seria repetida
         _overlay = ChromeProfiles.ByAumid(id) is { IconPath.Length: > 0 } ? null : IconService.Image(overlayIcon);
@@ -135,7 +159,8 @@ public sealed class DockItem : INotifyPropertyChanged
         LaunchPath = launchPath;
         LaunchArgs = launchArgs;
         if (!string.IsNullOrWhiteSpace(label)) Label = label;
-        Icon = IconService.ForApp(Id, launchPath, _windows.Count > 0 ? _windows[0].Handle : 0);
+        _raw = IconService.ForApp(Id, launchPath, _windows.Count > 0 ? _windows[0].Handle : 0);
+        Dress();
     }
 
     /// <summary>
@@ -144,8 +169,24 @@ public sealed class DockItem : INotifyPropertyChanged
     /// </summary>
     public void RefreshIcon()
     {
-        if (IconService.IsStale(Id, LaunchPath))
-            Icon = IconService.ForApp(Id, LaunchPath, _windows.Count > 0 ? _windows[0].Handle : 0);
+        if (!IconService.IsStale(Id, LaunchPath)) return;
+        _raw = IconService.ForApp(Id, LaunchPath, _windows.Count > 0 ? _windows[0].Handle : 0);
+        Dress();
+    }
+
+    /// <summary>Liga (com a escolha deste botão) ou desliga (nulo) o ícone desenhado.</summary>
+    public void UseDrawing(DrawnIconChoice? escolha)
+    {
+        _drawing = escolha;
+        Dress();
+    }
+
+    /// <summary>O desenho, quando ligado, fixado e conhecido; senão o ícone do programa.</summary>
+    private void Dress()
+    {
+        var desenho = _drawing is not null && _isPinned ? IconDrawing.Draw(Id, _drawing) : null;
+        Icon = desenho ?? _raw;
+        IsDrawn = desenho is not null;
     }
 
     /// <summary>

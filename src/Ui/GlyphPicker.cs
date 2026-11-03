@@ -106,6 +106,7 @@ public sealed class GlyphPicker : Button
         if (Tool is null) return;
         _preview.Text = Tool.LookGlyph;
         _preview.Foreground = Tool.LookFill;
+        _preview.FontFamily = Tool.LookFont ?? IconFont;   // o logo de um ícone desenhado vem da Nerd Font
 
         var atual = Tool.LookGlyph;
         foreach (var filho in _glyphs.Children.OfType<Button>())

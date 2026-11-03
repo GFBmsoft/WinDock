@@ -35,7 +35,7 @@ public sealed class DockModel : IDisposable
         // Um fixado com o caminho envelhecido entra como está: o primeiro Refresh, logo abaixo,
         // é quem o conserta (veja RepairStalePins).
         foreach (var p in _config.Pinned)
-            Items.Add(new DockItem(p.Id, p.Path, p.Args, p.Label, pinned: true, overlayIcon: p.Overlay));
+            Items.Add(Dressed(new DockItem(p.Id, p.Path, p.Args, p.Label, pinned: true, overlayIcon: p.Overlay)));
 
         _timer = new DispatcherTimer(DispatcherPriority.Background)
         {
@@ -189,12 +189,12 @@ public sealed class DockModel : IDisposable
             {
                 var w = wins[0];
                 var (path, args, label, picture) = ResolveTarget(w);
-                Items.Add(new DockItem(w.AppKey, path, args, label, pinned: false, overlayIcon: picture,
-                                       window: w.Handle)
+                Items.Add(Dressed(new DockItem(w.AppKey, path, args, label, pinned: false, overlayIcon: picture,
+                                               window: w.Handle)
                 {
                     Windows = wins,
                     IsActive = wins.Any(x => WindowService.BelongsTo(foreground, x.Handle))
-                });
+                }));
             }
         }
 
@@ -442,11 +442,11 @@ public sealed class DockModel : IDisposable
                 ChromeProfiles.ExePath() is { } chrome)
             {
                 Log.Write($"fixado '{item.Label}': o atalho do perfil sumiu — abrindo pelo chrome.exe com {perfil.Arguments}");
-                Items[i] = new DockItem(item.Id, chrome, perfil.Arguments, $"Chrome - {perfil.Name}", pinned: true)
+                Items[i] = Dressed(new DockItem(item.Id, chrome, perfil.Arguments, $"Chrome - {perfil.Name}", pinned: true)
                 {
                     Windows = item.Windows,
                     IsActive = item.IsActive
-                };
+                });
                 mudou = true;
                 continue;
             }
@@ -465,11 +465,11 @@ public sealed class DockModel : IDisposable
                      ? atual.ToLowerInvariant()   // o AppKey de uma janela vem em minúsculas
                      : item.Id;
 
-            Items[i] = new DockItem(id, atual, item.LaunchArgs, item.Label, pinned: true, overlayIcon: item.OverlayPath)
+            Items[i] = Dressed(new DockItem(id, atual, item.LaunchArgs, item.Label, pinned: true, overlayIcon: item.OverlayPath)
             {
                 Windows = item.Windows,
                 IsActive = item.IsActive
-            };
+            });
 
             for (var j = Items.Count - 1; j >= 0; j--)
             {
@@ -486,6 +486,30 @@ public sealed class DockModel : IDisposable
 
     private static readonly TimeSpan PinCheckInterval = TimeSpan.FromSeconds(30);
     private DateTime _pinsChecked = DateTime.MinValue;
+
+    /// <summary>
+    /// Todo botão nasce sabendo dos ícones desenhados, e não só os fixados: um app aberto que a
+    /// pessoa fixa depois troca para o desenho na hora, sem esperar outra mudança de configuração.
+    /// </summary>
+    private DockItem Dressed(DockItem item)
+    {
+        item.UseDrawing(DrawingFor(item.Id));
+        return item;
+    }
+
+    /// <summary>Reaplica os ícones desenhados em todos os botões: o interruptor ou uma escolha mudou.</summary>
+    public void DressAll()
+    {
+        foreach (var item in Items) item.UseDrawing(DrawingFor(item.Id));
+    }
+
+    private DrawnIconChoice? DrawingFor(string id) =>
+        !_config.DrawnIcons ? null
+        : _config.DrawnIconChoices.FirstOrDefault(c => string.Equals(c.Key, id, StringComparison.OrdinalIgnoreCase))
+          ?? Automatic;
+
+    /// <summary>A escolha de quem não escolheu nada: só lida, nunca gravada.</summary>
+    private static readonly DrawnIconChoice Automatic = new();
 
     /// <summary>Grava os fixados na ordem em que estao na dock.</summary>
     private void SavePinned()
@@ -523,7 +547,7 @@ public sealed class DockModel : IDisposable
             return;
         }
 
-        var item = new DockItem(id, path, string.Empty, Path.GetFileNameWithoutExtension(path), pinned: true);
+        var item = Dressed(new DockItem(id, path, string.Empty, Path.GetFileNameWithoutExtension(path), pinned: true));
         Items.Insert(Items.Count(i => i.IsPinned), item);   // depois dos outros fixados
         SavePinned();
         Refresh();

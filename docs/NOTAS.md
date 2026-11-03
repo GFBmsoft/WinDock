@@ -11,6 +11,10 @@
   tag que leva a nota junto. Escrito para quem usa a dock: o que mudou na tela, e não no código.
 -->
 
+## 1.0.0.71 — 03/11/2026
+- Barra em ilhas: opção de contorno em volta de cada ilha, com cor e espessura (1 a 3 pixels), em Configurações › Barra superior. Com a opacidade da barra em zero, é o contorno que mostra o formato das ilhas.
+- Dock: opção de ícones desenhados para os fixados, no estilo de GRepos, GTest e GTerm, em Configurações › Dock. Os programas que a dock conhece trocam o ícone por um desenho colorido, e a moldura escura aparece com o mouse em cima. O desenho e a cor de cada fixado podem ser trocados ali mesmo, e o Automático volta ao da dock.
+
 ## 1.0.0.70 — 30/10/2026
 - Cartão de atualizações: a lista do winget mostra só os programas. A frase de resumo do winget aparecia como uma linha a mais, com o texto picado ("1 atu… s disponí → veis."), e ainda contava como uma atualização a mais no ícone da barra.
 
