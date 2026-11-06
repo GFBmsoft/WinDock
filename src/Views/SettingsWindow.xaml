@@ -1180,7 +1180,7 @@
               </Grid.ColumnDefinitions>
               <StackPanel VerticalAlignment="Center">
                 <TextBlock Text="Balão ao chegar" Style="{StaticResource FluentTitle}" />
-                <TextBlock Text="Um balão breve embaixo do sino quando chega uma notificação nova, com o desenho da origem. O clique leva ao app ou à aba que mandou; com o mouse em cima ele espera. Se a faixa do próprio Windows também estiver ligada, as duas aparecem — desligue uma (a do Windows fica em Configurações › Sistema › Notificações)."
+                <TextBlock Text="Um balão breve embaixo do sino quando chega uma notificação nova, com o desenho da origem. O clique leva ao app ou à aba que mandou; com o mouse em cima ele espera. Para o aviso não aparecer duas vezes, a dock desliga a faixa do próprio Windows (opção abaixo)."
                            Style="{StaticResource FluentCaption}" TextWrapping="Wrap" />
               </StackPanel>
               <CheckBox Grid.Column="1" Style="{StaticResource FluentToggle}"
@@ -1223,6 +1223,24 @@
               </Border>
             </StackPanel>
           </StackPanel>
+        </Border>
+
+        <!-- A faixa do próprio Windows: a dock a desliga app por app (WindowsBanner) -->
+        <Border Style="{StaticResource FluentCardBorderStyle}">
+          <Grid>
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="*" />
+              <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <StackPanel VerticalAlignment="Center">
+              <TextBlock Text="Desligar a faixa do Windows" Style="{StaticResource FluentTitle}" />
+              <TextBlock Text="A dock desliga, app por app, a faixa que o próprio Windows mostra no canto da tela — o mesmo que &quot;Mostrar faixas de notificação&quot; em Configurações › Sistema › Notificações. A notificação continua na Central e no sino. Um app que nunca mandou notificação ainda mostra a faixa na primeira vez. Desligando aqui, voltam só as faixas que a dock desligou."
+                         Style="{StaticResource FluentCaption}" TextWrapping="Wrap" />
+            </StackPanel>
+            <CheckBox Grid.Column="1" Style="{StaticResource FluentToggle}"
+                      AutomationProperties.Name="Desligar a faixa do Windows"
+                      IsChecked="{Binding NotificationHideWindowsBanner, Mode=TwoWay}" />
+          </Grid>
         </Border>
 
         <!-- Cada origem: o desenho no cartão, se entra no sino e se ganha balão. A lista se

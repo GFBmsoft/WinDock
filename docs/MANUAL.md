@@ -440,8 +440,16 @@ com o desenho da origem, quem mandou e o texto. O clique leva ao app ou à aba, 
 `✕` só fecha; com o mouse em cima ele espera. Vêm no máximo três empilhados, e com o cartão do sino
 aberto não há balão. Em **Configurações > Itens da barra > Notificações > Balão ao chegar** ficam o
 liga/desliga, os **segundos na tela** e **Mostrar o texto da mensagem** — desmarcado, o balão diz
-só de onde veio, para quando outra pessoa pode estar vendo a tela. Se a faixa do próprio Windows
-continuar ligada, as duas aparecem: desligue uma.
+só de onde veio, para quando outra pessoa pode estar vendo a tela.
+
+**Desligar a faixa do Windows.** Para o aviso não aparecer duas vezes, a dock desliga, app por app,
+a faixa que o próprio Windows mostra no canto da tela — o mesmo que **Mostrar faixas de
+notificação** em Configurações do Windows > Sistema > Notificações. A notificação continua na
+Central e no sino. A dock passa em todos os apps que o Windows já conhece ao abrir e em cada app
+novo que manda notificação; a primeira notificação de um app que nunca apareceu ainda sai com
+faixa. Fica ligado de fábrica, logo abaixo do balão; desligando, voltam só as faixas que a dock
+desligou (as que você desligou no Windows ficam como estão). Sem acesso à Central a dock não
+desliga nada, porque aí a faixa seria o único aviso.
 
 **Origens.** Na mesma página, cada app ou site que já mandou notificação tem uma linha, como nas
 ferramentas:

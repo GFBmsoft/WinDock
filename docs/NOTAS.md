@@ -11,6 +11,9 @@
   tag que leva a nota junto. Escrito para quem usa a dock: o que mudou na tela, e não no código.
 -->
 
+## 1.0.0.74 — 06/11/2026
+- Notificações: a dock desliga a faixa do próprio Windows (o balão no canto da tela), para o aviso não aparecer duas vezes — uma no balão da dock e outra no do Windows. Vale para todos os apps que já mandaram notificação e para cada app novo a partir da segunda notificação dele. A notificação continua na Central e no sino. A opção é "Desligar a faixa do Windows", em Configurações › Itens da barra › Notificações; desligando, voltam só as faixas que a dock desligou.
+
 ## 1.0.0.73 — 06/11/2026
 - Dicas do mouse: texto comprido quebra a linha em vez de ser cortado no meio da palavra. Acontecia em todo lugar — nas Configurações ("Tirar da lista (volta se chegar outra notificação de"), no volume, no Conferir agora das atualizações e na dica de janelas com título longo na dock.
 - Volume na barra: fica verde até 69%, amarelo de 70% a 90% e vermelho acima disso. Antes o amarelo já começava em 30% e o vermelho passando de 70%.

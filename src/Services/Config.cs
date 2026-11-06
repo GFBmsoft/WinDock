@@ -865,7 +865,7 @@ public sealed class DockConfig : INotifyPropertyChanged
     /// <summary>
     /// Um balão breve embaixo do sino quando chega uma notificação nova — o que a faixa do Windows
     /// faz, mas no lugar da barra e com o desenho da origem. Ligado de fábrica porque foi pedido
-    /// (02/10/2026); quem deixa a faixa do Windows ligada vê as duas e pode desligar um.
+    /// (02/10/2026); a faixa do Windows sai com <see cref="NotificationHideWindowsBanner"/>.
     /// </summary>
     public bool NotificationPopup { get => _notificationPopup; set => Set(ref _notificationPopup, value); }
 
@@ -883,6 +883,24 @@ public sealed class DockConfig : INotifyPropertyChanged
     /// tela que outra pessoa pode estar vendo.
     /// </summary>
     public bool NotificationPopupText { get => _notificationPopupText; set => Set(ref _notificationPopupText, value); }
+
+    private bool _notificationHideWindowsBanner = true;
+    /// <summary>
+    /// A dock desliga a faixa do próprio Windows, app por app, para o aviso não aparecer duas vezes
+    /// (veja <c>WindowsBanner</c>). A notificação continua na Central e no sino. Ligado de fábrica
+    /// porque foi pedido (06/11/2026).
+    /// </summary>
+    public bool NotificationHideWindowsBanner
+    {
+        get => _notificationHideWindowsBanner;
+        set => Set(ref _notificationHideWindowsBanner, value);
+    }
+
+    /// <summary>
+    /// Os apps (AppUserModelID) cuja faixa a dock desligou — só esses. Desligando a opção, eles
+    /// voltam ao padrão do Windows; os que a pessoa desligou nas Configurações ficam como estão.
+    /// </summary>
+    public List<string> WindowsBannersHidden { get; set; } = new();
 
     public void NotifyNotificationSourcesChanged() =>
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(NotificationSources)));

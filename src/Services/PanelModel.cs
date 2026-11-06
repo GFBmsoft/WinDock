@@ -2517,6 +2517,8 @@ public sealed class PanelModel : INotifyPropertyChanged, IDisposable
         OnChanged(nameof(HasNotificationList));
         if (!_notifications.Available) return;
 
+        HideWindowsBanners(WindowsBanner.Known());
+
         if (_notifications.Notifies)
             _notifications.Changed += () => _dispatcher.InvokeAsync(RefreshNotifications);
         else
@@ -2549,6 +2551,7 @@ public sealed class PanelModel : INotifyPropertyChanged, IDisposable
                 if (lidas.Select(n => n.Id).SequenceEqual(_allNotifications.Select(n => n.Id))) continue;
 
                 Remember(lidas);
+                HideWindowsBanners(lidas.Select(n => n.Aumid));
                 _allNotifications = lidas;
                 Notifications = Visible(lidas);
                 Announce(lidas);
@@ -2627,6 +2630,38 @@ public sealed class PanelModel : INotifyPropertyChanged, IDisposable
         _config.NotificationSources.AddRange(novas);
         _config.Save();
         _config.NotifyNotificationSourcesChanged();
+    }
+
+    /// <summary>Os apps cuja faixa já passou por aqui nesta sessão: a leitura seguinte não volta ao registro.</summary>
+    private readonly HashSet<string> _bannersChecked = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Desliga a faixa do Windows desses apps (veja <see cref="WindowsBanner"/>), com a opção ligada
+    /// e a Central legível — sem a leitura, o sino não mostra nada e a faixa seria o único aviso.
+    /// Cada app que a dock desligou fica anotado, para voltar se a opção sair.
+    /// </summary>
+    private void HideWindowsBanners(IEnumerable<string> aumids)
+    {
+        if (!_config.NotificationHideWindowsBanner || !_notifications.Available) return;
+
+        var desligou = false;
+        foreach (var aumid in aumids.Where(a => a.Length > 0 && _bannersChecked.Add(a)).ToList())
+        {
+            if (!WindowsBanner.Hide(aumid)) continue;
+            if (!_config.WindowsBannersHidden.Contains(aumid, StringComparer.OrdinalIgnoreCase))
+                _config.WindowsBannersHidden.Add(aumid);
+            desligou = true;
+        }
+        if (desligou) _config.Save();
+    }
+
+    /// <summary>A opção desligada: voltam só as faixas que a dock desligou; as da pessoa ficam.</summary>
+    private void RestoreWindowsBanners()
+    {
+        foreach (var aumid in _config.WindowsBannersHidden) WindowsBanner.Restore(aumid);
+        _config.WindowsBannersHidden.Clear();
+        _bannersChecked.Clear();
+        _config.Save();
     }
 
     /// <summary>
@@ -2815,6 +2850,11 @@ public sealed class PanelModel : INotifyPropertyChanged, IDisposable
             OnChanged(nameof(HasNoPlaces));
         }
         if (e.PropertyName is nameof(DockConfig.NotificationSources)) RedressNotifications();
+        if (e.PropertyName is nameof(DockConfig.NotificationHideWindowsBanner))
+        {
+            if (_config.NotificationHideWindowsBanner) HideWindowsBanners(WindowsBanner.Known());
+            else RestoreWindowsBanners();
+        }
         if (e.PropertyName is nameof(DockConfig.Tools))
         {
             _tools = null;
