@@ -11,6 +11,9 @@
   tag que leva a nota junto. Escrito para quem usa a dock: o que mudou na tela, e não no código.
 -->
 
+## 1.0.0.75 — 06/11/2026
+- Dock com a barra do Windows embaixo (o padrão do Windows): com a barra escondida, a dock agora encosta na borda da tela, em vez de boiar acima de uma faixa vazia; com a barra só recolhida, ela fica logo acima da faixa em que a barra reaparece. Nos dois casos as janelas maximizadas param acima da dock — antes passavam por baixo dela.
+
 ## 1.0.0.74 — 06/11/2026
 - Notificações: a dock desliga a faixa do próprio Windows (o balão no canto da tela), para o aviso não aparecer duas vezes — uma no balão da dock e outra no do Windows. Vale para todos os apps que já mandaram notificação e para cada app novo a partir da segunda notificação dele. A notificação continua na Central e no sino. A opção é "Desligar a faixa do Windows", em Configurações › Itens da barra › Notificações; desligando, voltam só as faixas que a dock desligou.
 

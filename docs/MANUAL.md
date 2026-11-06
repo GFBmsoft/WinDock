@@ -919,6 +919,11 @@ ou é largada invadindo a faixa dela (ou a da barra de cima), e anota no log `wi
 | `… a área útil não desconta a faixa da dock` | o Windows esqueceu a reserva (o Explorer reiniciou); sair e abrir a dock resolve |
 | `… maximizada além da área útil` | o próprio app calculou o tamanho maximizado sem descontar a dock; restaurar e maximizar de novo costuma resolver |
 
+**Com a barra do Windows embaixo**, na mesma borda da dock (o padrão do Windows): em **Barra do
+Windows > Esconder** a dock fica encostada na borda da tela; em **Recolher na borda** ela fica logo
+acima da faixa em que a barra do Windows reaparece com o mouse. Até a 1.0.0.74, nos dois casos a
+dock boiava acima de uma faixa vazia e as janelas maximizadas passavam por baixo dela.
+
 ### `Alt+Espaço` não abre a busca
 
 Outro programa já registrou o atalho — o **PowerToys Run** usa o mesmo por padrão. A dock avisa

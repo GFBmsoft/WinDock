@@ -121,9 +121,15 @@ public partial class MainWindow : Window
 
         WhenShellIsUp(() =>
         {
-            _appBar = new AppBar(this);
+            // Com a barra do Windows escondida por nós, a dock vai para a borda de verdade, como a
+            // barra de cima: a barra nativa continua registrada e, na mesma borda (embaixo, o
+            // padrão do Windows), empilharia a dock acima dela — a dock boiando sobre uma faixa
+            // vazia de papel de parede (EV07, 06/11/2026). Só recolhida, não: a faixa é onde ela
+            // reaparece com o mouse, e com a dock por cima dela passar o mouse na dock a chamaria.
+            _appBar = new AppBar(this) { IgnoreOtherBars = _config.Taskbar == TaskbarMode.Hidden };
             _appBar.Register(_config.Edge, _config.Size, _config.ReserveSpace);
             _fullScreen.DockBounds = _appBar.Bounds;
+            _taskbar.SetDock(_config.Edge, _config.ReserveSpace ? _config.Size : 0, _appBar.Bounds);
 
             _taskbar.Apply(_config.Taskbar);
         });
@@ -256,8 +262,7 @@ public partial class MainWindow : Window
             case nameof(DockConfig.Edge):
             case nameof(DockConfig.Size):
             case nameof(DockConfig.ReserveSpace):
-                _appBar?.Resize(_config.Edge, _config.Size, _config.ReserveSpace);
-                if (_appBar is not null) _fullScreen.DockBounds = _appBar.Bounds;
+                PlaceDock();
                 _taskbar.Refresh();   // o shell recalculou a area de trabalho: reaplica
                 break;
             case nameof(DockConfig.ShowRunning):
@@ -268,6 +273,7 @@ public partial class MainWindow : Window
                 _model?.DressAll();
                 break;
             case nameof(DockConfig.Taskbar):
+                PlaceDock();   // escondida ou não, a barra nativa muda onde a dock cabe
                 _taskbar.Apply(_config.Taskbar);
                 SetPanel(_config.Panel);   // "recolher" desliga a barra de cima
                 _panel?.Resize();          // escondida, ela sobe para o topo de verdade
@@ -291,6 +297,20 @@ public partial class MainWindow : Window
                 ApplyHotkeys();
                 break;
         }
+    }
+
+    /// <summary>
+    /// Reposiciona a dock e conta ao vigia da barra do Windows onde ela ficou: é com isso que o
+    /// espaço devolvido da barra nativa para na faixa da dock, e não por cima dela.
+    /// </summary>
+    private void PlaceDock()
+    {
+        if (_appBar is null) return;
+
+        _appBar.IgnoreOtherBars = _config.Taskbar == TaskbarMode.Hidden;
+        _appBar.Resize(_config.Edge, _config.Size, _config.ReserveSpace);
+        _fullScreen.DockBounds = _appBar.Bounds;
+        _taskbar.SetDock(_config.Edge, _config.ReserveSpace ? _config.Size : 0, _appBar.Bounds);
     }
 
     /// <summary>
