@@ -11,6 +11,10 @@
   tag que leva a nota junto. Escrito para quem usa a dock: o que mudou na tela, e não no código.
 -->
 
+## 1.0.0.73 — 06/11/2026
+- Dicas do mouse: texto comprido quebra a linha em vez de ser cortado no meio da palavra. Acontecia em todo lugar — nas Configurações ("Tirar da lista (volta se chegar outra notificação de"), no volume, no Conferir agora das atualizações e na dica de janelas com título longo na dock.
+- Volume na barra: fica verde até 69%, amarelo de 70% a 90% e vermelho acima disso. Antes o amarelo já começava em 30% e o vermelho passando de 70%.
+
 ## 1.0.0.72 — 06/11/2026
 - Dock: janela que abre, volta para a frente ou é largada por baixo da dock sobe sozinha para cima dela. Apps como o Discord e o WhatsApp instalado pelo navegador reabrem no tamanho que gravaram, e a caixa de mensagem ficava escondida atrás da dock. Antes só o mosaico fazia isso; agora vale com ele desligado também.
 - Cada janela que fica por baixo da dock entra no log, com o motivo quando não dá para movê-la (por exemplo, "Reservar a faixa" desligado). Veja "Uma janela ficou por baixo da dock" no manual.

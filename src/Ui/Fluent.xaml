@@ -391,7 +391,18 @@
             <Border.Effect>
               <DropShadowEffect BlurRadius="14" ShadowDepth="3" Opacity="0.5" Color="Black" />
             </Border.Effect>
-            <ContentPresenter />
+            <!-- Dica de texto quebra a linha dentro do MaxWidth. Sem isto o texto ia numa linha só
+                 e o que passasse dos 320 era cortado no meio da palavra (EV06, 06/11/2026: "Tirar
+                 da lista (volta se chegar outra notificação de"); eram sete dicas fixas assim, mais
+                 os títulos longos de janela. Dica com conteúdo próprio (o "?" das Configurações)
+                 não é texto e fica como está. -->
+            <ContentPresenter>
+              <ContentPresenter.Resources>
+                <DataTemplate DataType="{x:Type sys:String}">
+                  <TextBlock Text="{Binding}" TextWrapping="Wrap" />
+                </DataTemplate>
+              </ContentPresenter.Resources>
+            </ContentPresenter>
           </Border>
         </ControlTemplate>
       </Setter.Value>

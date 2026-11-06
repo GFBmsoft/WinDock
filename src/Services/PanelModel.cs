@@ -850,12 +850,17 @@ public sealed class PanelModel : INotifyPropertyChanged, IDisposable
     /// <summary>Largura da barra do mostrador de volume. Casa com a do cartao no XAML.</summary>
     public const double VolumeBarWidth = 150;
 
-    /// <summary>A regra da cor, separada para poder ser conferida sem depender do audio real.</summary>
+    /// <summary>
+    /// A regra da cor, separada para poder ser conferida sem depender do audio real.
+    ///
+    /// Amarelo de 70 a 90 e vermelho acima disso, pedido de 06/11/2026; antes o amarelo vinha já
+    /// nos 30 e o vermelho passando de 70, e o volume do dia a dia ficava sempre pintado de aviso.
+    /// </summary>
     public static Brush VolumeColor(int percent, bool muted)
     {
         if (muted || percent == 0) return Frozen(Color.FromRgb(0x9D, 0x9D, 0x9D));   // cinza
-        if (percent < 30) return Frozen(Color.FromRgb(0x6C, 0xCB, 0x5F));            // verde
-        if (percent <= 70) return Frozen(Color.FromRgb(0xE8, 0xBF, 0x2E));           // amarelo
+        if (percent < 70) return Frozen(Color.FromRgb(0x6C, 0xCB, 0x5F));            // verde
+        if (percent <= 90) return Frozen(Color.FromRgb(0xE8, 0xBF, 0x2E));           // amarelo
         return Frozen(Color.FromRgb(0xE8, 0x11, 0x23));                              // vermelho
     }
 
