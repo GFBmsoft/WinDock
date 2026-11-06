@@ -27,6 +27,7 @@ public partial class MainWindow : Window
     /// <summary>Traz a dock e a barra de volta quando o Win+D sobe a área de trabalho por cima
     /// delas.</summary>
     private DesktopRaiseGuard? _desktopRaise;
+    private StripGuard? _strip;
 
     private AppBar? _appBar;
     private DockModel? _model;
@@ -173,6 +174,10 @@ public partial class MainWindow : Window
         // a que estiver abaixo da barra do Windows na pilha
         _desktopRaise = new DesktopRaiseGuard(() =>
             [hWnd, _panel is null ? 0 : new WindowInteropHelper(_panel).Handle]);
+
+        // janela solta que abre ou é largada em cima da dock (ou embaixo da barra) volta para a
+        // área útil, como o mosaico já faz — mas também com ele desligado
+        _strip = new StripGuard(Dispatcher, _config, () => _appBar?.Bounds ?? default);
 
         _config.PropertyChanged += OnConfigChanged;
 
@@ -1035,6 +1040,7 @@ public partial class MainWindow : Window
         _taskbar.Dispose();   // e a barra do Windows ao estado em que estava
         _shellPopups.Dispose();
         _desktopRaise?.Dispose();
+        _strip?.Dispose();
         _fullScreen.Dispose();
 
         // o log fica com o arquivo aberto enquanto a dock vive; aqui ele solta o handle. Não há

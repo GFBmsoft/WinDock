@@ -906,40 +906,12 @@ public sealed class TilingService : IDisposable
 
     /// <summary>
     /// Janela solta largada em cima da dock (ou embaixo da barra superior) volta para dentro da
-    /// área útil.
-    ///
-    /// O grid e a janela maximizada já respeitam as faixas reservadas: os dois partem do
-    /// <c>rcWork</c>, que o registro de AppBar encolhe. A janela solta não — o Windows deixa
-    /// arrastá-la para qualquer lugar, e a dock, que fica sempre por cima, cobria a parte de baixo
-    /// dela. Ao soltar o arraste ela sobe (ou desce) o que for preciso, com o mesmo tamanho; só
-    /// encolhe se for mais alta que a área útil inteira.
-    ///
-    /// Só as faixas de cima e de baixo contam: pelos lados não há barra, e deixar meia janela para
-    /// fora da tela pela lateral é gesto comum. Maximizada e tela cheia ficam como estão — ocupar o
-    /// monitor é a intenção. Com "Reservar a faixa" desligado a área útil é a tela inteira, e nada se
-    /// move; no notebook, sem dock, idem.
+    /// área útil — veja <see cref="WindowFrame.KeepInsideWorkArea"/>, que o <see cref="StripGuard"/>
+    /// também usa com o mosaico desligado. O contorno vai junto.
     /// </summary>
     private void KeepInsideWorkArea(nint hwnd)
     {
-        if (!IsWindow(hwnd) || IsZoomed(hwnd) || IsIconic(hwnd) || !Concerns(hwnd)) return;
-        if (!TryGetVisualRect(hwnd, out var r) || r.Width <= 0 || r.Height <= 0) return;
-
-        var info = new MONITORINFO { cbSize = Marshal.SizeOf<MONITORINFO>() };
-        if (!GetMonitorInfo(MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST), ref info)) return;
-        var work = info.rcWork;
-        var tela = info.rcMonitor;
-
-        if (r.Left <= tela.Left && r.Top <= tela.Top && r.Right >= tela.Right && r.Bottom >= tela.Bottom) return;
-
-        var altura = Math.Min(r.Height, work.Height);
-        var topo = Math.Clamp(r.Top, work.Top, work.Bottom - altura);
-        if (topo == r.Top && altura == r.Height) return;
-
-        Log.Trace($"KeepInsideWorkArea: {hwnd:X} largada em y {r.Top}..{r.Bottom}, fora da área útil " +
-                  $"{work.Top}..{work.Bottom} — vai para y {topo}..{topo + altura}");
-
-        Apply(hwnd, new RECT { Left = r.Left, Top = topo, Right = r.Right, Bottom = topo + altura });
-        UpdateBorder();
+        if (Concerns(hwnd) && WindowFrame.KeepInsideWorkArea(hwnd, "largada (mosaico)")) UpdateBorder();
     }
 
     /// <summary>
@@ -1292,21 +1264,9 @@ public sealed class TilingService : IDisposable
 
     private static (int X, int Y) Center(RECT r) => ((r.Left + r.Right) / 2, (r.Top + r.Bottom) / 2);
 
-    /// <summary>Move e redimensiona uma janela para caber exatamente em <paramref name="target"/>,
-    /// compensando a margem invisível que o Windows 11 deixa em volta da moldura.</summary>
-    private static void Apply(nint hwnd, RECT target, nint after = 0, uint extraFlags = SWP_NOZORDER)
-    {
-        if (IsIconic(hwnd)) ShowWindow(hwnd, SW_RESTORE);
-
-        var margin = FrameMargin(hwnd);
-
-        SetWindowPos(hwnd, after,
-            target.Left - margin.Left,
-            target.Top - margin.Top,
-            target.Width + margin.Left + margin.Right,
-            target.Height + margin.Top + margin.Bottom,
-            extraFlags | SWP_NOACTIVATE);
-    }
+    /// <summary>Veja <see cref="WindowFrame.Place"/>.</summary>
+    private static void Apply(nint hwnd, RECT target, nint after = 0, uint extraFlags = SWP_NOZORDER) =>
+        WindowFrame.Place(hwnd, target, after, extraFlags);
 
     /// <summary>
     /// Move o grid inteiro de uma vez. Uma janela por vez, cada uma se redesenhava no lugar novo
@@ -1462,27 +1422,8 @@ public sealed class TilingService : IDisposable
             && Math.Abs(atual.Bottom - target.Bottom) <= folga;
     }
 
-    /// <summary>
-    /// Quanto a moldura de verdade da janela (<c>DWMWA_EXTENDED_FRAME_BOUNDS</c>) sobra
-    /// pra fora do retângulo que o Windows relata (<c>GetWindowRect</c>) — a margem
-    /// invisível de redimensionar que o Windows 11 deixa na maioria das janelas comuns.
-    /// Sem compensar isso, cada janela ficaria alguns pixels menor e deslocada do que o
-    /// mosaico pediu, e um gap de 8 px virava um gap de 15 num lado e 1 no outro.
-    /// </summary>
-    private static RECT FrameMargin(nint hwnd)
-    {
-        if (DwmGetWindowRect(hwnd, DWMWA_EXTENDED_FRAME_BOUNDS, out RECT visual, Marshal.SizeOf<RECT>()) != 0)
-            return default;
-        if (!GetWindowRect(hwnd, out var actual)) return default;
-
-        return new RECT
-        {
-            Left = visual.Left - actual.Left,
-            Top = visual.Top - actual.Top,
-            Right = actual.Right - visual.Right,
-            Bottom = actual.Bottom - visual.Bottom
-        };
-    }
+    /// <summary>Veja <see cref="WindowFrame.Margin"/>.</summary>
+    private static RECT FrameMargin(nint hwnd) => WindowFrame.Margin(hwnd);
 
     /// <summary>Contorna quem está em foco — uma janela do grid (pelo retângulo calculado) ou
     /// qualquer outra janela de verdade do monitor principal (flutuando, "teimosa", ou que nem
@@ -1508,17 +1449,8 @@ public sealed class TilingService : IDisposable
         _border.Hide();
     }
 
-    /// <summary>O retângulo de verdade de uma janela, em pixels físicos —
-    /// <c>DWMWA_EXTENDED_FRAME_BOUNDS</c>, que já exclui a margem invisível de redimensionar
-    /// (uns 7px de cada lado que não aparecem na tela). Nem toda janela responde a isso (estilo
-    /// clássico, sem composição, dá erro) — por isso a saída de reserva com o
-    /// <c>GetWindowRect</c> puro, senão essas nunca teriam retângulo nenhum pra contorno ou
-    /// pra busca de vizinho.</summary>
-    private static bool TryGetVisualRect(nint hwnd, out RECT rect)
-    {
-        if (DwmGetWindowRect(hwnd, DWMWA_EXTENDED_FRAME_BOUNDS, out rect, Marshal.SizeOf<RECT>()) == 0) return true;
-        return GetWindowRect(hwnd, out rect);
-    }
+    /// <summary>Veja <see cref="WindowFrame.TryGetVisualRect"/>.</summary>
+    private static bool TryGetVisualRect(nint hwnd, out RECT rect) => WindowFrame.TryGetVisualRect(hwnd, out rect);
 
     public void Dispose()
     {

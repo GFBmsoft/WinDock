@@ -893,6 +893,24 @@ public static class Fix {
 Reiniciar o Explorer (`Stop-Process -Name explorer -Force`) também resolve, ao custo de fechar
 as janelas do Explorer abertas.
 
+### Uma janela ficou por baixo da dock
+
+A dock fica sempre por cima, e com **Reservar a faixa** ligado o Windows encolhe a área útil:
+janela maximizada para acima dela. Uma janela solta, não — o Windows a deixa no tamanho em que
+estava, e apps como o Discord e o WhatsApp instalado pelo navegador reabrem com o tamanho que
+gravaram. Nos apps de conversa a parte de baixo é a caixa de mensagem.
+
+Desde a 1.0.0.72 a dock sobe sozinha a janela solta que abre, volta ao primeiro plano, é restaurada
+ou é largada invadindo a faixa dela (ou a da barra de cima), e anota no log `windock.log`, em
+`%APPDATA%\WinDock`. Procure as linhas que começam com `faixa reservada:`:
+
+| a linha diz | o que é |
+|---|---|
+| `… movida para y …` | a janela estava por baixo e subiu |
+| `… "Reservar a faixa" está desligado` | a opção está desligada em **Configurações > Dock**: ligue |
+| `… a área útil não desconta a faixa da dock` | o Windows esqueceu a reserva (o Explorer reiniciou); sair e abrir a dock resolve |
+| `… maximizada além da área útil` | o próprio app calculou o tamanho maximizado sem descontar a dock; restaurar e maximizar de novo costuma resolver |
+
 ### `Alt+Espaço` não abre a busca
 
 Outro programa já registrou o atalho — o **PowerToys Run** usa o mesmo por padrão. A dock avisa

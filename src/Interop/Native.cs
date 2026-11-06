@@ -253,6 +253,10 @@ internal static class Native
     public const uint SWP_NOZORDER   = 0x0004;
     public const uint SWP_NOACTIVATE = 0x0010;
 
+    /// <summary>Pede o movimento à thread dona da janela e volta sem esperar: um programa travado
+    /// não segura quem pediu.</summary>
+    public const uint SWP_ASYNCWINDOWPOS = 0x4000;
+
     /// <summary>
     /// Move varias janelas de uma vez so. Reserva espaco para <paramref name="count"/> janelas,
     /// acumula cada uma com <see cref="DeferWindowPos"/>, e o <see cref="EndDeferWindowPos"/>

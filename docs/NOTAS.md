@@ -11,6 +11,10 @@
   tag que leva a nota junto. Escrito para quem usa a dock: o que mudou na tela, e não no código.
 -->
 
+## 1.0.0.72 — 06/11/2026
+- Dock: janela que abre, volta para a frente ou é largada por baixo da dock sobe sozinha para cima dela. Apps como o Discord e o WhatsApp instalado pelo navegador reabrem no tamanho que gravaram, e a caixa de mensagem ficava escondida atrás da dock. Antes só o mosaico fazia isso; agora vale com ele desligado também.
+- Cada janela que fica por baixo da dock entra no log, com o motivo quando não dá para movê-la (por exemplo, "Reservar a faixa" desligado). Veja "Uma janela ficou por baixo da dock" no manual.
+
 ## 1.0.0.71 — 03/11/2026
 - Barra em ilhas: opção de contorno em volta de cada ilha, com cor e espessura (1 a 3 pixels), em Configurações › Barra superior. Com a opacidade da barra em zero, é o contorno que mostra o formato das ilhas.
 - Dock: opção de ícones desenhados para os fixados, no estilo de GRepos, GTest e GTerm, em Configurações › Dock. Os programas que a dock conhece trocam o ícone por um desenho colorido, e a moldura escura aparece com o mouse em cima. O desenho e a cor de cada fixado podem ser trocados ali mesmo, e o Automático volta ao da dock.
