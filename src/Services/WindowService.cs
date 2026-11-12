@@ -505,6 +505,69 @@ public static class WindowService
         }
     }
 
+    /// <summary>A partir de quanto tempo uma abertura vai para o log mesmo sem o rastro.</summary>
+    private const int SlowLaunchMs = 2000;
+
+    /// <summary>
+    /// Roda a abertura de um programa fora da thread da interface.
+    ///
+    /// O <c>Process.Start</c> só volta quando o Windows termina de criar o processo, e para um
+    /// executável que ele nunca viu — novo, ou republicado no mesmo caminho — sem assinatura,
+    /// isso inclui a consulta de reputação do arquivo: medido em 12/11/2026, <b>11,6 a 12,0 s</b>
+    /// para um exe de 154 MB, a cada publicação, com ou sem exclusão do Defender na pasta. Chamado
+    /// na thread da interface, eram doze segundos de dock e barra de cima paradas a cada primeiro
+    /// clique num programa recém-compilado. Um arquivo já visto leva 15 ms, e por isso passou
+    /// despercebido: só trava quem publica programa grande o dia inteiro.
+    ///
+    /// A espera continua existindo — é do Windows —, mas quem espera é esta thread. STA, como a
+    /// do <see cref="AppCatalog.Warm"/>: o caminho da abertura pergunta coisas ao shell, e é numa
+    /// STA que o <c>ShellExecuteEx</c> roda direto, sem o .NET criar outra thread para ele.
+    ///
+    /// <paramref name="done"/> roda de volta na thread da interface quando a abertura termina,
+    /// tenha dado certo ou não. A abertura demorada vai para o log com o tempo: é o que diz, na
+    /// máquina de quem reclamar de "cliquei e demorou", que a demora foi do Windows e de quanto.
+    /// </summary>
+    public static void InBackground(string what, Action work, Action? done = null)
+    {
+        var thread = new Thread(() =>
+        {
+            var relogio = System.Diagnostics.Stopwatch.StartNew();
+            try { work(); }
+            catch (Exception ex) { Log.Write($"falha ao abrir '{what}'", ex); }
+            finally
+            {
+                var ms = relogio.ElapsedMilliseconds;
+                if (ms >= SlowLaunchMs)
+                    Log.Write($"abrir '{what}' levou {ms / 1000.0:0.0} s até o processo nascer: o Windows conferindo o " +
+                              "arquivo (costuma ser programa novo ou republicado, sem assinatura). A dock não ficou esperando");
+                else
+                    Log.Trace($"abrir '{what}': {ms} ms");
+
+                if (done is not null) OnUi(done);
+            }
+        })
+        {
+            IsBackground = true,
+            Name = "abrir"
+        };
+
+        thread.SetApartmentState(ApartmentState.STA);
+        thread.Start();
+    }
+
+    /// <summary>De volta à thread da interface; sem aplicação (um teste que carrega a DLL), aqui mesmo.</summary>
+    private static void OnUi(Action action)
+    {
+        var ui = System.Windows.Application.Current?.Dispatcher;
+        if (ui is null || ui.HasShutdownStarted)
+        {
+            try { action(); } catch { /* a dock está fechando: não há mais a quem avisar */ }
+            return;
+        }
+
+        ui.BeginInvoke(action);
+    }
+
     public static bool Launch(string path, string arguments = "")
     {
         if (string.IsNullOrWhiteSpace(path)) return false;

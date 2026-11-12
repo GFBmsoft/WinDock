@@ -938,6 +938,20 @@ da janela e a dock não espera; a janela vai para o lugar (o centro, com **abrir
 bloco dela no grid) quando o programa termina de abrir. Clicar no ícone de um programa travado
 também não prende mais a dock.
 
+Havia uma segunda causa, corrigida na 1.0.0.78: o próprio clique que abre o programa. Antes de
+deixar abrir um executável que nunca viu — grande e sem assinatura, recém-instalado ou
+recém-publicado —, o Windows confere o arquivo, e isso passa de dez segundos; a dock esperava
+junto. Agora a abertura corre em segundo plano. A espera do Windows continua existindo, e nela o
+ícone **pulsa** para mostrar que o clique pegou; clicar de novo não abre outra cópia. No
+`windock.log` fica uma linha por abertura demorada:
+
+```
+abrir 'GTerm' levou 12,8 s até o processo nascer: o Windows conferindo o arquivo (…)
+```
+
+Se a linha aparece toda vez para o mesmo programa, é ele que está sendo conferido a cada
+publicação; assinar o executável é o que tira essa espera.
+
 ### `Alt+Espaço` não abre a busca
 
 Outro programa já registrou o atalho — o **PowerToys Run** usa o mesmo por padrão. A dock avisa

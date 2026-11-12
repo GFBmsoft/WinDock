@@ -227,14 +227,19 @@ public static class AppCatalog
     /// <summary>
     /// Abre um app da pasta de aplicativos. Quem resolve o AppUserModelID e o proprio
     /// explorer — e o unico jeito de lancar app da Store sem conhecer o executavel.
+    ///
+    /// Fora da thread da interface, como o clique na dock: o Windows pode segurar por mais de dez
+    /// segundos a criação do processo de um executável que nunca viu
+    /// (<see cref="WindowService.InBackground"/>), e a busca abre os mesmos programas.
     /// </summary>
-    public static void Launch(CatalogApp app)
+    public static void Launch(CatalogApp app) => WindowService.InBackground(app.Name, () =>
     {
         if (app.IsAumid) WindowService.LaunchApp(app.Target);
         else WindowService.Launch(app.Target);
-    }
+    });
 
-    /// <summary>Abre o que foi digitado como se fosse o Win+R: comando, caminho ou URL.</summary>
+    /// <summary>Abre o que foi digitado como se fosse o Win+R: comando, caminho ou URL. Também
+    /// fora da thread da interface: o que se digita pode ser o caminho de um programa.</summary>
     public static void Run(string command)
     {
         command = command.Trim();
@@ -243,17 +248,20 @@ public static class AppCatalog
         // "notepad arquivo.txt": o primeiro pedaco e o programa, o resto sao argumentos
         var (file, args) = Split(command);
 
-        try
+        WindowService.InBackground(file, () =>
         {
-            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+            try
             {
-                FileName = file,
-                Arguments = args,
-                UseShellExecute = true,
-                WorkingDirectory = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile)
-            });
-        }
-        catch { /* comando que nao existe: o launcher so fecha */ }
+                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                {
+                    FileName = file,
+                    Arguments = args,
+                    UseShellExecute = true,
+                    WorkingDirectory = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile)
+                });
+            }
+            catch { /* comando que nao existe: o launcher so fecha */ }
+        });
     }
 
     internal static (string File, string Args) Split(string command)

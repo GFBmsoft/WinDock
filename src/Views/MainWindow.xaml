@@ -171,6 +171,31 @@
                 <!-- o ícone, do tamanho dele, para a foto do perfil cair no canto do desenho -->
                 <Grid HorizontalAlignment="Center" VerticalAlignment="Center"
                       Margin="{Binding DataContext.Theme.IconShift, RelativeSource={RelativeSource AncestorType=Window}}">
+                  <!--
+                    O programa foi pedido e o Windows ainda não devolveu o processo: o ícone pulsa,
+                    para dizer que o clique pegou. Só depois de 0,35 s — a abertura comum leva
+                    15 ms e não chega a piscar; a que demora é a de um executável que o Windows
+                    nunca viu, mais de dez segundos (veja o WindowService.InBackground).
+                  -->
+                  <Grid.Style>
+                    <Style TargetType="Grid">
+                      <Style.Triggers>
+                        <DataTrigger Binding="{Binding IsLaunching}" Value="True">
+                          <DataTrigger.EnterActions>
+                            <BeginStoryboard Name="PulsoDeAbertura">
+                              <Storyboard BeginTime="0:0:0.35" RepeatBehavior="Forever" AutoReverse="True">
+                                <DoubleAnimation Storyboard.TargetProperty="Opacity"
+                                                 To="0.35" Duration="0:0:0.55" />
+                              </Storyboard>
+                            </BeginStoryboard>
+                          </DataTrigger.EnterActions>
+                          <DataTrigger.ExitActions>
+                            <RemoveStoryboard BeginStoryboardName="PulsoDeAbertura" />
+                          </DataTrigger.ExitActions>
+                        </DataTrigger>
+                      </Style.Triggers>
+                    </Style>
+                  </Grid.Style>
                   <Image Source="{Binding Icon}"
                          Width="{Binding DataContext.Theme.IconSize, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
                          Height="{Binding DataContext.Theme.IconSize, RelativeSource={RelativeSource AncestorType=ItemsControl}}"

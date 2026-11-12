@@ -11,6 +11,12 @@
   tag que leva a nota junto. Escrito para quem usa a dock: o que mudou na tela, e não no código.
 -->
 
+## 1.0.0.78 — 12/11/2026
+- Abrir um programa pela dock não trava mais a dock. Antes de deixar abrir um programa que nunca viu — um executável grande e sem assinatura, recém-instalado ou recém-publicado —, o Windows leva mais de dez segundos conferindo o arquivo, e a dock e a barra de cima ficavam paradas esse tempo todo. Agora quem espera é só a abertura, em segundo plano: a dock continua respondendo.
+- Enquanto a abertura demora, o ícone pulsa de leve para mostrar que o clique pegou, e outro clique no mesmo ícone não abre uma segunda cópia. Na abertura comum, que leva um instante, nada pisca.
+- A busca (Alt+Espaço) abre os programas do mesmo jeito, sem prender a dock.
+- A abertura que passa de dois segundos fica anotada no log, com o tempo que o Windows levou.
+
 ## 1.0.0.77 — 12/11/2026
 - "Reservar a faixa" desligado vale na hora: a dock devolve a faixa ao Windows e as janelas maximizadas passam a ir até a borda da tela. Antes a área de trabalho continuava encolhida até a dock ser fechada e aberta de novo — a opção parecia não fazer nada.
 - Barra do Windows escondida: no lado em que ela fica, a área das janelas maximizadas vai direto até a dock (ou a barra de cima), ou até a borda da tela. Antes a conta somava a altura da barra de segundo em segundo, e em alguns arranjos a área parava num lugar que não era nenhum dos dois.

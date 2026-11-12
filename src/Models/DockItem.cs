@@ -71,6 +71,17 @@ public sealed class DockItem : INotifyPropertyChanged
     /// <summary>Esta sendo arrastado agora: o botao fica apagado no lugar de origem.</summary>
     public bool IsDragging { get => _isDragging; set => Set(ref _isDragging, value); }
 
+    private bool _isLaunching;
+    /// <summary>
+    /// O clique pediu para abrir o programa e o Windows ainda não devolveu o processo.
+    ///
+    /// Quase sempre dura 15 ms e ninguém vê. Com um executável novo e sem assinatura dura mais de
+    /// dez segundos (veja <c>WindowService.InBackground</c>), e nesse tempo a dock responde mas
+    /// nada aparece: o ícone pulsa para dizer que o clique pegou, e outro clique nele não abre
+    /// uma segunda cópia.
+    /// </summary>
+    public bool IsLaunching { get => _isLaunching; set => Set(ref _isLaunching, value); }
+
     private List<TaskWindow> _windows = new();
     public List<TaskWindow> Windows
     {

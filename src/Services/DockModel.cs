@@ -272,13 +272,38 @@ public sealed class DockModel : IDisposable
     /// caminho de sempre e, se ele nao existir mais (app reinstalado noutra pasta, versao
     /// que mudou de numero no nome), a pasta de aplicativos pelo AppUserModelID. Antes um
     /// unico palpite errado significava clicar e nao acontecer nada.
+    ///
+    /// <para>A abertura em si roda <b>fora da thread da interface</b>
+    /// (<see cref="WindowService.InBackground"/>): o Windows pode levar mais de dez segundos para
+    /// devolver o processo de um executável que nunca viu, e era a dock inteira que esperava.
+    /// Enquanto isso o botão fica marcado (<see cref="DockItem.IsLaunching"/>) e um segundo
+    /// pedido para o mesmo botão é ignorado — sem a dock travada, clicar de novo "porque não
+    /// abriu" é o gesto natural, e abriria duas cópias.</para>
     /// </summary>
     public static void Launch(DockItem item)
     {
-        if (item.IsStoreApp)
+        if (item.IsLaunching)
         {
-            if (WindowService.LaunchApp(item.Id)) return;
-            WindowService.Launch(item.LaunchPath, item.LaunchArgs);
+            Log.Trace($"'{item.Label}' ainda está abrindo: este pedido foi ignorado");
+            return;
+        }
+
+        // lido aqui, na thread da interface: o botão pode mudar enquanto a abertura corre
+        var (id, alvo, argumentos, rotulo, daLoja) = (item.Id, item.LaunchPath, item.LaunchArgs, item.Label, item.IsStoreApp);
+
+        item.IsLaunching = true;
+        WindowService.InBackground(rotulo,
+            () => Open(id, alvo, argumentos, rotulo, daLoja),
+            () => item.IsLaunching = false);
+    }
+
+    /// <summary>As tentativas de abrir, na ordem. Roda na thread de abertura, e não na da interface.</summary>
+    private static void Open(string id, string alvo, string argumentos, string rotulo, bool daLoja)
+    {
+        if (daLoja)
+        {
+            if (WindowService.LaunchApp(id)) return;
+            WindowService.Launch(alvo, argumentos);
             return;
         }
 
@@ -289,21 +314,21 @@ public sealed class DockModel : IDisposable
         //
         // Vem antes da tentativa pelo caminho de propósito: tentar primeiro o que se sabe que vai
         // falhar custa uma exceção do Windows e uma linha de erro no log a cada clique.
-        if (PackagedApps.AumidOf(item.LaunchPath) is { } aumid)
+        if (PackagedApps.AumidOf(alvo) is { } aumid)
         {
-            Log.Trace($"'{item.Label}' é app empacotado: abrindo por {aumid}");
+            Log.Trace($"'{rotulo}' é app empacotado: abrindo por {aumid}");
             if (WindowService.LaunchApp(aumid)) return;
         }
 
         // App do Squirrel (Discord, Postman) que se atualizou há menos tempo do que a conferência
         // dos fixados leva para passar de novo: o botão ainda guarda a pasta apagada, mas o
         // clique já sabe achar a nova.
-        var caminho = SquirrelApps.TryRepair(item.LaunchPath, out var atual) ? atual : item.LaunchPath;
-        if (WindowService.Launch(caminho, item.LaunchArgs)) return;
+        var caminho = SquirrelApps.TryRepair(alvo, out var atual) ? atual : alvo;
+        if (WindowService.Launch(caminho, argumentos)) return;
 
-        if (IconService.ShellExists(item.Id) && WindowService.LaunchApp(item.Id)) return;
+        if (IconService.ShellExists(id) && WindowService.LaunchApp(id)) return;
 
-        Log.Write($"nada abriu para o botao '{item.Label}' (id={item.Id}, alvo={item.LaunchPath})");
+        Log.Write($"nada abriu para o botao '{rotulo}' (id={id}, alvo={alvo})");
     }
 
     /// <summary>
