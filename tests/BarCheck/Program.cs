@@ -58,9 +58,9 @@ Check("EV07, dock empilhada acima da barra: a área não passa por baixo da dock
 w = BarGeometry.Reclaimed(tela1440, R(0, 0, 2560, 1368), barra72, 0, DockEdge.Bottom, R(0, 1400, 2560, 1440));
 Check("EV07, dock na borda: a área termina no topo da dock", w.Bottom == 1400, w.ToString());
 
-// a conta antiga, sem limite: é o defeito, e é o que acontece sem o lugar da dock
+// sem o lugar da dock não há faixa nossa naquela borda: a área vai até o fim da tela
 w = BarGeometry.Reclaimed(tela1440, R(0, 0, 2560, 1328), barra72, 0, DockEdge.Bottom, vazio);
-Check("sem o lugar da dock (sem reserva, ou em outra tela) a área vai até onde a barra deixava", w.Bottom == 1400, w.ToString());
+Check("sem o lugar da dock (sem reserva, ou em outra tela) a área vai até a borda da tela", w.Bottom == 1440, w.ToString());
 
 // ── a resolução caiu (1440 → 1080) e a dock mudou de lugar: vale o lugar de agora. Com o lugar
 //    antigo (1400..1440) a área ia até 1080, por baixo da dock — o defeito 1 da revisão de 12/11
@@ -100,6 +100,53 @@ Check("barra à direita: a segunda passagem não mexe", Igual(w2, w), w2.ToStrin
 var telaEsq = R(-1920, 0, 0, 1080);
 w = BarGeometry.Reclaimed(telaEsq, R(-1920, 0, 0, 1032), R(-1920, 1032, 0, 1080), 0, DockEdge.Bottom, vazio);
 Check("barra de tela secundária, sem dock nela: a área vai até o fim daquela tela", w.Bottom == 1080 && w.Left == -1920, w.ToString());
+
+// ── a borda é gravada, e não somada (item 5 da revisão de 12/11): o resultado não depende de
+//    onde a área estava nem de quantas vezes a conta já passou
+foreach (var fim in new[] { 500, 944, 1032, 1040, 1080 })
+{
+    w = BarGeometry.Reclaimed(tela, R(0, 24, 1920, fim), barraBaixo, 24, DockEdge.Bottom, dockBaixo);
+    Check($"barra e dock embaixo, área terminando em {fim}: vai para o topo da dock", w.Bottom == 1040 && w.Top == 24, w.ToString());
+}
+
+// dock de 100 e sem o lugar dela: a conta antiga andava uma barra por passagem (980 → 1028 →
+// 1076) e parava num lugar que não era nada; agora é a borda da tela, de primeira e para sempre
+w = BarGeometry.Reclaimed(tela, R(0, 0, 1920, 980), barraBaixo, 0, DockEdge.Bottom, vazio);
+w2 = BarGeometry.Reclaimed(tela, w, barraBaixo, 0, DockEdge.Bottom, vazio);
+var w3 = BarGeometry.Reclaimed(tela, w2, barraBaixo, 0, DockEdge.Bottom, vazio);
+Check("sem o lugar da dock: três passagens dão o mesmo resultado", w.Bottom == 1080 && Igual(w2, w) && Igual(w3, w), $"{w.Bottom}, {w2.Bottom}, {w3.Bottom}");
+
+// outra coisa reservando 200 px no topo, além da barra do Windows: a conta antiga descia 48 por
+// passagem (248 → 200 → 152 → …); agora o topo é o piso, de primeira
+w = BarGeometry.Reclaimed(tela, R(0, 248, 1920, 1040), barraTopo, 24, DockEdge.Bottom, dockBaixo);
+w2 = BarGeometry.Reclaimed(tela, w, barraTopo, 24, DockEdge.Bottom, dockBaixo);
+Check("mais reservado no topo do que a barra: o piso de primeira, e fica", w.Top == 24 && Igual(w2, w), $"{w.Top}, {w2.Top}");
+
+// a área ficou maior do que devia (uma dock que morreu sem desfazer): volta para o lugar
+w = BarGeometry.Reclaimed(tela, R(0, 0, 1920, 1080), barraBaixo, 24, DockEdge.Bottom, dockBaixo);
+Check("área passando por baixo da dock, de uma sessão anterior: volta para o topo dela", w.Bottom == 1040, w.ToString());
+
+w = BarGeometry.Reclaimed(tela, R(0, 0, 1920, 1040), barraTopo, 24, DockEdge.Bottom, dockBaixo);
+Check("área passando por baixo da barra de cima: volta para o fim dela", w.Top == 24, w.ToString());
+
+// só o lado da barra do Windows é mexido
+w = BarGeometry.Reclaimed(tela, R(13, 32, 1907, 1001), barraTopo, 24, DockEdge.Bottom, dockBaixo);
+Check("barra no topo: esquerda, direita e baixo ficam como estavam", w.Left == 13 && w.Right == 1907 && w.Bottom == 1001 && w.Top == 24, w.ToString());
+
+w = BarGeometry.Reclaimed(tela, R(13, 37, 1907, 1001), barraBaixo, 24, DockEdge.Bottom, dockBaixo);
+Check("barra embaixo: esquerda, direita e topo ficam como estavam", w.Left == 13 && w.Right == 1907 && w.Top == 37 && w.Bottom == 1040, w.ToString());
+
+// a máquina de quem faz a dock, com os números medidos nela: 2560×1080, barra do Windows de 32
+var tela2560 = R(0, 0, 2560, 1080);
+w = BarGeometry.Reclaimed(tela2560, R(0, 32, 2560, 1040), R(0, 0, 2560, 32), 24, DockEdge.Bottom, R(0, 1040, 2560, 1080));
+Check("nesta máquina (barra de 32 no topo): a área é (0,24)-(2560,1040)", Igual(w, R(0, 24, 2560, 1040)), w.ToString());
+
+// dock à esquerda e no topo, como medido ao vivo na 1.0.0.76
+w = BarGeometry.Reclaimed(tela2560, R(40, 32, 2560, 1080), R(0, 0, 2560, 32), 24, DockEdge.Left, R(0, 24, 40, 1080));
+Check("nesta máquina, dock à esquerda: a área é (40,24)-(2560,1080)", Igual(w, R(40, 24, 2560, 1080)), w.ToString());
+
+w = BarGeometry.Reclaimed(tela2560, R(0, 96, 2560, 1080), R(0, 0, 2560, 32), 24, DockEdge.Top, R(0, 24, 2560, 64));
+Check("nesta máquina, dock no topo: a área começa em 64", w.Top == 64 && w.Bottom == 1080, w.ToString());
 
 // ══ WithoutTaskbar: onde a dock fica com a barra do Windows escondida ═══════════════════════
 Console.WriteLine("── WithoutTaskbar ──");

@@ -143,10 +143,14 @@ public partial class MainWindow : Window
             };
             _appBar.Register(_config.Edge, _config.Size, _config.ReserveSpace);
 
-            // o shell reposiciona a dock sozinho (resolução, explorer que renasce): a área de
-            // trabalho é reaplicada em seguida, e não só na próxima volta do relógio. Na fila: o
-            // aviso chega de dentro de uma mensagem do explorer
-            _appBar.PositionChanged += () => Dispatcher.BeginInvoke(new Action(_taskbar.Refresh));
+            // De propósito, ninguém reaplica a área de trabalho no aviso de mudança do shell
+            // (AppBar.PositionChanged): quem faz isso é o relógio do TaskbarService, em até um
+            // segundo. A 1.0.0.76 reaplicava na hora, e a correção caía no meio da conversa do
+            // shell com a barra de cima — ele avisa, ela pede a faixa de novo, ele recalcula e
+            // desfaz o que acabamos de pôr, e avisa outra vez. Com a reserva ligada isso se
+            // acertava em duas voltas; desligada pela tela de Configurações, não parava mais: a
+            // área útil oscilava entre 24 e 32 no topo umas oito vezes por segundo (medido em
+            // 12/11/2026, amostras de 50 ms e o rastro "área de trabalho reaplicada").
 
             _taskbar.Apply(_config.Taskbar);
         });

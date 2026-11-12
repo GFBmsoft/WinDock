@@ -152,7 +152,11 @@ public sealed class TaskbarService : IDisposable
         {
             // o shell reexibe a barra sozinho em várias ocasiões; aqui ela volta a ficar
             // apagada — e "apagada" agora é a camada, não o `SW_HIDE`
-            if (!IsTransparent(bar) || !IsWindowVisible(bar)) SetTransparentAside(true);
+            if (!IsTransparent(bar) || !IsWindowVisible(bar))
+            {
+                Log.Trace($"a barra do Windows reapareceu (em camada={IsTransparent(bar)}, visível={IsWindowVisible(bar)}): apagando de novo");
+                SetTransparentAside(true);
+            }
         }
         else
         {
@@ -265,6 +269,9 @@ public sealed class TaskbarService : IDisposable
         var bar = FindWindow("Shell_TrayWnd", null);
         if (bar == 0 || !GetWindowRect(bar, out var rect)) return;
 
+        // sem retângulo não há como saber em que borda ela está — e a conta grava a borda
+        if (rect.Width <= 0 || rect.Height <= 0) return;
+
         var monitor = MonitorFromWindow(bar, MONITOR_DEFAULTTOPRIMARY);
         var info = new MONITORINFO { cbSize = Marshal.SizeOf<MONITORINFO>() };
         if (!GetMonitorInfo(monitor, ref info)) return;
@@ -277,6 +284,9 @@ public sealed class TaskbarService : IDisposable
 
         if (work.Left == info.rcWork.Left && work.Top == info.rcWork.Top &&
             work.Right == info.rcWork.Right && work.Bottom == info.rcWork.Bottom) return;
+
+        Log.Trace($"área de trabalho reaplicada: de ({info.rcWork.Left},{info.rcWork.Top})-({info.rcWork.Right},{info.rcWork.Bottom}) " +
+                  $"para ({work.Left},{work.Top})-({work.Right},{work.Bottom})");
 
         // sem SPIF_SENDCHANGE de proposito: com o aviso o shell recalcula e desfaz
         SystemParametersInfo(SPI_SETWORKAREA, 0, ref work, 0);

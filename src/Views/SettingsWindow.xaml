@@ -206,6 +206,7 @@
                          Style="{StaticResource FluentCaption}" />
             </StackPanel>
             <CheckBox Grid.Column="1" Style="{StaticResource FluentToggle}"
+                      AutomationProperties.Name="Reservar a faixa"
                       IsChecked="{Binding ReserveSpace, Mode=TwoWay}" />
           </Grid>
         </Border>

@@ -11,6 +11,10 @@
   tag que leva a nota junto. Escrito para quem usa a dock: o que mudou na tela, e não no código.
 -->
 
+## 1.0.0.77 — 12/11/2026
+- "Reservar a faixa" desligado vale na hora: a dock devolve a faixa ao Windows e as janelas maximizadas passam a ir até a borda da tela. Antes a área de trabalho continuava encolhida até a dock ser fechada e aberta de novo — a opção parecia não fazer nada.
+- Barra do Windows escondida: no lado em que ela fica, a área das janelas maximizadas vai direto até a dock (ou a barra de cima), ou até a borda da tela. Antes a conta somava a altura da barra de segundo em segundo, e em alguns arranjos a área parava num lugar que não era nenhum dos dois.
+
 ## 1.0.0.76 — 12/11/2026
 - A dock e a barra de cima não param mais enquanto um programa abre. Com o mosaico ligado, a dock esperava o programa recém-aberto responder para colocar a janela dele no lugar, e ficava travada — sem realce, sem clique, relógio parado — pelo tempo que ele levasse carregando; clicar em outro programa nesse meio-tempo era quando se notava. Agora o pedido fica na fila da janela, que vai para o lugar quando o programa termina de abrir, e a dock segue respondendo.
 - O mesmo vale para o clique no ícone de um programa que não está respondendo (minimizar, trazer para a frente), para os atalhos do mosaico e para a busca aberta com um programa travado na frente: nenhum deles espera mais pelo programa.

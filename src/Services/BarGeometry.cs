@@ -16,7 +16,31 @@ namespace WinDock.Services;
 internal static class BarGeometry
 {
     /// <summary>
-    /// A área de trabalho com a faixa da barra do Windows devolvida.
+    /// A área de trabalho com a faixa da barra do Windows devolvida: no lado em que a barra está,
+    /// a área vai até a faixa do WinDock que estiver nele — a dock, a barra de cima — ou até a
+    /// borda da tela. Os outros três lados não são tocados.
+    ///
+    /// <para><b>A borda é gravada, e não somada.</b> A conta antiga partia da área de agora e
+    /// somava a altura da barra ("devolver o que ela ocupa"), com uma guarda para não somar duas
+    /// vezes: só enquanto a área ainda parasse antes da barra. A guarda falha justamente quando há
+    /// mais coisa reservada naquela borda do que a espessura da barra — depois de uma soma a área
+    /// ainda para antes da barra, e a passagem seguinte soma de novo, e a seguinte também, até
+    /// cruzá-la: o resultado dependia de quantas vezes o relógio tinha passado. E só dava certo
+    /// com a dock na mesma borda por causa do limite posto na 1.0.0.75; sem o lugar dela, a área
+    /// andava uma barra por passagem. Gravando a borda, o resultado é o mesmo na primeira
+    /// passagem e na centésima, e vale a partir de qualquer estado — inclusive o que sobra de uma
+    /// dock que morreu sem desfazer (revisão de 12/11/2026).</para>
+    ///
+    /// <para>O limite é onde a dock está de fato, e não a espessura dela contada da borda: com a
+    /// barra só recolhida, a dock fica empilhada acima da faixa em que a barra reaparece. E só a
+    /// dock que está nesta tela e reserva faixa conta — quem chama entrega vazio nos outros
+    /// casos.</para>
+    ///
+    /// <para><b>O que se perde:</b> a barra de outro programa na mesma borda da barra do Windows
+    /// deixa de ter a faixa dela descontada. A conta antiga guardava o <i>tamanho</i> dessa faixa
+    /// quando ela era mais fina que a barra (e a comia aos poucos quando era mais grossa), mas o
+    /// lugar já estava errado de qualquer jeito: o shell empilha essa barra depois da barra do
+    /// Windows escondida, longe da borda. Em outra borda nada muda.</para>
     /// </summary>
     /// <param name="screen">O monitor da barra do Windows.</param>
     /// <param name="work">A área de trabalho dele agora.</param>
@@ -29,38 +53,25 @@ internal static class BarGeometry
         bool Na(DockEdge borda) => temDock && dockEdge == borda;
         var horizontal = bar.Width >= bar.Height;
 
-        // As comparacoes com o retangulo da barra sao o que torna isto repetivel: so
-        // devolve o espaco se ele ainda estiver reservado. Sem essa guarda, cada passagem
-        // descontava a mesma altura de novo e acabava comendo a faixa de quem veio depois
-        // — a barra de cima do WinDock, por exemplo.
-        //
-        // Em toda borda o espaço devolvido para na faixa do WinDock que estiver nela: as duas
-        // ficam na mesma borda e o shell só conta a mais grossa, então esse limite é a única forma
-        // de a nossa continuar reservada. No topo era só a barra de cima; embaixo não havia limite
-        // nenhum, e a área útil ia até o fim da tela por cima da dock (EV07). O limite é onde a
-        // dock está de fato, e não a espessura dela contada da borda: com a barra só recolhida, a
-        // dock fica empilhada acima da faixa em que a barra reaparece.
+        // o lugar da dock vale dentro da tela: um retângulo de outra resolução não leva a área
+        // para fora dela
         if (horizontal && bar.Top <= screen.Top)
         {
-            var free = work.Top >= bar.Bottom ? work.Top - bar.Height : work.Top;
-            var piso = screen.Top + topReserve;
+            var piso = screen.Top + Math.Max(0, topReserve);
             if (Na(DockEdge.Top)) piso = Math.Max(piso, dock.Bottom);
-            work.Top = Math.Max(piso, free);
+            work.Top = Math.Clamp(piso, screen.Top, screen.Bottom);
         }
         else if (horizontal)
         {
-            if (work.Bottom <= bar.Top)
-                work.Bottom = Math.Min(Na(DockEdge.Bottom) ? dock.Top : screen.Bottom, work.Bottom + bar.Height);
+            work.Bottom = Na(DockEdge.Bottom) ? Math.Clamp(dock.Top, screen.Top, screen.Bottom) : screen.Bottom;
         }
         else if (bar.Left <= screen.Left)
         {
-            if (work.Left >= bar.Right)
-                work.Left = Math.Max(Na(DockEdge.Left) ? dock.Right : screen.Left, work.Left - bar.Width);
+            work.Left = Na(DockEdge.Left) ? Math.Clamp(dock.Right, screen.Left, screen.Right) : screen.Left;
         }
         else
         {
-            if (work.Right <= bar.Left)
-                work.Right = Math.Min(Na(DockEdge.Right) ? dock.Left : screen.Right, work.Right + bar.Width);
+            work.Right = Na(DockEdge.Right) ? Math.Clamp(dock.Left, screen.Left, screen.Right) : screen.Right;
         }
 
         return work;

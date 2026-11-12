@@ -19,6 +19,11 @@ public sealed class AppBar : IDisposable
     private bool _registered;
     private bool _reserving = true;
 
+    /// <summary>Se o shell guarda uma faixa nossa agora: pedida num <c>ABM_SETPOS</c> e ainda não
+    /// devolvida. É o que diz ao <see cref="UpdatePosition"/> que há o que soltar quando a reserva
+    /// é desligada.</summary>
+    private bool _holding;
+
     /// <summary>Altura (ou largura) reservada, em pixels fisicos.</summary>
     public int Thickness { get; private set; } = 38;
     public DockEdge Edge { get; private set; } = DockEdge.Bottom;
@@ -88,6 +93,28 @@ public sealed class AppBar : IDisposable
         };
         SHAppBarMessage(ABM_NEW, ref data);
         _registered = true;
+        _holding = false;   // registro novo: o shell ainda não tem faixa nenhuma nossa
+    }
+
+    /// <summary>
+    /// Devolve ao shell a faixa que ele guardava para esta barra, e continua registrada.
+    ///
+    /// Desligar "Reservar a faixa" com a dock aberta só deixava de <b>pedir</b> a faixa: o shell
+    /// ficava com a última que tinha recebido, e a área de trabalho seguia encolhida até a dock
+    /// ser fechada — a opção não fazia nada na hora. Com a barra do Windows escondida na mesma
+    /// borda era pior: o <c>TaskbarService</c> já não tinha o limite da dock, somava a altura da
+    /// barra por cima da faixa presa, e a área útil terminava num lugar que não era nem a reserva
+    /// nem a tela inteira (revisão de 12/11/2026).
+    ///
+    /// Sai e entra de novo, em vez de pedir uma faixa vazia: o estado que fica é exatamente o de
+    /// quem abriu a dock com a reserva desligada — registrada, para continuar recebendo os avisos
+    /// do shell (troca de resolução, explorer que renasce), e sem faixa.
+    /// </summary>
+    private void Release()
+    {
+        var data = new APPBARDATA { cbSize = Marshal.SizeOf<APPBARDATA>(), hWnd = _hWnd };
+        SHAppBarMessage(ABM_REMOVE, ref data);
+        New();
     }
 
     public void Resize(DockEdge edge, int thickness, bool reserveSpace)
@@ -134,12 +161,19 @@ public sealed class AppBar : IDisposable
             var pedido = data.rc;
 
             SHAppBarMessage(ABM_SETPOS, ref data);
+            _holding = true;
+            Services.Log.Trace($"'{_window.Title}' pediu a faixa ({pedido.Left},{pedido.Top})-({pedido.Right},{pedido.Bottom}) ao shell");
             Snap(ref data.rc);   // o shell tambem mexe no retangulo aqui
 
             // o SETPOS avisa o shell da faixa que ocupamos, mas quem ignora as outras
             // barras fica onde pediu: senao a resposta do shell traria de volta o empurrao
             if (IgnoreOtherBars) data.rc = desired;
             else if (semABarra) data.rc = pedido;
+        }
+        else if (_holding)
+        {
+            // a reserva foi desligada com a faixa ainda no shell: ela é devolvida, uma vez
+            Release();
         }
 
         // sem isto, um retangulo torto devolvido pelo shell viraria largura negativa e
@@ -217,6 +251,7 @@ public sealed class AppBar : IDisposable
 
         if (msg == (int)_callbackMessage && (uint)wParam == ABN_POSCHANGED)
         {
+            Services.Log.Trace($"o shell avisou '{_window.Title}' de mudança nas barras (ABN_POSCHANGED)");
             UpdatePosition();
             PositionChanged?.Invoke();
             handled = true;
