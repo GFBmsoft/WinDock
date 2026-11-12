@@ -103,8 +103,24 @@ public static class WindowService
         if (DwmGetWindowAttribute(hWnd, DWMWA_CLOAKED, out var cloaked, sizeof(int)) == 0 && cloaked != 0)
             return false;
 
+        if (IsGhost(hWnd)) return false;
+
         return true;
     }
+
+    /// <summary>
+    /// A janela "fantasma" que o Windows põe no lugar de uma janela que parou de atender — a do
+    /// "(Não está respondendo)". É do sistema (processo <c>dwm</c>), nasce uns cinco segundos
+    /// depois de o programa travar, com o mesmo título, e some quando ele volta.
+    ///
+    /// Não é janela de app nenhum, e a de verdade continua na lista enquanto a fantasma existe.
+    /// Contada, ela virava uma janela <b>nova</b>: um bloco a mais no grid do mosaico, ao lado da
+    /// original travada, ou uma janela centralizada com "abrir flutuando" ligado (rastro de
+    /// 12/11/2026: <c>Refresh: entrando C0660 'WinDock teste vivo'</c> cinco segundos depois da
+    /// janela de teste que não atendia). Antes disso não aparecia por um motivo ruim: a dock
+    /// estava parada esperando a janela travada, e quando voltava a fantasma já tinha sumido.
+    /// </summary>
+    internal static bool IsGhost(nint hWnd) => ClassOf(hWnd) == "Ghost";
 
     /// <summary>
     /// A janela tem dono e não pede botão — um diálogo, um formulário secundário.
@@ -191,6 +207,47 @@ public static class WindowService
         return false;
     }
 
+    /// <summary>
+    /// A thread dona da janela está atendendo mensagens agora?
+    ///
+    /// É a pergunta a fazer antes de qualquer chamada que <b>espera</b> a janela de outro
+    /// programa: <c>SetWindowPos</c>, <c>ShowWindow</c>, <c>EndDeferWindowPos</c> e o
+    /// <c>SetForegroundWindow</c> com o input anexado só voltam depois de a thread dela atender.
+    /// Um programa que acabou de abrir e ainda está carregando não atende — e a dock, que tem uma
+    /// thread só para a dock e a barra de cima, ficava parada junto com ele (12/11/2026: a pilha
+    /// da dock presa no <c>SetWindowPos</c> do mosaico durante os 8 s de uma janela de teste que
+    /// não atendia). Quem não responde recebe o pedido <b>na fila</b>
+    /// (<c>SWP_ASYNCWINDOWPOS</c>, <c>ShowWindowAsync</c>) e o cumpre quando voltar.
+    ///
+    /// O prazo é curto de propósito: errar para "não atende" numa janela que só demorou um quadro
+    /// custa nada — o pedido chega do mesmo jeito, pela fila. A janela que o Windows já marcou
+    /// como travada nem é perguntada.
+    /// </summary>
+    public static bool Responds(nint hWnd, uint prazoMs = 30)
+    {
+        if (hWnd == 0 || !IsWindow(hWnd)) return false;
+
+        // janela nossa: é esta mesma thread, e perguntar seria conversar sozinho
+        GetWindowThreadProcessId(hWnd, out var pid);
+        if (pid == (uint)Environment.ProcessId) return true;
+
+        if (IsHungAppWindow(hWnd)) return false;
+        return SendMessageTimeout(hWnd, WM_NULL, 0, 0, SMTO_ABORTIFHUNG, prazoMs, out _) != 0;
+    }
+
+    /// <summary>
+    /// <c>ShowWindow</c> na janela de outro programa sem ficar preso a ele: esperando a resposta
+    /// quando ela atende (como sempre foi), pela fila quando não. Devolve se esperou.
+    /// </summary>
+    public static bool Show(nint hWnd, int comando) => Show(hWnd, comando, Responds(hWnd));
+
+    private static bool Show(nint hWnd, int comando, bool atende)
+    {
+        if (atende) ShowWindow(hWnd, comando);
+        else ShowWindowAsync(hWnd, comando);
+        return atende;
+    }
+
     public static void ToggleActivate(nint hWnd, nint foreground)
     {
         if (!Alive(hWnd, "alternar")) return;
@@ -198,14 +255,15 @@ public static class WindowService
         var actual = GetForegroundWindow();
         var iconic = IsIconic(hWnd);
         var focused = !iconic && (BelongsTo(actual, hWnd) || BelongsTo(foreground, hWnd));
+        var atende = Responds(hWnd);
 
         Log.Trace($"alternar janela {hWnd:X}: foco agora={actual:X}, guardado={foreground:X}, " +
-                  $"minimizada={iconic} → {(focused ? "minimizar" : "trazer para frente")}");
+                  $"minimizada={iconic}, atende={atende} → {(focused ? "minimizar" : "trazer para frente")}");
 
-        if (focused) { ShowWindow(hWnd, SW_MINIMIZE); return; }
+        if (focused) { Show(hWnd, SW_MINIMIZE, atende); return; }
 
-        if (iconic) ShowWindow(hWnd, SW_RESTORE);
-        ForceForeground(hWnd);
+        if (iconic) Show(hWnd, SW_RESTORE, atende);
+        ForceForeground(hWnd, atende);
     }
 
     /// <summary>
@@ -262,8 +320,10 @@ public static class WindowService
     public static void Activate(nint hWnd)
     {
         if (!Alive(hWnd, "ativar")) return;
-        if (IsIconic(hWnd)) ShowWindow(hWnd, SW_RESTORE);
-        ForceForeground(hWnd);
+
+        var atende = Responds(hWnd);
+        if (IsIconic(hWnd)) Show(hWnd, SW_RESTORE, atende);
+        ForceForeground(hWnd, atende);
     }
 
     /// <summary>
@@ -295,20 +355,42 @@ public static class WindowService
         var owner = GetWindowThreadProcessId(foreground, out _);
         var current = GetCurrentThreadId();
 
-        if (owner != current) AttachThreadInput(current, owner, true);
+        // Anexada a uma thread que não atende, a nossa para junto: tirar o foco dela é uma
+        // mensagem que ela tem de responder. Quem está na frente ainda carregando (o app que a
+        // pessoa acabou de abrir) fica de fora do truque — o pedido vai sem ele, e costuma bastar,
+        // porque a busca e as configurações abrem por tecla ou clique, que dão à dock o direito
+        // ao foco.
+        var anexar = owner != current && Responds(foreground);
+        if (!anexar && owner != current)
+            Log.Trace($"foco para {hWnd:X}: quem está na frente ({foreground:X}) não atende; pedido sem anexar o input");
+
+        if (anexar) AttachThreadInput(current, owner, true);
         SetForegroundWindow(hWnd);
         SetActiveWindow(hWnd);
-        if (owner != current) AttachThreadInput(current, owner, false);
+        if (anexar) AttachThreadInput(current, owner, false);
     }
 
     /// <summary>
     /// O Windows so deixa o processo em primeiro plano trocar o foco. Anexar o input da
     /// nossa thread a da janela alvo contorna isso — e o truque que os launchers usam.
+    ///
+    /// <paramref name="atende"/> é o <see cref="Responds"/> da janela, perguntado por quem chama.
+    /// Com o input anexado as duas threads passam a dividir uma fila só, e o
+    /// <c>SetForegroundWindow</c> entrega a ativação <b>esperando</b> a janela: se ela não atende
+    /// — o programa ainda carregando em que a pessoa clicou de novo —, a dock ficaria parada até
+    /// ela voltar. Nesse caso o foco é pedido sem anexar: o Windows o põe na fila dela.
     /// </summary>
-    private static void ForceForeground(nint hWnd)
+    private static void ForceForeground(nint hWnd, bool atende)
     {
         var fg = GetForegroundWindow();
         if (fg == hWnd) { Log.Trace($"janela {hWnd:X} já estava em primeiro plano"); return; }
+
+        if (!atende)
+        {
+            Log.Trace($"janela {hWnd:X} não atende mensagens: foco pedido sem esperar por ela");
+            SetForegroundWindow(hWnd);
+            return;
+        }
 
         var target = GetWindowThreadProcessId(hWnd, out _);
         var current = GetCurrentThreadId();
@@ -350,9 +432,10 @@ public static class WindowService
         var preso = (GetWindowLongPtr(hWnd, GWL_EXSTYLE).ToInt64() & WS_EX_TOPMOST) != 0;
 
         // sem mexer em posição, tamanho nem foco: fixar não é trazer para frente, é decidir
-        // onde a janela mora na pilha — quem está digitando noutra continua digitando nela
+        // onde a janela mora na pilha — quem está digitando noutra continua digitando nela.
+        // A que não atende recebe o pedido na fila: a dock não espera por ela
         SetWindowPos(hWnd, preso ? HWND_NOTOPMOST : HWND_TOPMOST, 0, 0, 0, 0,
-                     SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+                     SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | (Responds(hWnd) ? 0 : SWP_ASYNCWINDOWPOS));
 
         Log.Trace($"janela {hWnd:X}: {(preso ? "solta do topo" : "presa acima das outras")}");
         return !preso;

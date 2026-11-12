@@ -78,6 +78,15 @@ internal static class Native
     [DllImport("user32.dll")]
     public static extern bool ShowWindow(nint hWnd, int cmd);
 
+    /// <summary>O <see cref="ShowWindow"/> que não espera: o pedido vai para a fila da thread dona
+    /// da janela. Na janela de outro programa o <c>ShowWindow</c> comum só volta depois de ela
+    /// atender — e um programa ocupado seguraria junto quem pediu.</summary>
+    [DllImport("user32.dll")]
+    public static extern bool ShowWindowAsync(nint hWnd, int cmd);
+
+    /// <summary>Mensagem que não faz nada: serve para perguntar se a janela atende.</summary>
+    public const uint WM_NULL = 0x0000;
+
     /// <summary>
     /// O que a barra de tarefas usa no Alt+Tab. Vale como ultimo recurso porque nao passa
     /// pela regra de "so o processo em primeiro plano troca o foco" — e o que ainda mexe

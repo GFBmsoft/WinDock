@@ -1,0 +1,37 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Confere as duas contas de retângulo que valem com a barra do Windows escondida: até onde a
+    área de trabalho vai (BarGeometry.Reclaimed) e onde a dock fica (BarGeometry.WithoutTaskbar).
+
+    Existe por um motivo específico: na máquina de quem faz a dock a barra do Windows fica no
+    topo e a dock embaixo, e o defeito que criou estas contas (EV07, 06/11/2026) veio da máquina
+    de outra pessoa, com a barra embaixo. Mudar a barra de borda aqui pede reiniciar o explorer
+    na máquina de trabalho; a conta, não. Sem isto as bordas que esta máquina não usa só seriam
+    conferidas quando alguém reclamasse.
+
+    Roda com:  dotnet run  (a partir desta pasta)
+    Sai com código 1 se alguma conferência falhar.
+  -->
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <!-- net8.0 puro, sem -windows: nada aqui depende do WPF nem do Win32 -->
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>WinDock.Tests</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!--
+      Os arquivos de verdade, compilados aqui dentro — não cópias, pelo mesmo motivo do TreeCheck.
+      O RECT vem do stub de lá: um só para os dois projetos, para não haver dois a manter iguais
+      ao do src/Interop/Native.cs.
+    -->
+    <Compile Include="..\..\src\Services\BarGeometry.cs" Link="BarGeometry.cs" />
+    <Compile Include="..\..\src\Interop\DockEdge.cs" Link="DockEdge.cs" />
+    <Compile Include="..\TreeCheck\NativeStub.cs" Link="NativeStub.cs" />
+  </ItemGroup>
+
+</Project>

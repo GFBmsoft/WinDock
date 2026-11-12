@@ -144,7 +144,4 @@ public sealed class ShellPopupGuard : IDisposable
 
     [DllImport("user32.dll")]
     private static extern bool PostThreadMessage(uint thread, uint msg, nint wParam, nint lParam);
-
-    [DllImport("user32.dll")]
-    private static extern bool ShowWindowAsync(nint hWnd, int cmd);
 }

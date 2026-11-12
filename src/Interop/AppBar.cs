@@ -6,8 +6,6 @@ using static WinDock.Interop.Native;
 
 namespace WinDock.Interop;
 
-public enum DockEdge { Left = 0, Top = 1, Right = 2, Bottom = 3 }
-
 /// <summary>
 /// Registra a janela como AppBar: o Windows encolhe a area de trabalho, entao nenhuma
 /// janela maximizada fica por baixo da dock. Sem isso a dock so flutuaria por cima.
@@ -40,6 +38,25 @@ public sealed class AppBar : IDisposable
     /// engoliriam os cliques.
     /// </summary>
     public bool IgnoreOtherBars { get; set; }
+
+    /// <summary>
+    /// Ignora <b>só</b> a barra de tarefas do Windows ao se posicionar — o da dock, com a barra
+    /// nativa escondida. As outras barras continuam valendo: a de cima do próprio WinDock e a de
+    /// qualquer outro programa. Veja <see cref="Services.BarGeometry.WithoutTaskbar"/>.
+    /// </summary>
+    public bool IgnoreTaskbar { get; set; }
+
+    /// <summary>
+    /// A espessura da barra de cima do WinDock agora, ou zero sem ela — o piso de quem usa o
+    /// <see cref="IgnoreTaskbar"/>. Perguntada na hora de posicionar, e não guardada: a barra de
+    /// cima é criada depois da dock e some com uma opção.
+    /// </summary>
+    public Func<int>? TopReserve { get; set; }
+
+    /// <summary>O monitor em que uma faixa está, pelo centro dela.</summary>
+    internal static nint MonitorOf(RECT faixa) => MonitorFromPoint(
+        new POINT { X = faixa.Left + faixa.Width / 2, Y = faixa.Top + faixa.Height / 2 },
+        MONITOR_DEFAULTTONEAREST);
 
     public void Register(DockEdge edge, int thickness, bool reserveSpace)
     {
@@ -108,12 +125,21 @@ public sealed class AppBar : IDisposable
             if (!IgnoreOtherBars) SHAppBarMessage(ABM_QUERYPOS, ref data);
             Snap(ref data.rc);
 
+            // com a barra do Windows escondida, só o empurrão dela é desfeito: a pergunta acima
+            // continua valendo para a barra de cima e para a barra de qualquer outro programa
+            var semABarra = IgnoreTaskbar && !IgnoreOtherBars;
+            if (semABarra)
+                data.rc = Services.BarGeometry.WithoutTaskbar(data.rc, desired, screen, TaskbarOnMyMonitor(),
+                                                              Edge, Thickness, TopReserve?.Invoke() ?? 0);
+            var pedido = data.rc;
+
             SHAppBarMessage(ABM_SETPOS, ref data);
             Snap(ref data.rc);   // o shell tambem mexe no retangulo aqui
 
             // o SETPOS avisa o shell da faixa que ocupamos, mas quem ignora as outras
             // barras fica onde pediu: senao a resposta do shell traria de volta o empurrao
             if (IgnoreOtherBars) data.rc = desired;
+            else if (semABarra) data.rc = pedido;
         }
 
         // sem isto, um retangulo torto devolvido pelo shell viraria largura negativa e
@@ -127,6 +153,30 @@ public sealed class AppBar : IDisposable
         _window.Top    = data.rc.Top    / dpi.DpiScaleY;
         _window.Width  = data.rc.Width  / dpi.DpiScaleX;
         _window.Height = data.rc.Height / dpi.DpiScaleY;
+    }
+
+    /// <summary>
+    /// A barra de tarefas do Windows que está no monitor desta barra — a principal ou a de uma
+    /// tela secundária —, ou vazio se não houver. Só leitura de retângulo: não manda mensagem ao
+    /// explorer, que pode estar travado.
+    /// </summary>
+    private RECT TaskbarOnMyMonitor()
+    {
+        var meu = MonitorFromWindow(_hWnd, MONITOR_DEFAULTTOPRIMARY);
+        RECT achada = default;
+
+        void Olhar(nint barra)
+        {
+            if (barra != 0 && MonitorFromWindow(barra, MONITOR_DEFAULTTONEAREST) == meu &&
+                GetWindowRect(barra, out var r)) achada = r;
+        }
+
+        Olhar(FindWindow("Shell_TrayWnd", null));
+
+        nint outra = 0;
+        while ((outra = FindWindowEx(0, outra, "Shell_SecondaryTrayWnd", null)) != 0) Olhar(outra);
+
+        return achada;
     }
 
     /// <summary>Encosta o retangulo na borda escolhida, com a espessura pedida.</summary>

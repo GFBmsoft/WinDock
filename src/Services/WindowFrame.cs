@@ -43,11 +43,28 @@ internal static class WindowFrame
         };
     }
 
-    /// <summary>Move e redimensiona uma janela para caber exatamente em <paramref name="target"/>,
-    /// compensando a margem invisível que o Windows 11 deixa em volta da moldura.</summary>
-    public static void Place(nint hwnd, RECT target, nint after = 0, uint extraFlags = SWP_NOZORDER)
+    /// <summary>
+    /// Move e redimensiona uma janela para caber exatamente em <paramref name="target"/>,
+    /// compensando a margem invisível que o Windows 11 deixa em volta da moldura.
+    ///
+    /// Devolve se a janela <b>já está</b> no lugar quando isto volta. Com a janela atendendo, o
+    /// movimento é feito esperando por ela, como sempre foi. Com ela ocupada
+    /// (<see cref="WindowService.Responds"/>) o pedido vai para a fila dela
+    /// (<c>SWP_ASYNCWINDOWPOS</c>) e isto devolve falso: ela chega ao lugar quando voltar a
+    /// atender, e quem precisa conferir o tamanho confere depois. Esperar aqui era a dock inteira
+    /// parada enquanto um programa recém-aberto carregava — o caso mais comum é justamente a
+    /// janela nova, que o mosaico centraliza ou encaixa no instante em que ela aparece
+    /// (12/11/2026). Quem já pede <c>SWP_ASYNCWINDOWPOS</c> nem pergunta.
+    /// </summary>
+    public static bool Place(nint hwnd, RECT target, nint after = 0, uint extraFlags = SWP_NOZORDER)
     {
-        if (IsIconic(hwnd)) ShowWindow(hwnd, SW_RESTORE);
+        var espera = (extraFlags & SWP_ASYNCWINDOWPOS) == 0 && WindowService.Responds(hwnd);
+
+        if (IsIconic(hwnd))
+        {
+            if (espera) ShowWindow(hwnd, SW_RESTORE);
+            else ShowWindowAsync(hwnd, SW_RESTORE);
+        }
 
         var margin = Margin(hwnd);
 
@@ -56,7 +73,9 @@ internal static class WindowFrame
             target.Top - margin.Top,
             target.Width + margin.Left + margin.Right,
             target.Height + margin.Top + margin.Bottom,
-            extraFlags | SWP_NOACTIVATE);
+            extraFlags | SWP_NOACTIVATE | (espera ? 0 : SWP_ASYNCWINDOWPOS));
+
+        return espera;
     }
 
     /// <summary>
@@ -80,7 +99,8 @@ internal static class WindowFrame
     ///
     /// <paramref name="semEsperar"/> pede o movimento sem esperar a janela responder
     /// (<c>SWP_ASYNCWINDOWPOS</c>). É o do <see cref="StripGuard"/>, que olha toda janela que vem
-    /// para o primeiro plano: esperar um programa ocupado seria a dock parada junto com ele.
+    /// para o primeiro plano: esperar um programa ocupado seria a dock parada junto com ele. Sem
+    /// ele, o <see cref="Place"/> ainda deixa de esperar a janela que não atende.
     /// </summary>
     public static bool KeepInsideWorkArea(nint hwnd, string motivo, bool semEsperar = false)
     {

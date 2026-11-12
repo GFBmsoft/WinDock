@@ -21,11 +21,13 @@ public sealed class FullScreenWatcher : IDisposable
     private bool _active;
 
     /// <summary>
-    /// Faixa que a dock ocupa, em pixels. Serve para a segunda regra: uma sessao remota
+    /// Faixa que a dock ocupa agora, em pixels. Serve para a segunda regra: uma sessao remota
     /// costuma cobrir a tela sem se declarar "tela cheia", e o que interessa e se ela
-    /// passou por cima da dock.
+    /// passou por cima da dock. Perguntada a cada conferência: o shell muda a dock de lugar
+    /// sozinho (troca de resolução, justamente ao abrir ou fechar uma sessão remota), e uma cópia
+    /// guardada ficava com o lugar antigo.
     /// </summary>
-    internal RECT DockBounds { get; set; }
+    internal Func<RECT> DockBounds { get; set; } = () => default;
 
     /// <summary>
     /// Janelas de acesso remoto. Sao tratadas a parte porque ignoram a area de trabalho
@@ -106,7 +108,7 @@ public sealed class FullScreenWatcher : IDisposable
         if (IsFullScreen(window, rect)) return true;
 
         // sessao remota que passou por cima da faixa da dock
-        return RemoteSessionClasses.Contains(className) && Overlaps(rect, DockBounds);
+        return RemoteSessionClasses.Contains(className) && Overlaps(rect, DockBounds());
     }
 
     /// <summary>
@@ -118,17 +120,10 @@ public sealed class FullScreenWatcher : IDisposable
     /// </summary>
     private bool NoMonitorDaDock(nint window)
     {
-        var dock = DockBounds;
+        var dock = DockBounds();
         if (dock.Right <= dock.Left || dock.Bottom <= dock.Top) return true;
 
-        var centro = new POINT
-        {
-            X = dock.Left + (dock.Right - dock.Left) / 2,
-            Y = dock.Top + (dock.Bottom - dock.Top) / 2
-        };
-
-        return MonitorFromWindow(window, MONITOR_DEFAULTTONEAREST) ==
-               MonitorFromPoint(centro, MONITOR_DEFAULTTONEAREST);
+        return MonitorFromWindow(window, MONITOR_DEFAULTTONEAREST) == Interop.AppBar.MonitorOf(dock);
     }
 
     private static bool Overlaps(RECT a, RECT b) =>

@@ -119,6 +119,12 @@ public partial class MainWindow : Window
         DataContext = _model;
         Marcar("modelo");
 
+        // Onde a dock está é perguntado à AppBar na hora, por quem precisa: o vigia da barra do
+        // Windows (para devolver o espaço dela só até a dock) e o de tela cheia. Uma cópia
+        // entregue a cada um ficava velha quando o shell movia a dock sem ninguém mexer em opção
+        _taskbar.Dock = () => _appBar is { } barra && _config.ReserveSpace ? (barra.Edge, barra.Bounds) : default;
+        _fullScreen.DockBounds = () => _appBar?.Bounds ?? default;
+
         WhenShellIsUp(() =>
         {
             // Com a barra do Windows escondida por nós, a dock vai para a borda de verdade, como a
@@ -126,10 +132,21 @@ public partial class MainWindow : Window
             // padrão do Windows), empilharia a dock acima dela — a dock boiando sobre uma faixa
             // vazia de papel de parede (EV07, 06/11/2026). Só recolhida, não: a faixa é onde ela
             // reaparece com o mouse, e com a dock por cima dela passar o mouse na dock a chamaria.
-            _appBar = new AppBar(this) { IgnoreOtherBars = _config.Taskbar == TaskbarMode.Hidden };
+            //
+            // Só a barra do Windows é ignorada (12/11/2026): ignorando todas, a dock no topo ou na
+            // lateral passava por cima da barra de cima do próprio WinDock, e a barra de outro
+            // programa na mesma borda deixava de valer.
+            _appBar = new AppBar(this)
+            {
+                IgnoreTaskbar = _config.Taskbar == TaskbarMode.Hidden,
+                TopReserve = () => _taskbar.TopReserve
+            };
             _appBar.Register(_config.Edge, _config.Size, _config.ReserveSpace);
-            _fullScreen.DockBounds = _appBar.Bounds;
-            _taskbar.SetDock(_config.Edge, _config.ReserveSpace ? _config.Size : 0, _appBar.Bounds);
+
+            // o shell reposiciona a dock sozinho (resolução, explorer que renasce): a área de
+            // trabalho é reaplicada em seguida, e não só na próxima volta do relógio. Na fila: o
+            // aviso chega de dentro de uma mensagem do explorer
+            _appBar.PositionChanged += () => Dispatcher.BeginInvoke(new Action(_taskbar.Refresh));
 
             _taskbar.Apply(_config.Taskbar);
         });
@@ -290,6 +307,7 @@ public partial class MainWindow : Window
             case nameof(DockConfig.PanelSize):
                 _panel?.Resize();
                 _taskbar.TopReserve = _config.Panel ? _config.PanelSize : 0;
+                PlaceDockBesidePanel();
                 _taskbar.Refresh();
                 break;
             case nameof(DockConfig.TilingEnabled):
@@ -300,17 +318,26 @@ public partial class MainWindow : Window
     }
 
     /// <summary>
-    /// Reposiciona a dock e conta ao vigia da barra do Windows onde ela ficou: é com isso que o
-    /// espaço devolvido da barra nativa para na faixa da dock, e não por cima dela.
+    /// Reposiciona a dock. Quem precisa saber onde ela ficou — o vigia da barra do Windows, para o
+    /// espaço devolvido da barra nativa parar na faixa da dock e não por cima dela — pergunta à
+    /// AppBar na hora (<see cref="TaskbarService.Dock"/>).
     /// </summary>
     private void PlaceDock()
     {
         if (_appBar is null) return;
 
-        _appBar.IgnoreOtherBars = _config.Taskbar == TaskbarMode.Hidden;
+        _appBar.IgnoreTaskbar = _config.Taskbar == TaskbarMode.Hidden;
         _appBar.Resize(_config.Edge, _config.Size, _config.ReserveSpace);
-        _fullScreen.DockBounds = _appBar.Bounds;
-        _taskbar.SetDock(_config.Edge, _config.ReserveSpace ? _config.Size : 0, _appBar.Bounds);
+    }
+
+    /// <summary>
+    /// A barra de cima apareceu, sumiu ou mudou de espessura: a dock que divide espaço com ela —
+    /// no topo, logo abaixo; na lateral, começando onde ela termina — se reposiciona. Embaixo
+    /// nada muda, e a dock nem é mexida.
+    /// </summary>
+    private void PlaceDockBesidePanel()
+    {
+        if (_config.Edge != DockEdge.Bottom) PlaceDock();
     }
 
     /// <summary>
@@ -353,6 +380,7 @@ public partial class MainWindow : Window
             _panel?.Close();
             _panel = null;
             _taskbar.TopReserve = 0;
+            PlaceDockBesidePanel();
             _taskbar.Refresh();
             ApplyHotkeys();   // os de música dependem da barra: sem ela, soltam as teclas
             return;
@@ -367,6 +395,7 @@ public partial class MainWindow : Window
         var mostrar = relogio.ElapsedMilliseconds; relogio.Restart();
 
         _taskbar.TopReserve = _config.PanelSize;
+        PlaceDockBesidePanel();
         _taskbar.Refresh();   // o shell recalculou a area de trabalho ao registrar a AppBar
         var faixa = relogio.ElapsedMilliseconds; relogio.Restart();
 

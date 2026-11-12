@@ -175,6 +175,10 @@ public sealed class TilingService : IDisposable
         _borderHeartbeat?.Stop();
         _borderHeartbeat = null;
 
+        _esperaOcupadas?.Stop();
+        _esperaOcupadas = null;
+        _adiadas.Clear();
+
         _tree.Clear();
         _floating.Clear();
         _bornFloating.Clear();
@@ -978,7 +982,8 @@ public sealed class TilingService : IDisposable
         var hwnd = GetForegroundWindow();
         if (hwnd == 0) return;
 
-        ShowWindow(hwnd, SW_MINIMIZE);
+        // pela fila se a janela não atende: minimizar um programa travado não pode travar a dock
+        WindowService.Show(hwnd, SW_MINIMIZE);
         // o EVENT_SYSTEM_MINIMIZESTART — que, apesar do nome, é o evento de *minimizar*;
         // veja o OnWinEvent — já dispara um Refresh sozinho; nada mais a fazer aqui
     }
@@ -1142,7 +1147,9 @@ public sealed class TilingService : IDisposable
 
         if (rects.Count == 0) { _rects = new(); UpdateBorder(); return; }
 
-        ApplyAll(rects);
+        // as que não atendiam mensagem ficam para depois: o retângulo já está na fila delas
+        var ocupadas = ApplyAll(rects);
+        if (ocupadas.Count > 0) WatchBusy();
 
         // alguns formulários (Delphi com `Constraints`, sobretudo) têm botão de maximizar mas
         // ignoram o tamanho pedido — pegos no flagra, saem do mosaico em vez de ficar
@@ -1154,6 +1161,9 @@ public sealed class TilingService : IDisposable
 
         foreach (var (hwnd, rect) in rects)
         {
+            // ainda nem se moveu: medir agora contaria como recusa, e duas a tirariam do mosaico
+            if (ocupadas.Contains(hwnd)) continue;
+
             if (FitsTarget(hwnd, rect)) { _suspect.Remove(hwnd); continue; }
 
             TryGetVisualRect(hwnd, out var real);
@@ -1264,8 +1274,9 @@ public sealed class TilingService : IDisposable
 
     private static (int X, int Y) Center(RECT r) => ((r.Left + r.Right) / 2, (r.Top + r.Bottom) / 2);
 
-    /// <summary>Veja <see cref="WindowFrame.Place"/>.</summary>
-    private static void Apply(nint hwnd, RECT target, nint after = 0, uint extraFlags = SWP_NOZORDER) =>
+    /// <summary>Veja <see cref="WindowFrame.Place"/>: devolve se a janela já está no lugar — falso
+    /// quando ela não atendia e o pedido ficou na fila dela.</summary>
+    private static bool Apply(nint hwnd, RECT target, nint after = 0, uint extraFlags = SWP_NOZORDER) =>
         WindowFrame.Place(hwnd, target, after, extraFlags);
 
     /// <summary>
@@ -1276,9 +1287,37 @@ public sealed class TilingService : IDisposable
     ///
     /// Se o Windows recusar a lista em qualquer ponto (o identificador volta zero), cai no
     /// caminho antigo, uma a uma: é só perder o ganho visual, não o rearranjo.
+    ///
+    /// <para><b>Quem não atende mensagem fica fora do bloco.</b> O <c>EndDeferWindowPos</c> só
+    /// volta depois de todas as janelas da lista atenderem, e uma só ocupada — o programa que
+    /// acabou de abrir e ainda carrega, um app parado no depurador — segurava a dock e a barra de
+    /// cima pelo tempo que ela levasse (12/11/2026). Essa recebe o retângulo pela fila dela, e
+    /// sai na lista devolvida: o tamanho dela só pode ser conferido quando voltar a atender
+    /// (<see cref="WatchBusy"/>), e conferir antes a tomaria por teimosa.</para>
     /// </summary>
-    private static void ApplyAll(Dictionary<nint, RECT> rects)
+    private HashSet<nint> ApplyAll(Dictionary<nint, RECT> todas)
     {
+        var ocupadas = todas.Keys.Where(h => !WindowService.Responds(h)).ToHashSet();
+
+        foreach (var hwnd in _adiadas.Keys.Where(h => !ocupadas.Contains(h)).ToList()) _adiadas.Remove(hwnd);
+
+        foreach (var hwnd in ocupadas)
+        {
+            // o mesmo pedido já está na fila dela: repetir a cada recálculo só a faria se mexer
+            // várias vezes ao acordar
+            var alvo = todas[hwnd];
+            if (_adiadas.TryGetValue(hwnd, out var ja) && ja.Left == alvo.Left && ja.Top == alvo.Top &&
+                ja.Right == alvo.Right && ja.Bottom == alvo.Bottom) continue;
+
+            Log.Trace($"ApplyAll: {hwnd:X} não atende mensagens — retângulo deixado na fila dela, conferência adiada");
+            _adiadas[hwnd] = alvo;
+            Apply(hwnd, alvo, extraFlags: SWP_NOZORDER | SWP_ASYNCWINDOWPOS);
+        }
+
+        var rects = ocupadas.Count == 0 ? todas
+                  : todas.Where(r => !ocupadas.Contains(r.Key)).ToDictionary(r => r.Key, r => r.Value);
+        if (rects.Count == 0) return ocupadas;
+
         // sair do minimizado tem de vir antes: uma janela minimizada ignora o retângulo pedido,
         // e a margem invisível dela nem existe ainda pra ser medida
         foreach (var hwnd in rects.Keys) if (IsIconic(hwnd)) ShowWindow(hwnd, SW_RESTORE);
@@ -1300,10 +1339,65 @@ public sealed class TilingService : IDisposable
             }
         }
 
-        if (batch != 0) { EndDeferWindowPos(batch); return; }
+        if (batch != 0) { EndDeferWindowPos(batch); return ocupadas; }
 
         Log.Trace("ApplyAll: o Windows recusou a lista em bloco — reaplicando uma a uma");
-        foreach (var (hwnd, rect) in rects) Apply(hwnd, rect);
+        foreach (var (hwnd, rect) in rects)
+            if (!Apply(hwnd, rect)) { ocupadas.Add(hwnd); _adiadas[hwnd] = rect; }
+
+        return ocupadas;
+    }
+
+    /// <summary>
+    /// As janelas que não atendiam mensagem quando o mosaico foi posicioná-las, com o retângulo
+    /// que ficou na fila de cada uma. Enquanto houver alguma, o <see cref="CheckBusy"/> pergunta
+    /// de tempos em tempos se já voltaram.
+    /// </summary>
+    private readonly Dictionary<nint, RECT> _adiadas = new();
+    private DispatcherTimer? _esperaOcupadas;
+
+    /// <summary>
+    /// Espera as janelas ocupadas voltarem a atender para então conferir o tamanho delas.
+    ///
+    /// Um relógio que só <b>pergunta</b>, e não um <see cref="Refresh"/> repetido: o recálculo
+    /// reaplica o grid inteiro, e refazê-lo várias vezes por segundo enquanto um programa
+    /// carrega (ou fica parado num ponto de parada do depurador, sem prazo para voltar) puxaria
+    /// de volta a janela que a pessoa estivesse arrastando. A pergunta é barata: a janela que o
+    /// Windows já marcou como travada responde "não" sem espera nenhuma.
+    /// </summary>
+    private void WatchBusy()
+    {
+        if (_esperaOcupadas is not null) return;
+
+        _esperaOcupadas = new DispatcherTimer(TimeSpan.FromMilliseconds(400), DispatcherPriority.Background,
+            (_, _) => CheckBusy(), _dispatcher);
+        _esperaOcupadas.Start();
+    }
+
+    private void CheckBusy()
+    {
+        var voltou = false;
+
+        foreach (var hwnd in _adiadas.Keys.ToList())
+        {
+            // prazo mínimo: esta pergunta se repete, e quem atende responde em menos de 1 ms
+            if (IsWindow(hwnd) && !WindowService.Responds(hwnd, prazoMs: 5)) continue;
+
+            _adiadas.Remove(hwnd);
+            voltou = true;
+        }
+
+        if (_adiadas.Count == 0)
+        {
+            _esperaOcupadas?.Stop();
+            _esperaOcupadas = null;
+        }
+
+        if (!voltou || !_config.TilingEnabled) return;
+
+        Log.Trace("janela ocupada voltou a atender: recalculando o mosaico para conferir o tamanho dela");
+        if (_pending is not { Status: DispatcherOperationStatus.Pending })
+            _pending = _dispatcher.InvokeAsync(Refresh, DispatcherPriority.Background);
     }
 
     /// <summary>Alt+C: tamanho e posição de uma janela flutuando — o tamanho que este app usa

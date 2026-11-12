@@ -49,23 +49,20 @@ public sealed class TaskbarService : IDisposable
     public int TopReserve { get; set; }
 
     /// <summary>
-    /// A borda, a faixa (zero sem reserva) e o lugar da dock. Com a barra do Windows na mesma
-    /// borda — embaixo, o padrão do Windows, e não o desta máquina, onde ela fica no topo —,
-    /// devolver o espaço dela sem saber da dock esticava a área útil por cima da dock, e as
-    /// janelas maximizadas passavam por baixo dela (EV07, 06/11/2026, na máquina de outro
-    /// usuário). O lugar diz em que monitor ela está: a barra de outra tela não tem dock nenhuma
-    /// para respeitar.
+    /// A borda e o lugar da dock <b>agora</b>, ou vazio quando ela não reserva faixa. Com a barra
+    /// do Windows na mesma borda — embaixo, o padrão do Windows, e não o desta máquina, onde ela
+    /// fica no topo —, devolver o espaço dela sem saber da dock esticava a área útil por cima da
+    /// dock, e as janelas maximizadas passavam por baixo dela (EV07, 06/11/2026, na máquina de
+    /// outro usuário). O lugar diz em que monitor ela está: a barra de outra tela não tem dock
+    /// nenhuma para respeitar.
+    ///
+    /// É uma pergunta, e não um valor guardado: o shell reposiciona a dock sozinho (troca de
+    /// resolução, saída do dock do notebook, sessão remota, explorer que renasce), e a cópia que
+    /// ficava aqui era a do último ajuste de configuração. Com a resolução menor o limite antigo
+    /// ficava abaixo da dock nova, e a área útil voltava a passar por baixo dela — a EV07 de
+    /// novo, até alguém mexer numa opção.
     /// </summary>
-    internal void SetDock(DockEdge edge, int reserve, RECT bounds)
-    {
-        _dockEdge = edge;
-        _dockReserve = reserve;
-        _dockBounds = bounds;
-    }
-
-    private DockEdge _dockEdge = DockEdge.Bottom;
-    private int _dockReserve;
-    private RECT _dockBounds;
+    internal Func<(DockEdge Edge, RECT Bounds)>? Dock { get; set; }
 
     public TaskbarService()
     {
@@ -261,7 +258,7 @@ public sealed class TaskbarService : IDisposable
     /// <summary>
     /// Devolve para a area de trabalho a faixa que a barra ocupa. So o lado dela e mexido:
     /// a faixa que a dock reserva continua reservada, mesmo quando as duas estao na mesma
-    /// borda da tela.
+    /// borda da tela. A conta é a do <see cref="BarGeometry.Reclaimed"/>.
     /// </summary>
     private void Reclaim()
     {
@@ -272,71 +269,17 @@ public sealed class TaskbarService : IDisposable
         var info = new MONITORINFO { cbSize = Marshal.SizeOf<MONITORINFO>() };
         if (!GetMonitorInfo(monitor, ref info)) return;
 
-        // a dock só conta na tela em que está, e se reserva a faixa
-        var centro = new POINT
-        {
-            X = _dockBounds.Left + (_dockBounds.Right - _dockBounds.Left) / 2,
-            Y = _dockBounds.Top + (_dockBounds.Bottom - _dockBounds.Top) / 2
-        };
-        var dock = _dockReserve > 0 && _dockBounds.Right > _dockBounds.Left &&
-                   MonitorFromPoint(centro, MONITOR_DEFAULTTONEAREST) == monitor ? _dockBounds : default;
+        // a dock só conta na tela em que está, e se reserva a faixa (sem reserva o lugar vem vazio)
+        var (borda, lugar) = Dock?.Invoke() ?? default;
+        var dock = lugar.Width > 0 && lugar.Height > 0 && AppBar.MonitorOf(lugar) == monitor ? lugar : default;
 
-        var work = Reclaimed(info.rcMonitor, info.rcWork, rect, TopReserve, _dockEdge, dock);
+        var work = BarGeometry.Reclaimed(info.rcMonitor, info.rcWork, rect, TopReserve, borda, dock);
 
         if (work.Left == info.rcWork.Left && work.Top == info.rcWork.Top &&
             work.Right == info.rcWork.Right && work.Bottom == info.rcWork.Bottom) return;
 
         // sem SPIF_SENDCHANGE de proposito: com o aviso o shell recalcula e desfaz
         SystemParametersInfo(SPI_SETWORKAREA, 0, ref work, 0);
-    }
-
-    /// <summary>
-    /// A conta do <see cref="Reclaim"/>, sem tocar em nada: a área de trabalho com a faixa da
-    /// barra do Windows devolvida. Separada para poder ser conferida com a barra em qualquer
-    /// borda, inclusive nas que esta máquina não usa.
-    /// </summary>
-    /// <param name="dock">Onde a dock está, ou vazio quando ela não reserva faixa nesta tela.</param>
-    internal static RECT Reclaimed(RECT screen, RECT work, RECT bar, int topReserve, DockEdge dockEdge, RECT dock)
-    {
-        var temDock = dock.Right > dock.Left && dock.Bottom > dock.Top;
-        bool Na(DockEdge borda) => temDock && dockEdge == borda;
-        var horizontal = bar.Width >= bar.Height;
-
-        // As comparacoes com o retangulo da barra sao o que torna isto repetivel: so
-        // devolve o espaco se ele ainda estiver reservado. Sem essa guarda, cada passagem
-        // descontava a mesma altura de novo e acabava comendo a faixa de quem veio depois
-        // — a barra de cima do WinDock, por exemplo.
-        //
-        // Em toda borda o espaço devolvido para na faixa do WinDock que estiver nela: as duas
-        // ficam na mesma borda e o shell só conta a mais grossa, então esse limite é a única forma
-        // de a nossa continuar reservada. No topo era só a barra de cima; embaixo não havia limite
-        // nenhum, e a área útil ia até o fim da tela por cima da dock (EV07). O limite é onde a
-        // dock está de fato, e não a espessura dela contada da borda: com a barra só recolhida, a
-        // dock fica empilhada acima da faixa em que a barra reaparece.
-        if (horizontal && bar.Top <= screen.Top)
-        {
-            var free = work.Top >= bar.Bottom ? work.Top - bar.Height : work.Top;
-            var piso = screen.Top + topReserve;
-            if (Na(DockEdge.Top)) piso = Math.Max(piso, dock.Bottom);
-            work.Top = Math.Max(piso, free);
-        }
-        else if (horizontal)
-        {
-            if (work.Bottom <= bar.Top)
-                work.Bottom = Math.Min(Na(DockEdge.Bottom) ? dock.Top : screen.Bottom, work.Bottom + bar.Height);
-        }
-        else if (bar.Left <= screen.Left)
-        {
-            if (work.Left >= bar.Right)
-                work.Left = Math.Max(Na(DockEdge.Left) ? dock.Right : screen.Left, work.Left - bar.Width);
-        }
-        else
-        {
-            if (work.Right <= bar.Left)
-                work.Right = Math.Min(Na(DockEdge.Right) ? dock.Left : screen.Right, work.Right + bar.Width);
-        }
-
-        return work;
     }
 
     /// <summary>Barra de volta e area de trabalho recalculada pelo shell, como estava.</summary>

@@ -924,6 +924,20 @@ Windows > Esconder** a dock fica encostada na borda da tela; em **Recolher na bo
 acima da faixa em que a barra do Windows reaparece com o mouse. Até a 1.0.0.74, nos dois casos a
 dock boiava acima de uma faixa vazia e as janelas maximizadas passavam por baixo dela.
 
+Com a barra do Windows escondida, a dock só ignora **ela**: a barra de cima e a barra de qualquer
+outro programa continuam valendo. Dock no topo fica logo abaixo da barra de cima; na lateral,
+começa onde a barra de cima termina (desde a 1.0.0.76; na 1.0.0.75 as duas se sobrepunham).
+
+### A dock parava enquanto um programa abria
+
+Até a 1.0.0.75, com o **mosaico** ligado, a dock e a barra de cima ficavam sem responder — sem
+realce no ícone, sem clique, relógio parado — enquanto um programa recém-aberto carregava: para
+colocar a janela nova no lugar, a dock esperava o programa atender, e um programa que ainda está
+abrindo não atende. Voltava sozinha quando ele terminava. Desde a 1.0.0.76 o pedido fica na fila
+da janela e a dock não espera; a janela vai para o lugar (o centro, com **abrir flutuando**, ou o
+bloco dela no grid) quando o programa termina de abrir. Clicar no ícone de um programa travado
+também não prende mais a dock.
+
 ### `Alt+Espaço` não abre a busca
 
 Outro programa já registrou o atalho — o **PowerToys Run** usa o mesmo por padrão. A dock avisa

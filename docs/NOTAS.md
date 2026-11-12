@@ -11,6 +11,13 @@
   tag que leva a nota junto. Escrito para quem usa a dock: o que mudou na tela, e não no código.
 -->
 
+## 1.0.0.76 — 12/11/2026
+- A dock e a barra de cima não param mais enquanto um programa abre. Com o mosaico ligado, a dock esperava o programa recém-aberto responder para colocar a janela dele no lugar, e ficava travada — sem realce, sem clique, relógio parado — pelo tempo que ele levasse carregando; clicar em outro programa nesse meio-tempo era quando se notava. Agora o pedido fica na fila da janela, que vai para o lugar quando o programa termina de abrir, e a dock segue respondendo.
+- O mesmo vale para o clique no ícone de um programa que não está respondendo (minimizar, trazer para a frente), para os atalhos do mosaico e para a busca aberta com um programa travado na frente: nenhum deles espera mais pelo programa.
+- Mosaico: a janela "(Não está respondendo)" que o Windows põe no lugar de um programa travado não conta como janela nova — não ganha um bloco no grid nem é centralizada.
+- Dock no topo ou na lateral, com a barra do Windows escondida: não passa mais por cima da barra de cima. No topo ela fica logo abaixo; na lateral, começa onde a barra de cima termina. A barra de outro programa na mesma borda da dock também volta a ser respeitada.
+- Barra do Windows embaixo: depois de uma troca de resolução (tirar o notebook da base, sessão remota), as janelas maximizadas acompanham o lugar novo da dock. Antes o limite antigo ficava valendo até alguém mexer numa opção, e elas voltavam a passar por baixo da dock.
+
 ## 1.0.0.75 — 06/11/2026
 - Dock com a barra do Windows embaixo (o padrão do Windows): com a barra escondida, a dock agora encosta na borda da tela, em vez de boiar acima de uma faixa vazia; com a barra só recolhida, ela fica logo acima da faixa em que a barra reaparece. Nos dois casos as janelas maximizadas param acima da dock — antes passavam por baixo dela.
 
