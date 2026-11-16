@@ -28,6 +28,7 @@ public partial class MainWindow : Window
     /// delas.</summary>
     private DesktopRaiseGuard? _desktopRaise;
     private StripGuard? _strip;
+    private WallpaperService? _wallpaper;
 
     private AppBar? _appBar;
     private DockModel? _model;
@@ -205,6 +206,10 @@ public partial class MainWindow : Window
         // janela solta que abre ou é largada em cima da dock (ou embaixo da barra) volta para a
         // área útil, como o mosaico já faz — mas também com ele desligado
         _strip = new StripGuard(Dispatcher, _config, () => _appBar?.Bounds ?? default);
+
+        // o papel de parede pela dock, quando ligado: depois de a dock aparecer, como a barra de
+        // cima — sem explorer de pé ele espera sozinho a área de trabalho existir
+        Dispatcher.BeginInvoke(DispatcherPriority.Background, () => _wallpaper = new WallpaperService(_config, Dispatcher));
 
         _config.PropertyChanged += OnConfigChanged;
 
@@ -1094,6 +1099,7 @@ public partial class MainWindow : Window
         _shellPopups.Dispose();
         _desktopRaise?.Dispose();
         _strip?.Dispose();
+        _wallpaper?.Dispose();   // o animado sai da área de trabalho; o papel do Windows fica
         _fullScreen.Dispose();
 
         // o log fica com o arquivo aberto enquanto a dock vive; aqui ele solta o handle. Não há

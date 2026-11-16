@@ -57,6 +57,11 @@ public partial class SettingsWindow : Window
         LoadHotkeys();
         HotkeyCatalog.StatesChanged += OnHotkeyStatesChanged;
 
+        WallpaperList.ItemsSource = _wallpapers;
+        LoadWallpapers();
+        WallpaperService.StatusChanged += OnWallpaperStatus;
+        OnWallpaperStatus();
+
         // o "iniciar com o Windows" mora no registro, nao no config.json.
         // A flag existe porque marcar a caixa dispara o mesmo evento do clique: sem ela,
         // so de abrir o painel a chave Run seria reescrita com o caminho do executavel
@@ -435,8 +440,9 @@ public partial class SettingsWindow : Window
     private void ShowPage(string nome)
     {
         if (nome == PageNotes.Name) LoadNotes();
+        if (nome == PageWallpaper.Name) LoadWallpapers();   // a pasta pode ter ganhado arquivos
 
-        foreach (var pagina in new[] { PageDock, PageBar, PageItems, PageTiling, PageGeneral, PageNotes })
+        foreach (var pagina in new[] { PageDock, PageBar, PageItems, PageTiling, PageWallpaper, PageGeneral, PageNotes })
             pagina.Visibility = pagina.Name == nome ? Visibility.Visible : Visibility.Collapsed;
         Scroller.ScrollToTop();
     }
@@ -764,7 +770,71 @@ public partial class SettingsWindow : Window
     {
         if (e.PropertyName?.StartsWith("Panel", StringComparison.Ordinal) == true && PanelOrderShown() != _panelOrderShown)
             LoadPanelOrder();
+
+        switch (e.PropertyName)
+        {
+            case nameof(DockConfig.WallpaperFolder):
+            case nameof(DockConfig.WallpaperKind):
+                LoadWallpapers();
+                break;
+            case nameof(DockConfig.WallpaperCurrent):
+                SelectCurrentWallpaper();
+                break;
+        }
     }
+
+    // ── papel de parede ──────────────────────────────────────
+
+    private readonly ObservableCollection<WallpaperChoice> _wallpapers = new();
+    private bool _loadingWallpapers;
+
+    /// <summary>Os arquivos da pasta que entram, com o atual marcado.</summary>
+    private void LoadWallpapers()
+    {
+        _loadingWallpapers = true;
+        try
+        {
+            _wallpapers.Clear();
+            foreach (var f in WallpaperService.Files(_config.WallpaperFolder, _config.WallpaperKind))
+                _wallpapers.Add(new WallpaperChoice(System.IO.Path.GetFileName(f), f));
+            SelectCurrentWallpaper();
+        }
+        finally { _loadingWallpapers = false; }
+    }
+
+    private void SelectCurrentWallpaper()
+    {
+        var antes = _loadingWallpapers;
+        _loadingWallpapers = true;
+        try
+        {
+            WallpaperList.SelectedItem = _wallpapers.FirstOrDefault(w =>
+                string.Equals(w.Path, _config.WallpaperCurrent, StringComparison.OrdinalIgnoreCase));
+        }
+        finally { _loadingWallpapers = antes; }
+    }
+
+    private void OnWallpaperPicked(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
+    {
+        if (_loadingWallpapers || WallpaperList.SelectedItem is not WallpaperChoice escolhido) return;
+        _config.WallpaperCurrent = escolhido.Path;
+    }
+
+    private void OnWallpaperNext(object sender, RoutedEventArgs e) => WallpaperService.Running?.Advance();
+
+    private void OnWallpaperBrowse(object sender, RoutedEventArgs e)
+    {
+        var dlg = new Microsoft.Win32.OpenFolderDialog { Title = "Pasta dos papéis de parede" };
+        try { if (System.IO.Directory.Exists(_config.WallpaperFolder)) dlg.InitialDirectory = _config.WallpaperFolder; }
+        catch { /* caminho torto */ }
+
+        if (dlg.ShowDialog(this) != true) return;
+        _config.WallpaperFolder = dlg.FolderName;
+        _config.Save();
+    }
+
+    private void OnWallpaperStatus() =>
+        Dispatcher.BeginInvoke(() => WallpaperStatus.Text = WallpaperService.Status);
 
     private void LoadPanelOrder()
     {
@@ -1217,8 +1287,24 @@ public partial class SettingsWindow : Window
     {
         // o evento é estático: sem soltar, cada painel fechado continuaria preso a ele
         HotkeyCatalog.StatesChanged -= OnHotkeyStatesChanged;
+        WallpaperService.StatusChanged -= OnWallpaperStatus;
         _config.PropertyChanged -= OnConfigChanged;   // a config vive mais que esta janela
         _config.Save();
         base.OnClosed(e);
     }
+}
+
+/// <summary>
+/// Uma linha da lista de papéis de parede. Classe, e não record: a acessibilidade do WPF casa a
+/// linha nova com a velha de mesmo valor quando a lista se refaz, e as repetidas somem do alcance
+/// da automação (o mesmo tropeço do <c>PanelOrderRow</c>, 23/10/2026).
+/// </summary>
+public sealed class WallpaperChoice
+{
+    public WallpaperChoice(string name, string path) { Name = name; Path = path; }
+    public string Name { get; }
+    public string Path { get; }
+
+    /// <summary>O nome que o leitor de tela (e a automação) dá à linha; sem isto era "WinDock.WallpaperChoice".</summary>
+    public override string ToString() => Name;
 }

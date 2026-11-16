@@ -11,6 +11,12 @@
   tag que leva a nota junto. Escrito para quem usa a dock: o que mudou na tela, e não no código.
 -->
 
+## 1.0.0.80 — 16/11/2026
+- Papel de parede pela dock, em Configurações › Papel de parede: escolha uma pasta e a dock cuida do resto. Vídeos (.mp4, .mov, .wmv, .webm) e GIFs tocam atrás dos ícones da área de trabalho, sem som e em todos os monitores; imagens paradas (.jpg, .png, .bmp) viram o papel de parede do próprio Windows.
+- Dá para usar só os animados, só os estáticos ou os dois, escolher o papel de parede na lista, passar para o próximo e ligar a troca automática, de 5 minutos a 1 dia, em ordem ou sorteada.
+- O animado pausa sozinho quando ninguém o vê: com as janelas cobrindo a área de trabalho, com a sessão bloqueada e, se você quiser, com o notebook fora da tomada. Volta a tocar quando a área de trabalho aparece.
+- Um GIF vira vídeo na primeira vez que é usado (leva alguns segundos), e o vídeo fica guardado para as próximas: assim ele gasta bem menos que tocado quadro a quadro.
+
 ## 1.0.0.79 — 16/11/2026
 - A cota de IA voltou a se atualizar com o GTerm aberto. A dock e o GTerm perguntavam a cota cada um por conta própria, com o mesmo login, e a conta passou a recusar as perguntas da dock: o cartão parava num número velho enquanto o GTerm seguia mostrando o atual.
 - Agora a dock usa o número que o GTerm ou o ctop acabaram de ler, e olha de minuto em minuto se há um mais novo, sem perguntar nada à conta. Quando é ela quem lê, o número serve aos outros dois. E se a conta pedir uma pausa, a pausa vale para os três.

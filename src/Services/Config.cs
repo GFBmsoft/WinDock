@@ -1293,6 +1293,45 @@ public sealed class DockConfig : INotifyPropertyChanged
     public void NotifyDrawnIconChoicesChanged() =>
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(DrawnIconChoices)));
 
+    // ── papel de parede ─────────────────────────────────────
+    private bool _wallpaper;
+    /// <summary>
+    /// A dock cuida do papel de parede, a partir de uma pasta (pedido de 16/11/2026, para largar o
+    /// Wallpaper Engine). Animado toca atrás dos ícones; estático vira o papel do Windows. Desligado
+    /// de fábrica. Veja <see cref="WallpaperService"/>.
+    /// </summary>
+    public bool Wallpaper { get => _wallpaper; set => Set(ref _wallpaper, value); }
+
+    private string _wallpaperFolder = string.Empty;
+    /// <summary>De onde vêm os papéis de parede. Só a pasta, sem as subpastas.</summary>
+    public string WallpaperFolder { get => _wallpaperFolder; set => Set(ref _wallpaperFolder, value ?? string.Empty); }
+
+    private WallpaperKind _wallpaperKind = WallpaperKind.Animated;
+    /// <summary>Quais arquivos da pasta entram: os animados, os estáticos ou os dois.</summary>
+    public WallpaperKind WallpaperKind { get => _wallpaperKind; set => Set(ref _wallpaperKind, value); }
+
+    private string _wallpaperCurrent = string.Empty;
+    /// <summary>O arquivo na tela (caminho inteiro): o escolhido, ou onde a rotação parou.</summary>
+    public string WallpaperCurrent { get => _wallpaperCurrent; set => Set(ref _wallpaperCurrent, value ?? string.Empty); }
+
+    private bool _wallpaperRotate;
+    /// <summary>Troca sozinho para o próximo da pasta a cada <see cref="WallpaperRotateMinutes"/>.</summary>
+    public bool WallpaperRotate { get => _wallpaperRotate; set => Set(ref _wallpaperRotate, value); }
+
+    private int _wallpaperRotateMinutes = 30;
+    public int WallpaperRotateMinutes { get => _wallpaperRotateMinutes; set => Set(ref _wallpaperRotateMinutes, Clamp(value, 1, 1440)); }
+
+    private bool _wallpaperShuffle;
+    /// <summary>A rotação sorteia o próximo, em vez de seguir a ordem alfabética.</summary>
+    public bool WallpaperShuffle { get => _wallpaperShuffle; set => Set(ref _wallpaperShuffle, value); }
+
+    private bool _wallpaperPauseOnBattery = true;
+    /// <summary>
+    /// O animado para no último quadro com o notebook fora da tomada. Ligado de fábrica: um vídeo
+    /// de 1080p ocupa um quarto da placa integrada desta máquina enquanto toca.
+    /// </summary>
+    public bool WallpaperPauseOnBattery { get => _wallpaperPauseOnBattery; set => Set(ref _wallpaperPauseOnBattery, value); }
+
     // ── persistencia ────────────────────────────────────────
     /// <summary>A pasta do usuario onde ficam o config e o log.</summary>
     public static readonly string Dir =
@@ -1458,6 +1497,10 @@ public sealed class DockConfig : INotifyPropertyChanged
         TilingFloatNewWindows = d.TilingFloatNewWindows;
         TilingBorderColor = d.TilingBorderColor; TilingBorderThickness = d.TilingBorderThickness;
         TilingBorderRadius = d.TilingBorderRadius; TilingResizeStep = d.TilingResizeStep;
+        // a pasta e o arquivo atual ficam, como a pasta do backup: são dados, não aparência
+        Wallpaper = d.Wallpaper; WallpaperKind = d.WallpaperKind;
+        WallpaperRotate = d.WallpaperRotate; WallpaperRotateMinutes = d.WallpaperRotateMinutes;
+        WallpaperShuffle = d.WallpaperShuffle; WallpaperPauseOnBattery = d.WallpaperPauseOnBattery;
         Hotkeys.Clear(); NotifyHotkeysChanged();
     }
 

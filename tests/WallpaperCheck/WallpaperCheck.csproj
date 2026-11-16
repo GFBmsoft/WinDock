@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Confere as contas do papel de parede pela dock (src/Services/WallpaperRules.cs): quais arquivos
+    entram, a ordem da rotação, quanto da área de trabalho está à mostra e a montagem dos quadros
+    de um GIF.
+
+    O resto do papel de parede — a janela atrás dos ícones, o player, a conversão — depende do
+    explorer e da placa de vídeo, e se confere ao vivo; estas contas, não, e são as que erram
+    calado: um GIF de quadros parciais montado errado só aparece como lixo na tela, e uma conta de
+    cobertura errada só como vídeo parado quando devia tocar.
+
+    Roda com:  dotnet run  (a partir desta pasta)
+    Sai com código 1 se alguma conferência falhar.
+  -->
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>WinDock.Tests</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="..\..\src\Services\WallpaperRules.cs" Link="WallpaperRules.cs" />
+    <Compile Include="..\TreeCheck\NativeStub.cs" Link="NativeStub.cs" />
+  </ItemGroup>
+
+</Project>

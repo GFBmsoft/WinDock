@@ -810,6 +810,45 @@ paleta) e **Espessura do contorno** (1 a 3 pixels). Com a opacidade da barra em 
 aparece, só os ícones, e o contorno é o que mostra o formato dela. Ele é desenhado por dentro da
 ilha, por isso a espessura para em 3: mais grosso, cortaria os ícones.
 
+### Papel de parede
+
+**Configurações › Papel de parede** deixa a dock cuidar do papel de parede a partir de uma pasta
+(desde a 1.0.0.80). Ligue **Papel de parede pela dock** e escolha a **Pasta**: entram só os
+arquivos da própria pasta, sem as subpastas.
+
+- **Animados** (`.mp4`, `.m4v`, `.mov`, `.wmv`, `.webm` e `.gif`) tocam atrás dos ícones da área de
+  trabalho, sem som e em laço, em todos os monitores, cada um cortado para encher a tela. O `.webm`
+  depende da extensão de VP9 da Microsoft Store.
+- **Estáticos** (`.jpg`, `.png`, `.bmp`) viram o papel de parede do próprio Windows, como se
+  escolhidos nas Configurações dele, e continuam lá com a dock fechada.
+
+Em **Usar**, escolha só os animados, só os estáticos ou os dois. A lista **Papel de parede** mostra
+o que está na tela, e escolher outro troca na hora; **Próximo** passa para o seguinte. **Trocar
+sozinho** faz a rotação pela pasta a cada 5 minutos até 1 dia, em ordem alfabética ou, com **Ordem
+aleatória**, sorteando (nunca repete o atual).
+
+O animado **pausa sozinho** quando ninguém o vê: com as janelas cobrindo a área de trabalho de
+todos os monitores, com a sessão bloqueada e, com **Pausar na bateria** ligado (o padrão), com o
+notebook fora da tomada. Fica parado no quadro em que estava e volta a tocar em até um segundo
+depois que a área de trabalho aparece (Win+D, uma janela minimizada). As frestas do mosaico entre
+as janelas não contam: só um pedaço que dê para olhar faz o vídeo tocar.
+
+**O GIF vira vídeo na primeira vez** que é usado, o que leva alguns segundos (cerca de 11 s num GIF
+de 2560×1080 com 24 quadros; a linha "Preparando…" aparece embaixo da lista). O vídeo fica guardado
+em `%LOCALAPPDATA%\WinDock\papel-animado` e serve das próximas vezes; trocar o GIF gera outro, e o
+que ninguém usa há 60 dias é apagado. Tocar o vídeo gasta muito menos que tocar o GIF quadro a
+quadro.
+
+**Quanto custa.** Um vídeo de 1080p tocando ocupa, na Radeon integrada da máquina em que a dock é
+feita, perto de um terço da parte 3D da placa e 6% de um núcleo de CPU, e a dock passa a usar
+uns 160 MB a mais de memória. Pausado, não gasta placa nem CPU. Um GIF convertido, de 10 quadros por
+segundo, gasta bem menos que um vídeo de 30.
+
+Fechar a dock ou desligar a opção tira o animado e deixa à mostra o papel de parede do Windows.
+O papel animado precisa do Windows 11 24H2 ou mais novo, em que os ícones da área de trabalho
+ficam dentro da janela `Progman`; num Windows mais antigo a linha embaixo da lista avisa que ele
+não funciona ali, e os estáticos funcionam normalmente.
+
 ## Atualizar
 
 **Pela própria dock.** Quando sai uma versão nova nas **Releases**, aparece um **presente azul**
@@ -867,6 +906,7 @@ Não há nada além disso: sem serviço, sem entrada em "Aplicativos instalados"
 |---|---|
 | Executável | onde você copiou (sugestão: `%LOCALAPPDATA%\Programs\WinDock`) |
 | Preferências e apps fixados | `%APPDATA%\WinDock\config.json` |
+| GIFs do papel de parede já convertidos em vídeo | `%LOCALAPPDATA%\WinDock\papel-animado` (pode apagar: são refeitos quando preciso) |
 | Início automático | tarefa agendada `WinDock` (plano B: `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`, valor `WinDock`) |
 
 O `config.json` pode ser editado à mão com a dock fechada; ela grava o arquivo ao sair, então

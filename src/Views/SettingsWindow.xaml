@@ -114,6 +114,7 @@
         <RadioButton Style="{StaticResource NavItem}" Tag="PageBar" Content="Barra superior" ui:NavGlyph.Glyph="&#xE7C4;" Checked="OnNav" />
         <RadioButton Style="{StaticResource NavItem}" Tag="PageItems" Content="Itens da barra" ui:NavGlyph.Glyph="&#xE71D;" Checked="OnNav" />
         <RadioButton Style="{StaticResource NavItem}" Tag="PageTiling" Content="Mosaico" ui:NavGlyph.Glyph="&#xF0E2;" Checked="OnNav" />
+        <RadioButton Style="{StaticResource NavItem}" Tag="PageWallpaper" Content="Papel de parede" ui:NavGlyph.Glyph="&#xE91B;" Checked="OnNav" />
         <RadioButton Style="{StaticResource NavItem}" Tag="PageGeneral" Content="Geral" ui:NavGlyph.Glyph="&#xE713;" Checked="OnNav" />
         <RadioButton Style="{StaticResource NavItem}" Tag="PageNotes" Content="Notas da versão" ui:NavGlyph.Glyph="&#xE81C;" Checked="OnNav" />
       </StackPanel>
@@ -1758,6 +1759,178 @@
           </Grid>
         </Border>
 
+      </StackPanel>
+
+      <!-- O papel de parede pela dock (pedido de 16/11/2026): ligar, a pasta, o tipo, o atual e a
+           rotação. Os cartões de baixo só aparecem com a opção ligada, como os da busca. -->
+      <StackPanel x:Name="PageWallpaper" Visibility="Collapsed">
+
+        <TextBlock Text="Papel de parede" Style="{StaticResource FluentSection}" Margin="2,0,0,8" />
+
+        <Border Style="{StaticResource FluentCardBorderStyle}">
+          <Grid>
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="*" />
+              <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <StackPanel VerticalAlignment="Center">
+              <TextBlock Text="Papel de parede pela dock" Style="{StaticResource FluentTitle}" />
+              <TextBlock Text="Vídeo e GIF tocam atrás dos ícones, sem som, e param quando as janelas cobrem a área de trabalho. Imagem parada vira o papel de parede do próprio Windows"
+                         Style="{StaticResource FluentCaption}" TextWrapping="Wrap" />
+            </StackPanel>
+            <CheckBox Grid.Column="1" Style="{StaticResource FluentToggle}"
+                      AutomationProperties.Name="Papel de parede pela dock"
+                      IsChecked="{Binding Wallpaper, Mode=TwoWay}" />
+          </Grid>
+        </Border>
+
+        <StackPanel Visibility="{Binding Wallpaper, Converter={StaticResource BoolToVisible}}">
+
+          <Border Style="{StaticResource FluentCardBorderStyle}" MinHeight="0">
+            <StackPanel>
+              <TextBlock Text="Pasta" Style="{StaticResource FluentTitle}" />
+              <TextBlock Text="De onde vêm os papéis de parede — só os arquivos da própria pasta, sem as subpastas"
+                         Style="{StaticResource FluentCaption}" TextWrapping="Wrap" />
+              <Grid Margin="0,10,0,0">
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="*" />
+                  <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <!-- LostFocus: a cada letra digitada a pasta seria lida de novo, e um caminho pela
+                     metade que existe (D:\Programas, a caminho de D:\Programas\Wallpappers)
+                     trocaria o papel de parede no meio da digitação -->
+                <TextBox Style="{StaticResource FluentTextBox}"
+                         AutomationProperties.Name="Pasta dos papéis de parede"
+                         Text="{Binding WallpaperFolder, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" />
+                <Button Grid.Column="1" Style="{StaticResource FluentButton}" Margin="8,0,0,0"
+                        Content="Escolher pasta" Click="OnWallpaperBrowse" />
+              </Grid>
+            </StackPanel>
+          </Border>
+
+          <Border Style="{StaticResource FluentCardBorderStyle}">
+            <Grid>
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+              </Grid.ColumnDefinitions>
+              <StackPanel VerticalAlignment="Center">
+                <TextBlock Text="Usar" Style="{StaticResource FluentTitle}" />
+                <TextBlock Text="Animados: .mp4, .mov, .wmv, .webm e .gif. Estáticos: .jpg, .png e .bmp"
+                           Style="{StaticResource FluentCaption}" TextWrapping="Wrap" />
+              </StackPanel>
+              <ComboBox Grid.Column="1" Width="190" Style="{StaticResource FluentCombo}"
+                        AutomationProperties.Name="Tipo de papel de parede"
+                        SelectedValue="{Binding WallpaperKind, Mode=TwoWay}" SelectedValuePath="Tag">
+                <ComboBoxItem Content="Só os animados" Tag="{x:Static services:WallpaperKind.Animated}" />
+                <ComboBoxItem Content="Só os estáticos" Tag="{x:Static services:WallpaperKind.Static}" />
+                <ComboBoxItem Content="Animados e estáticos" Tag="{x:Static services:WallpaperKind.All}" />
+              </ComboBox>
+            </Grid>
+          </Border>
+
+          <Border Style="{StaticResource FluentCardBorderStyle}" MinHeight="0">
+            <StackPanel>
+              <TextBlock Text="Papel de parede" Style="{StaticResource FluentTitle}" />
+              <TextBlock Text="O que está na tela. Escolher outro aqui troca na hora; com a troca automática ligada, a contagem recomeça dele"
+                         Style="{StaticResource FluentCaption}" TextWrapping="Wrap" />
+              <Grid Margin="0,10,0,0">
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="*" />
+                  <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <!-- a escolha vai à config pelo código (OnWallpaperPicked), e não por binding: a
+                     lista se refaz quando a pasta muda, e um SelectedValue ligado nos dois sentidos
+                     gravaria "nenhum" na config no instante em que a lista fica vazia -->
+                <ComboBox x:Name="WallpaperList" Style="{StaticResource FluentCombo}" MaxDropDownHeight="360"
+                          AutomationProperties.Name="Papel de parede atual"
+                          DisplayMemberPath="Name" SelectionChanged="OnWallpaperPicked" />
+                <Button Grid.Column="1" Style="{StaticResource FluentButton}" Margin="8,0,0,0"
+                        Content="Próximo" Click="OnWallpaperNext" />
+              </Grid>
+              <!-- sem AutomationProperties.Name: num TextBlock ele toma o lugar do texto, e o leitor
+                   de tela leria o rótulo em vez da situação -->
+              <TextBlock x:Name="WallpaperStatus" Margin="0,8,0,0" Style="{StaticResource FluentCaption}"
+                         TextWrapping="Wrap" />
+            </StackPanel>
+          </Border>
+
+          <Border Style="{StaticResource FluentCardBorderStyle}">
+            <Grid>
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+              </Grid.ColumnDefinitions>
+              <StackPanel VerticalAlignment="Center">
+                <TextBlock Text="Trocar sozinho" Style="{StaticResource FluentTitle}" />
+                <TextBlock Text="Passa para o próximo da pasta de tempos em tempos"
+                           Style="{StaticResource FluentCaption}" TextWrapping="Wrap" />
+              </StackPanel>
+              <CheckBox Grid.Column="1" Style="{StaticResource FluentToggle}"
+                        AutomationProperties.Name="Trocar o papel de parede sozinho"
+                        IsChecked="{Binding WallpaperRotate, Mode=TwoWay}" />
+            </Grid>
+          </Border>
+
+          <StackPanel Visibility="{Binding WallpaperRotate, Converter={StaticResource BoolToVisible}}">
+            <Border Style="{StaticResource FluentCardBorderStyle}">
+              <Grid>
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="*" />
+                  <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <TextBlock Text="A cada" Style="{StaticResource FluentTitle}" VerticalAlignment="Center" />
+                <ComboBox Grid.Column="1" Width="190" Style="{StaticResource FluentCombo}"
+                          AutomationProperties.Name="Intervalo da troca"
+                          SelectedValue="{Binding WallpaperRotateMinutes, Mode=TwoWay}" SelectedValuePath="Tag">
+                  <ComboBoxItem Content="5 minutos"><ComboBoxItem.Tag><sys:Int32>5</sys:Int32></ComboBoxItem.Tag></ComboBoxItem>
+                  <ComboBoxItem Content="10 minutos"><ComboBoxItem.Tag><sys:Int32>10</sys:Int32></ComboBoxItem.Tag></ComboBoxItem>
+                  <ComboBoxItem Content="15 minutos"><ComboBoxItem.Tag><sys:Int32>15</sys:Int32></ComboBoxItem.Tag></ComboBoxItem>
+                  <ComboBoxItem Content="30 minutos"><ComboBoxItem.Tag><sys:Int32>30</sys:Int32></ComboBoxItem.Tag></ComboBoxItem>
+                  <ComboBoxItem Content="1 hora"><ComboBoxItem.Tag><sys:Int32>60</sys:Int32></ComboBoxItem.Tag></ComboBoxItem>
+                  <ComboBoxItem Content="2 horas"><ComboBoxItem.Tag><sys:Int32>120</sys:Int32></ComboBoxItem.Tag></ComboBoxItem>
+                  <ComboBoxItem Content="4 horas"><ComboBoxItem.Tag><sys:Int32>240</sys:Int32></ComboBoxItem.Tag></ComboBoxItem>
+                  <ComboBoxItem Content="1 dia"><ComboBoxItem.Tag><sys:Int32>1440</sys:Int32></ComboBoxItem.Tag></ComboBoxItem>
+                </ComboBox>
+              </Grid>
+            </Border>
+
+            <Border Style="{StaticResource FluentCardBorderStyle}">
+              <Grid>
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="*" />
+                  <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <StackPanel VerticalAlignment="Center">
+                  <TextBlock Text="Ordem aleatória" Style="{StaticResource FluentTitle}" />
+                  <TextBlock Text="Sorteia o próximo, em vez de seguir a ordem alfabética da pasta"
+                             Style="{StaticResource FluentCaption}" TextWrapping="Wrap" />
+                </StackPanel>
+                <CheckBox Grid.Column="1" Style="{StaticResource FluentToggle}"
+                          AutomationProperties.Name="Ordem aleatória"
+                          IsChecked="{Binding WallpaperShuffle, Mode=TwoWay}" />
+              </Grid>
+            </Border>
+          </StackPanel>
+
+          <Border Style="{StaticResource FluentCardBorderStyle}">
+            <Grid>
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+              </Grid.ColumnDefinitions>
+              <StackPanel VerticalAlignment="Center">
+                <TextBlock Text="Pausar na bateria" Style="{StaticResource FluentTitle}" />
+                <TextBlock Text="Fora da tomada, o animado para no quadro em que está — um vídeo tocando gasta placa de vídeo o tempo todo"
+                           Style="{StaticResource FluentCaption}" TextWrapping="Wrap" />
+              </StackPanel>
+              <CheckBox Grid.Column="1" Style="{StaticResource FluentToggle}"
+                        AutomationProperties.Name="Pausar na bateria"
+                        IsChecked="{Binding WallpaperPauseOnBattery, Mode=TwoWay}" />
+            </Grid>
+          </Border>
+
+        </StackPanel>
       </StackPanel>
 
       <StackPanel x:Name="PageGeneral" Visibility="Collapsed">
