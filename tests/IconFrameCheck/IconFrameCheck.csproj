@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Confere a retirada da moldura escura dos ícones da família (src/Services/IconFrame.cs) com
+    ícones montados aqui: a moldura do gerar-icone.ps1 em cores diferentes, o desenho com borda
+    suavizada e preenchimento translúcido, e os ícones que NÃO podem ser tocados (quadrado claro,
+    quadrado escuro de canto vivo, desenho sem fundo).
+
+    Roda com:  dotnet run  (a partir desta pasta)
+    Sai com código 1 se alguma conferência falhar.
+  -->
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>WinDock.Tests</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="..\..\src\Services\IconFrame.cs" Link="IconFrame.cs" />
+  </ItemGroup>
+
+</Project>

@@ -155,7 +155,10 @@ vira a pasta amarela, o Terminal o prompt verde, as Configurações a engrenagem
 Code, Discord, Spotify, Obsidian) vêm de uma Nerd Font instalada no Windows, como a CaskaydiaCove;
 sem ela, esses ficam com o ícone do programa. Com o mouse em cima, o realce do botão vira a moldura
 escura dos ícones desses programas. Os dois perfis do Chrome têm o mesmo logo e se distinguem pela
-inicial do perfil, no canto. App que a dock não conhece fica com o ícone dele.
+inicial do perfil, no canto. App que a dock não conhece fica com o ícone dele — e os da família
+(GRepos, GTerm, GTest, GConv, GSQL e os outros G*), que já são desenhados assim, ficam com o ícone
+deles sem o quadrado escuro em volta, como os desenhados, e com a moldura aparecendo só com o mouse
+em cima.
 
 Logo abaixo, **Desenho de cada fixado** lista os fixados com o desenho de cada um: o botão abre o
 desenho e a cor, como nas ferramentas da barra, e **Automático** volta ao da dock. Um fixado que

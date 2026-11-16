@@ -334,6 +334,30 @@ public static class IconService
         return result;
     }
 
+    /// <summary>
+    /// O ícone gravado no executável, num tamanho escolhido. O <see cref="ExtractIconEx"/> só dá o
+    /// do sistema (32 px aqui), e quem recorta um pedaço dele — o desenho de dentro da moldura dos
+    /// G*, ~19 px — esticaria isso no botão. Pede-se o maior e o Windows reduz do quadro grande do
+    /// .ico. Nulo para o que não é executável com ícone dentro.
+    /// </summary>
+    public static BitmapSource? Large(string path, int size)
+    {
+        if (!path.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) || !HasOwnIcon(path)) return null;
+
+        var icones = new nint[1];
+        var ids = new uint[1];
+        var lidos = PrivateExtractIcons(path, 0, size, size, icones, ids, 1, 0);
+        if (lidos == 0 || lidos == uint.MaxValue || icones[0] == 0) return null;
+
+        var result = ToBitmap(icones[0]);
+        DestroyIcon(icones[0]);
+        return result;
+    }
+
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+    private static extern uint PrivateExtractIcons(string file, int index, int cx, int cy,
+                                                   nint[] icons, uint[] ids, uint count, uint flags);
+
     private static BitmapSource? FromExtract(string file, int index)
     {
         if (ExtractIconEx(file, index, out var large, out var small, 1) == 0) return null;

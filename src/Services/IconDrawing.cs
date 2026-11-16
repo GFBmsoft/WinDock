@@ -74,6 +74,51 @@ public static class IconDrawing
     private static readonly Dictionary<string, BitmapSource> Feitos = new();
 
     /// <summary>
+    /// O ícone do próprio programa sem a moldura escura da família (GRepos, GTerm, GTest…), para
+    /// ficar como os desenhados; nulo quando o ícone não tem essa moldura. Lido em 128 px do
+    /// executável, porque o desenho de dentro da moldura é só uns 60% do ícone. Veja
+    /// <see cref="IconFrame"/>.
+    /// </summary>
+    public static BitmapSource? Unframed(string launchPath, BitmapSource? raw)
+    {
+        long carimbo = 0;
+        try
+        {
+            var info = new FileInfo(launchPath);
+            if (info.Exists) carimbo = info.LastWriteTimeUtc.Ticks ^ info.Length;
+        }
+        catch { /* caminho torto: segue sem cache */ }
+
+        if (carimbo != 0 && SemMoldura.TryGetValue(launchPath, out var guardado) && guardado.Carimbo == carimbo)
+            return guardado.Imagem;
+
+        BitmapSource? imagem = null;
+        try
+        {
+            if ((IconService.Large(launchPath, 128) ?? raw) is { } origem)
+            {
+                var bgra = new FormatConvertedBitmap(origem, PixelFormats.Bgra32, null, 0);
+                int w = bgra.PixelWidth, h = bgra.PixelHeight;
+                var px = new byte[w * h * 4];
+                bgra.CopyPixels(px, w * 4, 0);
+                if (IconFrame.Strip(px, w, h, Ocupa, out var lado) is { } sem)
+                {
+                    imagem = BitmapSource.Create(lado, lado, 96, 96, PixelFormats.Bgra32, null, sem, lado * 4);
+                    imagem.Freeze();
+                }
+            }
+        }
+        catch { /* formato estranho: fica o ícone como veio */ }
+
+        // republicado, o programa ganha outra data e é lido de novo (os G* são republicados quase todo dia)
+        if (carimbo != 0) SemMoldura[launchPath] = (carimbo, imagem);
+        return imagem;
+    }
+
+    private static readonly Dictionary<string, (long Carimbo, BitmapSource? Imagem)> SemMoldura =
+        new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
     /// Em 64 px, o maior tamanho que a dock costuma pedir (ícone de até 64 nas Configurações), e
     /// o desenho ocupa quase o quadrado inteiro, como os ícones depois do <c>IconService.Fill</c>.
     /// </summary>

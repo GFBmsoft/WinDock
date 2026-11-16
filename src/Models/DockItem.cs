@@ -37,7 +37,10 @@ public sealed class DockItem : INotifyPropertyChanged
     private DrawnIconChoice? _drawing;
 
     private bool _isDrawn;
-    /// <summary>O botão mostra um desenho: é o que acende a moldura no realce do mouse.</summary>
+    /// <summary>
+    /// O botão mostra um desenho, ou o ícone de um G* sem a moldura dele: é o que acende a moldura
+    /// no realce do mouse.
+    /// </summary>
     public bool IsDrawn { get => _isDrawn; private set => Set(ref _isDrawn, value); }
 
     private bool _isPinned;
@@ -192,12 +195,18 @@ public sealed class DockItem : INotifyPropertyChanged
         Dress();
     }
 
-    /// <summary>O desenho, quando ligado, fixado e conhecido; senão o ícone do programa.</summary>
+    /// <summary>
+    /// O desenho, quando ligado, fixado e conhecido; senão o ícone do programa — e, com os
+    /// desenhos ligados, sem a moldura escura quando é um da família (GRepos, GTerm, GTest…). Sem
+    /// isso eles eram os únicos da dock com um quadrado escuro atrás (16/11/2026).
+    /// </summary>
     private void Dress()
     {
-        var desenho = _drawing is not null && _isPinned ? IconDrawing.Draw(Id, _drawing) : null;
-        Icon = desenho ?? _raw;
-        IsDrawn = desenho is not null;
+        var ligado = _drawing is not null && _isPinned;
+        var desenho = ligado ? IconDrawing.Draw(Id, _drawing) : null;
+        var semMoldura = ligado && desenho is null ? IconDrawing.Unframed(LaunchPath, _raw) : null;
+        Icon = desenho ?? semMoldura ?? _raw;
+        IsDrawn = desenho is not null || semMoldura is not null;
     }
 
     /// <summary>

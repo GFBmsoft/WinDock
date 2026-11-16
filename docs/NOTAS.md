@@ -11,6 +11,9 @@
   tag que leva a nota junto. Escrito para quem usa a dock: o que mudou na tela, e não no código.
 -->
 
+## 1.0.0.81 — 16/11/2026
+- Com os ícones desenhados ligados, os programas da família (GRepos, GTerm, GTest, GConv, GSQL e os outros G*) perdem o quadrado escuro que tinham atrás e ficam como os desenhados: só o desenho, sem fundo, com a moldura aparecendo só com o mouse em cima. Antes eles eram os únicos da dock com fundo escuro.
+
 ## 1.0.0.80 — 16/11/2026
 - Papel de parede pela dock, em Configurações › Papel de parede: escolha uma pasta e a dock cuida do resto. Vídeos (.mp4, .mov, .wmv, .webm) e GIFs tocam atrás dos ícones da área de trabalho, sem som e em todos os monitores; imagens paradas (.jpg, .png, .bmp) viram o papel de parede do próprio Windows.
 - Dá para usar só os animados, só os estáticos ou os dois, escolher o papel de parede na lista, passar para o próximo e ligar a troca automática, de 5 minutos a 1 dia, em ordem ou sorteada.
