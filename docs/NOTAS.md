@@ -11,6 +11,10 @@
   tag que leva a nota junto. Escrito para quem usa a dock: o que mudou na tela, e não no código.
 -->
 
+## 1.0.0.79 — 16/11/2026
+- A cota de IA voltou a se atualizar com o GTerm aberto. A dock e o GTerm perguntavam a cota cada um por conta própria, com o mesmo login, e a conta passou a recusar as perguntas da dock: o cartão parava num número velho enquanto o GTerm seguia mostrando o atual.
+- Agora a dock usa o número que o GTerm ou o ctop acabaram de ler, e olha de minuto em minuto se há um mais novo, sem perguntar nada à conta. Quando é ela quem lê, o número serve aos outros dois. E se a conta pedir uma pausa, a pausa vale para os três.
+
 ## 1.0.0.78 — 12/11/2026
 - Abrir um programa pela dock não trava mais a dock. Antes de deixar abrir um programa que nunca viu — um executável grande e sem assinatura, recém-instalado ou recém-publicado —, o Windows leva mais de dez segundos conferindo o arquivo, e a dock e a barra de cima ficavam paradas esse tempo todo. Agora quem espera é só a abertura, em segundo plano: a dock continua respondendo.
 - Enquanto a abertura demora, o ícone pulsa de leve para mostrar que o clique pegou, e outro clique no mesmo ícone não abre uma segunda cópia. Na abertura comum, que leva um instante, nada pisca.

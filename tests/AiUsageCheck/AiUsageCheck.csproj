@@ -1,0 +1,35 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Confere a vez de perguntar a cota à API, combinada com o ctop e o GTerm pelo arquivo comum
+    (%LOCALAPPDATA%\claude-stats\limits-cache.json).
+
+    Existe por um motivo específico: o defeito que criou a combinação (16/11/2026) só aparece com
+    dois programas perguntando ao mesmo tempo, e reproduzi-lo de verdade é levar 429 da conta de
+    quem usa a dock. Aqui a API é uma resposta de mentira, contada a cada pedido, e o arquivo comum
+    mora numa pasta temporária — nada sai para a rede e nada toca no arquivo de verdade.
+
+    Roda com:  dotnet run  (a partir desta pasta)
+    Sai com código 1 se alguma conferência falhar.
+  -->
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <!-- net8.0 puro, sem -windows: o serviço só usa rede, arquivo e JSON -->
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>WinDock.Tests</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!--
+      Os arquivos de verdade, compilados aqui dentro — não cópias, pelo mesmo motivo do TreeCheck.
+      O Log vem do stub do WingetCheck: um só para os dois projetos.
+    -->
+    <Compile Include="..\..\src\Services\AiUsageService.cs" Link="AiUsageService.cs" />
+    <Compile Include="..\..\src\Services\AiUsageShared.cs" Link="AiUsageShared.cs" />
+    <Compile Include="..\WingetCheck\LogStub.cs" Link="LogStub.cs" />
+  </ItemGroup>
+
+</Project>

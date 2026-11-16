@@ -2322,9 +2322,13 @@ public sealed class PanelModel : INotifyPropertyChanged, IDisposable
     /// <summary>
     /// Começa a acompanhar a cota, se a opção estiver ligada.
     ///
-    /// De dez em dez minutos, e não de segundo em segundo: cada volta é uma ida à rede por
-    /// conta, e a cota não muda em saltos que justifiquem mais que isso. Quem quiser o número
-    /// na hora abre o cartão — <see cref="RefreshAiUsage"/> é chamado ali também.
+    /// <para>Duas cadências. <b>De minuto em minuto</b> só se olha o arquivo comum
+    /// (<see cref="AiUsageShared"/>), sem rede: é o que traz para a barra o número que o GTerm ou
+    /// o ctop acabaram de ler — com o GTerm aberto, ele lê a cada dois minutos, e a dock acompanha
+    /// sem perguntar nada. <b>De dez em dez minutos</b> a dock pode perguntar ela mesma, e só
+    /// pergunta se ninguém leu nos últimos dois: cada pergunta é uma ida à rede por conta, e a
+    /// cota não muda em saltos que justifiquem mais que isso. Quem quiser o número na hora abre
+    /// o cartão — <see cref="RefreshAiUsage"/> é chamado ali também.</para>
     /// </summary>
     private void WatchAiUsage()
     {
@@ -2332,9 +2336,13 @@ public sealed class PanelModel : INotifyPropertyChanged, IDisposable
 
         _aiTimer = new DispatcherTimer(DispatcherPriority.Background)
         {
-            Interval = TimeSpan.FromMinutes(10)
+            Interval = TimeSpan.FromMinutes(1)
         };
-        _aiTimer.Tick += (_, _) => RefreshAiUsage();
+        _aiTimer.Tick += (_, _) =>
+        {
+            if (DateTime.Now - _aiAskedAt >= AiAskEvery) RefreshAiUsage();
+            else ReadAiShared();
+        };
         _aiTimer.Start();
 
         // a primeira leitura não espera os dez minutos, mas também não disputa o arranque
@@ -2355,6 +2363,7 @@ public sealed class PanelModel : INotifyPropertyChanged, IDisposable
         // configuração, e ela muda por clique de quem está olhando o painel
         var escolhidas = _config.AiUsageAccounts.ToList();
 
+        _aiAskedAt = DateTime.Now;
         AiChecking = true;
 
         _ = Task.Run(async () =>
@@ -2367,6 +2376,29 @@ public sealed class PanelModel : INotifyPropertyChanged, IDisposable
             await _dispatcher.InvokeAsync(() => { AiUsage = uso; AiChecking = false; });
         });
     }
+
+    /// <summary>
+    /// A volta de minuto em minuto: só o arquivo comum, sem rede e sem o "consultando…" no
+    /// rodapé. Quando nada mudou, o serviço devolve a mesma leitura e a barra nem se redesenha.
+    /// </summary>
+    private void ReadAiShared()
+    {
+        if (!HasAiUsage) return;
+
+        var escolhidas = _config.AiUsageAccounts.ToList();
+
+        _ = Task.Run(async () =>
+        {
+            var uso = await _ai.ReadAsync(escolhidas, consultar: false).ConfigureAwait(false);
+            await _dispatcher.InvokeAsync(() => AiUsage = uso);
+        });
+    }
+
+    /// <summary>Quando a dock pôde perguntar à API pela última vez (o tique, o cartão, o ↻).</summary>
+    private DateTime _aiAskedAt;
+
+    /// <summary>De quanto em quanto tempo o relógio deixa a dock perguntar ela mesma.</summary>
+    private static readonly TimeSpan AiAskEvery = TimeSpan.FromMinutes(10);
 
     /// <summary>
     /// Troca pelo apelido o nome dos ícones que a pessoa batizou.

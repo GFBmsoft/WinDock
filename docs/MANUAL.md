@@ -556,7 +556,10 @@ medidor mais cheio de todas as contas. Se a conta padrão estiver sem leitura (s
 rede fora), o robô fica branco — ele não empresta o número da outra.
 
 **Quando o número é lido.** Ao abrir o cartão, e de dez em dez minutos enquanto a dock roda —
-cada volta é uma ida à rede, uma por conta. O **`↻` do rodapé pergunta de novo, na hora**: é
+cada volta é uma ida à rede, uma por conta. Se o **ctop** ou o **GTerm** leram a cota há menos de
+dois minutos, a dock usa o número deles em vez de perguntar de novo; e de minuto em minuto ela
+olha se algum dos dois leu algo novo, sem ir à rede. Com o GTerm aberto, então, o robô acompanha o
+cartão de consumo dele. O **`↻` do rodapé pergunta de novo, na hora**: é
 para quando você acabou de usar o Claude Code e quer ver o número novo sem esperar. Enquanto a
 resposta não chega, o rodapé diz "consultando…" e o botão fica desabilitado; a hora da última
 leitura fica ali ao lado.
@@ -583,8 +586,13 @@ Três coisas que vale saber:
   disso.
 - **A cota é consultada no máximo de dois em dois minutos por conta.** Abrir o cartão dez vezes
   seguidas não faz dez consultas: ele mostra o que já tem. Se mesmo assim a API pedir uma pausa
-  (o `429`), a dock espera o tempo que ela pedir — ou dez minutos — e, enquanto isso, **continua
+  (o `429`), a dock espera o tempo que ela pedir — ou cinco minutos — e, enquanto isso, **continua
   mostrando os últimos números**, com um aviso em âmbar dizendo de quando eles são.
+- **A vez de perguntar é dividida com o ctop e o GTerm.** Os três perguntam ao mesmo lugar, com o
+  mesmo login, e a API corta quem pergunta demais. Por isso todos usam o mesmo arquivo,
+  `%LOCALAPPDATA%\claude-stats\limits-cache.json` (as outras contas ganham um ao lado, com o nome
+  da pasta): ali fica a última leitura, de quem quer que a tenha feito, e a pausa que a API pediu
+  vale para os três. O arquivo só tem os números; o login fica onde o Claude Code o guardou.
 
 #### Atualizações esperando
 

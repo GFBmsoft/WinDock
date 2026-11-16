@@ -2,6 +2,7 @@ using System.IO;
 using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
 
 namespace WinDock.Services;
@@ -86,6 +87,12 @@ public sealed record AiUsage(IReadOnlyList<AiAccountUsage> Contas, DateTime Quan
 ///
 /// <para><b>O token não vai para o log, em nenhuma hipótese</b> — nem truncado, nem em
 /// mensagem de erro. O que se registra é o código da resposta e o estado.</para>
+///
+/// <para><b>A vez de perguntar é combinada com o ctop e o GTerm</b>, pelo arquivo que eles já
+/// dividiam (<see cref="AiUsageShared"/>): o número que um deles leu há menos de
+/// <see cref="Fresh"/> vale para a dock, e o castigo de um <c>429</c> vale para os três. Esse
+/// arquivo é a única coisa que este serviço grava, e ele não é do Claude Code: só tem os
+/// números.</para>
 /// </summary>
 public sealed class AiUsageService
 {
@@ -278,7 +285,13 @@ public sealed class AiUsageService
     /// existirem**: é o que faz o cartão funcionar sem configuração nenhuma, e o que faz uma
     /// conta nova aparecer sozinha quando ela é criada.
     /// </param>
-    public async Task<AiUsage> ReadAsync(IReadOnlyCollection<string> escolhidas,
+    /// <param name="consultar">
+    /// Falso para só olhar o arquivo comum, sem ir à rede: é a volta de minuto em minuto, que
+    /// traz para o cartão o número que o ctop ou o GTerm acabaram de ler. Nesse caso, quando
+    /// nada mudou, volta o próprio <see cref="Current"/> — o mesmo objeto, para a barra não se
+    /// redesenhar à toa.
+    /// </param>
+    public async Task<AiUsage> ReadAsync(IReadOnlyCollection<string> escolhidas, bool consultar = true,
                                          CancellationToken cancel = default)
     {
         var perfis = Profiles();
@@ -287,9 +300,13 @@ public sealed class AiUsageService
 
         // em paralelo: são idas à rede independentes, e enfileirá-las faria o cartão de duas
         // contas demorar o dobro do de uma
-        var leituras = await Task.WhenAll(perfis.Select(p => ComCacheAsync(p, cancel))).ConfigureAwait(false);
+        var leituras = await Task.WhenAll(perfis.Select(p => LerAsync(p, consultar, cancel))).ConfigureAwait(false);
 
-        var resultado = new AiUsage(leituras, DateTime.Now);
+        if (!consultar && leituras.All(l => !l.Novo) &&
+            Current.Contas.Select(c => c.Perfil.Id).SequenceEqual(perfis.Select(p => p.Id)))
+            return Current;
+
+        var resultado = new AiUsage(leituras.Select(l => l.Leitura).ToList(), DateTime.Now);
         Current = resultado;
         return resultado;
     }
@@ -302,33 +319,58 @@ public sealed class AiUsageService
     {
         public AiAccountUsage? Ultima;
         public DateTime LidaEm;
+
+        /// <summary>A resposta da API que deu <see cref="Ultima"/>, inteira: é ela que vai para o arquivo comum.</summary>
+        public JsonObject? Bruto;
+
         public DateTime EsperarAte;
+        public string? Porque;
+
+        /// <summary>O que se devolveu da última vez — é o que a volta sem rede repete quando nada mudou.</summary>
+        public AiAccountUsage? Devolvida;
     }
 
-    private static readonly Dictionary<string, Estado> Estados = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, Estado> _estados = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>Quem manda o pedido à API. Só os testes trocam, por uma resposta de mentira.</summary>
+    private readonly Func<HttpRequestMessage, CancellationToken, Task<HttpResponseMessage>> _enviar;
+
+    public AiUsageService() : this(null) { }
+
+    internal AiUsageService(Func<HttpRequestMessage, CancellationToken, Task<HttpResponseMessage>>? enviar) =>
+        _enviar = enviar ?? ((pedido, cancel) => Http.SendAsync(pedido, cancel));
 
     /// <summary>
-    /// Quanto uma leitura vale antes de valer a pena perguntar de novo.
+    /// Quanto uma leitura vale antes de valer a pena perguntar de novo — a nossa ou a de outro
+    /// programa, no arquivo comum.
     ///
     /// **Isto existe porque a API cortou.** Cada abertura do cartão pedia uma leitura por
     /// conta, e abrir e fechar o cartão algumas vezes seguidas — que é o que se faz ao testar
     /// qualquer coisa nele — virou quatro pedidos em 34 segundos e um <c>429 Too Many
     /// Requests</c> (log de 24/09, 16:03). O cartão já abre com o que tem; perguntar de novo
-    /// só faz sentido quando o número teve tempo de mudar, e cota não muda em segundos.
+    /// só faz sentido quando o número teve tempo de mudar, e cota não muda em segundos. São os
+    /// mesmos dois minutos do GTerm, para que entre os dois saia uma pergunta só.
     /// </summary>
-    private static readonly TimeSpan Fresh = TimeSpan.FromMinutes(2);
+    internal static readonly TimeSpan Fresh = TimeSpan.FromMinutes(2);
 
     /// <summary>
     /// Quanto se espera depois de um <c>429</c>, quando o servidor não diz quanto esperar.
     ///
-    /// Generoso de propósito: quem cortou fomos nós, e insistir cedo é pedir para ser cortado
-    /// de novo — e por mais tempo. O cartão continua mostrando os últimos números bons nesse
-    /// intervalo, então a espera não deixa ninguém sem informação.
+    /// Cinco minutos, os mesmos do ctop e do GTerm: a espera vai para o arquivo comum e vale
+    /// para os três, então ela precisa ser uma só. O cartão continua mostrando os últimos
+    /// números bons nesse intervalo, então a espera não deixa ninguém sem informação.
     /// </summary>
-    private static readonly TimeSpan Backoff = TimeSpan.FromMinutes(10);
+    private static readonly TimeSpan Backoff = TimeSpan.FromMinutes(5);
 
     /// <summary>
-    /// A leitura de uma conta, respeitando a validade da anterior e o castigo do 429.
+    /// Quanto se espera depois de um erro que não é o <c>429</c> (rede fora, login recusado):
+    /// um minuto, como o GTerm, só para não insistir no mesmo segundo.
+    /// </summary>
+    private static readonly TimeSpan BackoffCurto = TimeSpan.FromMinutes(1);
+
+    /// <summary>
+    /// A leitura de uma conta: do arquivo comum quando alguém leu há pouco, da API quando é a
+    /// vez da dock, e respeitando a espera depois de um erro — a nossa ou a de outro programa.
     ///
     /// <para><b>E uma leitura que falha nunca apaga os números que já havia.</b> É a mesma
     /// regra da bandeja, aprendida lá: o cartão mostrar um "a API respondeu 429" no lugar das
@@ -336,12 +378,14 @@ public sealed class AiUsageService
     /// primeiro corte da API deixava o cartão inteiro vazio — que foi exatamente o que se viu
     /// quando ele apareceu.</para>
     /// </summary>
-    private async Task<AiAccountUsage> ComCacheAsync(AiProfile perfil, CancellationToken cancel)
+    /// <returns>A leitura, e se ela trouxe número novo.</returns>
+    internal async Task<(AiAccountUsage Leitura, bool Novo)> LerAsync(AiProfile perfil, bool consultar,
+                                                                       CancellationToken cancel)
     {
         Estado estado;
-        lock (Estados)
+        lock (_estados)
         {
-            if (!Estados.TryGetValue(perfil.Id, out estado!)) Estados[perfil.Id] = estado = new Estado();
+            if (!_estados.TryGetValue(perfil.Id, out estado!)) _estados[perfil.Id] = estado = new Estado();
         }
 
         var agora = DateTime.Now;
@@ -350,97 +394,175 @@ public sealed class AiUsageService
         // de login não espera a próxima ida à rede para ver o cabeçalho mudar
         if (estado.Ultima is not null) estado.Ultima = estado.Ultima with { Perfil = perfil };
 
-        if (estado.Ultima is { } guardada)
-        {
-            if (agora - estado.LidaEm < Fresh) return Envelhecida(guardada, estado.LidaEm, null);
+        // 1. o que o ctop ou o GTerm leram desta conta depois da nossa última leitura
+        var comum = AiUsageShared.Ler(perfil.Id);
+        var novo = Aproveitar(estado, perfil, comum);
 
-            if (agora < estado.EsperarAte)
-                return Envelhecida(guardada, estado.LidaEm, "a API pediu para esperar");
-        }
-        else if (agora < estado.EsperarAte)
+        if (estado.Ultima is { } guardada && agora - estado.LidaEm < Fresh)
+            return (Devolver(estado, Envelhecida(guardada, estado.LidaEm, null)), novo);
+
+        // 2. alguém levou um não da API há pouco — nós ou outro programa — e a espera vale
+        var doArquivo = comum?.ProximaTentativa ?? DateTime.MinValue;
+        var esperarAte = doArquivo > estado.EsperarAte ? doArquivo : estado.EsperarAte;
+        if (agora < esperarAte)
         {
-            // nem números velhos existem: o castigo continua valendo, mas é preciso dizer algo
-            return new AiAccountUsage(perfil, AiUsageState.Failed, Array.Empty<AiGauge>(), null,
-                                      "a API pediu para esperar um pouco");
+            var porque = (doArquivo >= estado.EsperarAte ? comum?.Erro : estado.Porque) ?? "a conta limitou as consultas";
+            return (Devolver(estado, estado.Ultima is { } velha
+                        ? Envelhecida(velha, estado.LidaEm, porque)
+                        : new AiAccountUsage(perfil, AiUsageState.Failed, Array.Empty<AiGauge>(), null,
+                                             $"{porque} — tentando de novo às {esperarAte:HH:mm}")),
+                    novo);
         }
 
-        var leitura = await LerContaAsync(perfil, cancel).ConfigureAwait(false);
+        // 3. a volta sem rede para aqui: o número que havia continua valendo, sem aviso — nada
+        // falhou, só não é a vez de perguntar
+        if (!consultar)
+        {
+            if (novo && estado.Ultima is { } trazida)
+                return (Devolver(estado, Envelhecida(trazida, estado.LidaEm, null)), true);
+
+            return (estado.Devolvida is { } repetida ? repetida with { Perfil = perfil }
+                    : new AiAccountUsage(perfil, AiUsageState.Unknown, Array.Empty<AiGauge>(), null), false);
+        }
+
+        // 4. a vez é da dock
+        var consulta = await ConsultarAsync(perfil, cancel).ConfigureAwait(false);
+        var leitura = consulta.Leitura;
+        var lida = DateTime.Now;
 
         if (leitura.State == AiUsageState.Ok)
         {
             estado.Ultima = leitura;
-            estado.LidaEm = agora;
+            estado.LidaEm = lida;
+            estado.Bruto = consulta.Bruto;
             estado.EsperarAte = default;
-            return leitura;
+            estado.Porque = null;
+
+            AiUsageShared.Gravar(perfil.Id, new AiUsageShared(lida, consulta.Bruto, lida, null));
+            return (Devolver(estado, leitura), true);
         }
 
-        // falhou: guarda o castigo quando foi a API que pediu, e devolve o que já se tinha
-        if (leitura.State == AiUsageState.Failed && _ultimoRetry.TryGetValue(perfil.Id, out var espera))
+        // a API foi consultada e disse não: a espera vai para o arquivo, e vale para os outros
+        if (consulta.Espera is { } espera)
         {
-            estado.EsperarAte = agora + espera;
-            _ultimoRetry.Remove(perfil.Id);
-            Log.Write($"cota de IA ({perfil.Id}): esperando {espera.TotalMinutes:0} min antes de perguntar de novo");
+            // Quem leu enquanto a nossa pergunta estava no ar acertou, e o número dele vale mais
+            // que o nosso não: gravar o erro por cima apagaria a leitura boa do outro.
+            if (Aproveitar(estado, perfil, AiUsageShared.Ler(perfil.Id)) && estado.Ultima is { } dele)
+                return (Devolver(estado, Envelhecida(dele, estado.LidaEm, null)), true);
+
+            estado.EsperarAte = lida + espera;
+            estado.Porque = consulta.ErroComum;
+
+            // o número bom que houver segue no arquivo: o nosso, senão o que já estava lá
+            var (em, dados) = estado.Bruto is not null
+                              ? (estado.LidaEm, estado.Bruto)
+                              : (comum?.Em ?? DateTime.MinValue, comum?.Dados);
+            AiUsageShared.Gravar(perfil.Id, new AiUsageShared(em, dados, estado.EsperarAte, consulta.ErroComum));
+            Log.Write($"cota de IA ({perfil.Id}): esperando {Math.Ceiling(espera.TotalMinutes):0} min antes de perguntar de novo");
 
             // sem números velhos para mostrar, o cartão fica só com esta frase — então ela
             // precisa dizer o que aconteceu e quando melhora, e não um número de protocolo
-            if (estado.Ultima is null)
+            if (consulta.Status == 429 && estado.Ultima is null)
                 leitura = leitura with { Erro = $"muitas consultas seguidas — tentando de novo às {estado.EsperarAte:HH:mm}" };
         }
 
-        return estado.Ultima is { } antiga
-               ? Envelhecida(antiga, estado.LidaEm, leitura.Erro)
-               : leitura;
+        return (Devolver(estado, estado.Ultima is { } antiga
+                                 ? Envelhecida(antiga, estado.LidaEm, leitura.Erro)
+                                 : leitura),
+                false);
+    }
+
+    /// <summary>
+    /// Toma para si o número do arquivo comum, se ele for mais novo que o da dock e trouxer
+    /// alguma cota. Devolve se tomou.
+    /// </summary>
+    private static bool Aproveitar(Estado estado, AiProfile perfil, AiUsageShared? comum)
+    {
+        if (comum?.Dados is not { } dados || comum.Em <= estado.LidaEm) return false;
+
+        var medidores = Medidores(dados);
+        if (medidores.Count == 0) return false;
+
+        // o plano da credencial só aparece quando o perfil não diz o dele (veja o AiCard); sem
+        // leitura nossa anterior, ele vem do arquivo da credencial, que é pequeno
+        var plano = estado.Ultima?.Plano ?? LerCredencial(perfil).Plano;
+
+        estado.Ultima = new AiAccountUsage(perfil, AiUsageState.Ok, medidores, plano);
+        estado.LidaEm = comum.Em;
+        estado.Bruto = dados;
+        return true;
+    }
+
+    private static AiAccountUsage Devolver(Estado estado, AiAccountUsage leitura)
+    {
+        estado.Devolvida = leitura;
+        return leitura;
     }
 
     /// <summary>Os números de antes, marcados com a hora em que foram lidos.</summary>
     private static AiAccountUsage Envelhecida(AiAccountUsage guardada, DateTime quando, string? erro) =>
         guardada with { Erro = erro, Desde = quando };
 
-    /// <summary>Quanto a API pediu para esperar, por conta — preenchido ao ver um 429.</summary>
-    private static readonly Dictionary<string, TimeSpan> _ultimoRetry = new(StringComparer.OrdinalIgnoreCase);
+    /// <summary>O que uma ida à API deu.</summary>
+    /// <param name="Bruto">A resposta inteira, quando deu certo — vai para o arquivo comum.</param>
+    /// <param name="Espera">
+    /// Quanto ninguém deve perguntar de novo, quando a API foi consultada e disse não; nulo
+    /// quando nem se chegou a ela (sem credencial, sessão vencida no arquivo).
+    /// </param>
+    /// <param name="ErroComum">O porquê, nas palavras que o GTerm mostra no cartão dele.</param>
+    private sealed record Consulta(AiAccountUsage Leitura, JsonObject? Bruto = null, TimeSpan? Espera = null,
+                                   string? ErroComum = null, int Status = 0);
 
-    private async Task<AiAccountUsage> LerContaAsync(AiProfile perfil, CancellationToken cancel)
+    /// <summary>O que a credencial diz: se dá para usar, o token e o plano.</summary>
+    private readonly record struct Credencial(AiUsageState Estado, string? Token, string? Plano);
+
+    private static Credencial LerCredencial(AiProfile perfil)
     {
-        string token;
-        string? plano;
-
         try
         {
             var credenciais = Path.Combine(perfil.Pasta, ".credentials.json");
-            if (!File.Exists(credenciais))
-                return new AiAccountUsage(perfil, AiUsageState.NoCredentials, Array.Empty<AiGauge>(), null);
+            if (!File.Exists(credenciais)) return new Credencial(AiUsageState.NoCredentials, null, null);
 
             // O arquivo é do Claude Code, que pode estar gravando nele neste instante: a
             // leitura compartilhada evita a exceção de arquivo em uso, e uma leitura que
             // pegue o arquivo pela metade cai no catch e vira "não deu para ler" — a próxima
             // atualização acerta.
-            await using var fluxo = new FileStream(credenciais, FileMode.Open, FileAccess.Read,
-                                                   FileShare.ReadWrite | FileShare.Delete);
-            var oauth = (await JsonSerializer.DeserializeAsync<CredentialsFile>(fluxo, Json, cancel)
-                                             .ConfigureAwait(false))?.ClaudeAiOauth;
+            using var fluxo = new FileStream(credenciais, FileMode.Open, FileAccess.Read,
+                                             FileShare.ReadWrite | FileShare.Delete);
+            var oauth = JsonSerializer.Deserialize<CredentialsFile>(fluxo, Json)?.ClaudeAiOauth;
 
             if (oauth is null || string.IsNullOrWhiteSpace(oauth.AccessToken))
-                return new AiAccountUsage(perfil, AiUsageState.NoCredentials, Array.Empty<AiGauge>(), null);
+                return new Credencial(AiUsageState.NoCredentials, null, null);
 
             // o plano é a única coisa que sai daqui além do token, e não é segredo
-            plano = oauth.SubscriptionType;
+            var plano = oauth.SubscriptionType;
 
             // `expiresAt` vem em milissegundos desde 1970. Uma folga de um minuto evita
             // gastar uma ida à rede para receber 401 de um token que vence agora.
             if (oauth.ExpiresAt > 0 &&
                 DateTimeOffset.FromUnixTimeMilliseconds(oauth.ExpiresAt) <= DateTimeOffset.UtcNow.AddMinutes(1))
-                return new AiAccountUsage(perfil, AiUsageState.Expired, Array.Empty<AiGauge>(), plano);
+                return new Credencial(AiUsageState.Expired, null, plano);
 
-            token = oauth.AccessToken;
+            return new Credencial(AiUsageState.Ok, oauth.AccessToken, plano);
         }
         catch (Exception ex)
         {
             // sem o texto da exceção, que poderia carregar conteúdo do arquivo: aqui só
             // interessa o tipo
             Log.Write($"cota de IA ({perfil.Id}): não deu para ler as credenciais ({ex.GetType().Name})");
-            return new AiAccountUsage(perfil, AiUsageState.Failed, Array.Empty<AiGauge>(), null,
-                                      "não deu para ler as credenciais");
+            return new Credencial(AiUsageState.Failed, null, null);
         }
+    }
+
+    private async Task<Consulta> ConsultarAsync(AiProfile perfil, CancellationToken cancel)
+    {
+        var credencial = LerCredencial(perfil);
+        var plano = credencial.Plano;
+
+        if (credencial.Estado != AiUsageState.Ok || credencial.Token is not { } token)
+            return new Consulta(new AiAccountUsage(perfil, credencial.Estado, Array.Empty<AiGauge>(), plano,
+                                                   credencial.Estado == AiUsageState.Failed
+                                                   ? "não deu para ler as credenciais" : null));
 
         try
         {
@@ -449,7 +571,8 @@ public sealed class AiUsageService
             pedido.Headers.Add("anthropic-beta", OauthBeta);
             pedido.Headers.UserAgent.ParseAdd("WinDock/1.0");
 
-            using var resposta = await Http.SendAsync(pedido, cancel).ConfigureAwait(false);
+            using var resposta = await _enviar(pedido, cancel).ConfigureAwait(false);
+            var status = (int)resposta.StatusCode;
 
             if (!resposta.IsSuccessStatusCode)
             {
@@ -459,42 +582,61 @@ public sealed class AiUsageService
                              ? AiUsageState.Expired : AiUsageState.Failed;
 
                 // 429 é "pare de perguntar". O cabeçalho `Retry-After` diz por quanto tempo
-                // quando o servidor se dá ao trabalho; quando não diz, vale o nosso castigo
-                // fixo. Quem guarda isso é o `ComCacheAsync`, que decide o que fazer com a
-                // leitura inteira.
-                if (resposta.StatusCode == System.Net.HttpStatusCode.TooManyRequests)
+                // quando o servidor se dá ao trabalho; quando não diz, vale o castigo fixo.
+                // Quem guarda isso é o `LerAsync`, que decide o que fazer com a leitura inteira.
+                var (espera, porque) = status switch
                 {
-                    var pedido429 = resposta.Headers.RetryAfter?.Delta
-                                    ?? (resposta.Headers.RetryAfter?.Date is { } quando
-                                        ? quando - DateTimeOffset.Now : null);
+                    429 => (Pedida(resposta) ?? Backoff, "a conta limitou as consultas"),
+                    401 => (BackoffCurto, "login vencido: abra o Claude"),
+                    _ => (BackoffCurto, "sem resposta da conta")
+                };
 
-                    _ultimoRetry[perfil.Id] = pedido429 is { } d && d > TimeSpan.Zero && d < TimeSpan.FromHours(2)
-                                              ? d : Backoff;
-                }
-
-                Log.Write($"cota de IA ({perfil.Id}): a API respondeu {(int)resposta.StatusCode}");
-                return new AiAccountUsage(perfil, estado, Array.Empty<AiGauge>(), plano,
-                                          $"a API respondeu {(int)resposta.StatusCode}");
+                Log.Write($"cota de IA ({perfil.Id}): a API respondeu {status}");
+                return new Consulta(new AiAccountUsage(perfil, estado, Array.Empty<AiGauge>(), plano,
+                                                       $"a API respondeu {status}"),
+                                    null, espera, porque, status);
             }
 
-            await using var corpo = await resposta.Content.ReadAsStreamAsync(cancel).ConfigureAwait(false);
-            var uso = await JsonSerializer.DeserializeAsync<UsageResponse>(corpo, Json, cancel)
-                                          .ConfigureAwait(false);
+            var texto = await resposta.Content.ReadAsStringAsync(cancel).ConfigureAwait(false);
+            var bruto = JsonNode.Parse(texto) as JsonObject;
 
-            var medidores = Montar(uso);
+            var medidores = bruto is null ? Array.Empty<AiGauge>() : Medidores(bruto);
             if (medidores.Count == 0)
-                return new AiAccountUsage(perfil, AiUsageState.Failed, Array.Empty<AiGauge>(), plano,
-                                          "a resposta não trouxe nenhuma cota");
+                return new Consulta(new AiAccountUsage(perfil, AiUsageState.Failed, Array.Empty<AiGauge>(), plano,
+                                                       "a resposta não trouxe nenhuma cota"));
 
             Log.Trace($"cota de IA ({perfil.Id}): " +
                       string.Join(" | ", medidores.Select(m => $"{m.Nome} {m.Percent:0}%")));
-            return new AiAccountUsage(perfil, AiUsageState.Ok, medidores, plano);
+            return new Consulta(new AiAccountUsage(perfil, AiUsageState.Ok, medidores, plano), bruto, Status: status);
         }
         catch (Exception ex)
         {
             Log.Write($"cota de IA ({perfil.Id}): falha ao consultar a API ({ex.GetType().Name})");
-            return new AiAccountUsage(perfil, AiUsageState.Failed, Array.Empty<AiGauge>(), plano,
-                                      "não deu para falar com a API");
+            return new Consulta(new AiAccountUsage(perfil, AiUsageState.Failed, Array.Empty<AiGauge>(), plano,
+                                                   "não deu para falar com a API"),
+                                null, BackoffCurto, "sem resposta da conta");
+        }
+    }
+
+    /// <summary>Quanto a API pediu para esperar, quando pediu algo que faça sentido.</summary>
+    private static TimeSpan? Pedida(HttpResponseMessage resposta)
+    {
+        var pedido = resposta.Headers.RetryAfter?.Delta
+                     ?? (resposta.Headers.RetryAfter?.Date is { } quando ? quando - DateTimeOffset.Now : null);
+
+        return pedido is { } d && d > TimeSpan.Zero && d < TimeSpan.FromHours(2) ? d : null;
+    }
+
+    /// <summary>Os medidores de uma resposta da API — a recém-chegada ou a do arquivo comum.</summary>
+    private static IReadOnlyList<AiGauge> Medidores(JsonObject dados)
+    {
+        try
+        {
+            return Montar(dados.Deserialize<UsageResponse>(Json));
+        }
+        catch (Exception ex) when (ex is JsonException or InvalidOperationException or NotSupportedException)
+        {
+            return Array.Empty<AiGauge>();
         }
     }
 
