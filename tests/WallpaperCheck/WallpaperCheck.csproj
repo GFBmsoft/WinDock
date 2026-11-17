@@ -24,6 +24,7 @@
 
   <ItemGroup>
     <Compile Include="..\..\src\Services\WallpaperRules.cs" Link="WallpaperRules.cs" />
+    <Compile Include="..\..\src\Services\LivingRules.cs" Link="LivingRules.cs" />
     <Compile Include="..\TreeCheck\NativeStub.cs" Link="NativeStub.cs" />
   </ItemGroup>
 

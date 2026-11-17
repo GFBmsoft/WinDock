@@ -29,6 +29,11 @@ namespace WinDock.Services;
 /// (<see cref="CompositionStretch.UniformToFill"/>). Medido no vídeo de 1080p: metade da placa que o
 /// <c>MediaElement</c> do WPF gastava, com a mesma CPU.</para>
 ///
+/// <para><b>Imagem com vida</b> (17/11/2026): as mesmas janelas mostram, no lugar do vídeo, só os
+/// efeitos de uma imagem parada (<see cref="LivingScene"/>); o resto delas é transparente e deixa
+/// ver o papel de parede do Windows, que é a mesma imagem. Pausar, nesse caso, é apagar os
+/// efeitos; a imagem fica.</para>
+///
 /// <para><b>A thread:</b> tudo aqui roda numa thread STA só deste serviço, com o próprio
 /// <see cref="Dispatcher"/> — nunca na da dock. Uma janela-filha de outro processo tem a fila de
 /// entrada ligada à da <c>Progman</c> do explorer: se esta thread parasse, a área de trabalho
@@ -50,6 +55,9 @@ internal sealed class AnimatedWallpaper : IDisposable
     private nint _queueController;
     private MediaPlayer? _player;
     private MediaPlayerSurface? _surface;
+    private LivingImage? _living;          // com ele, as janelas mostram os efeitos da imagem com vida, e não o vídeo
+    private WallpaperFit _fit;
+    private CompositionPixels? _pixels;    // só com neblina ou figura: são as que precisam de textura
     private readonly List<Screen> _screens = new();
     private nint _progman;
     private string _layout = string.Empty;
@@ -58,9 +66,15 @@ internal sealed class AnimatedWallpaper : IDisposable
     private string? _pausedFor = "começando";
     private bool _pauseOnBattery = true;
     private DispatcherTimer? _watch;
+    private DispatcherTimer? _frames;      // os quadros da imagem com vida
+    private bool _effectsBroken;           // um quadro falhou: os efeitos não voltam até a próxima imagem
+    private int _litScreens = -1;          // quantos monitores tinham efeitos no último segundo (para o rastro)
     private static WndProcDelegate? _wndProc;   // vivo enquanto a classe estiver registrada
 
-    private sealed record Screen(nint Hwnd, DesktopWindowTarget Target, SpriteVisual Visual, RECT Monitor);
+    private sealed record Screen(nint Hwnd, DesktopWindowTarget Target, ContainerVisual Root, RECT Monitor)
+    {
+        public LivingScene? Scene { get; set; }
+    }
 
     public AnimatedWallpaper()
     {
@@ -82,6 +96,13 @@ internal sealed class AnimatedWallpaper : IDisposable
     /// <summary>Toca <paramref name="video"/> (já convertido, se era GIF), em laço e sem som.</summary>
     public void Play(string video, string name, bool pauseOnBattery) =>
         _host.BeginInvoke(() => Guard(() => PlayHere(video, name, pauseOnBattery)));
+
+    /// <summary>
+    /// Põe os efeitos da imagem com vida, já preparada fora daqui (<see cref="LivingImage.LoadAsync"/>),
+    /// sobre o papel de parede do Windows, que já deve ser essa imagem, ajustada por <paramref name="fit"/>.
+    /// </summary>
+    public void ShowLiving(LivingImage image, string name, bool pauseOnBattery, WallpaperFit fit) =>
+        _host.BeginInvoke(() => Guard(() => LivingHere(image, name, pauseOnBattery, fit)));
 
     public void SetPauseOnBattery(bool value) =>
         _host.BeginInvoke(() => { _pauseOnBattery = value; Guard(Evaluate); });
@@ -114,6 +135,13 @@ internal sealed class AnimatedWallpaper : IDisposable
         _name = name;
         EnsureComposition();
 
+        if (_living is not null)
+        {
+            // as janelas mostravam a imagem com vida: refeitas com o vídeo
+            _living = null;
+            _needsBuild = true;
+        }
+
         if (_player is null)
         {
             _player = new MediaPlayer { IsLoopingEnabled = true, IsMuted = true, AutoPlay = false };
@@ -134,56 +162,113 @@ internal sealed class AnimatedWallpaper : IDisposable
         _player.Source = MediaSource.CreateFromUri(new Uri(video));
         if (_screens.Count == 0) _needsBuild = true;
         _pausedFor = "começando";
+        StartWatch();
+        Evaluate();
+    }
 
+    private void LivingHere(LivingImage image, string name, bool pauseOnBattery, WallpaperFit fit)
+    {
+        _pauseOnBattery = pauseOnBattery;
+        _name = name;
+        EnsureComposition();
+        StopPlayer();   // um vídeo que estivesse tocando sai; a mesma janela recebe os efeitos
+        _living = image;
+        _fit = fit;
+        _effectsBroken = false;
+        _needsBuild = true;
+        _pausedFor = "começando";
+        StartWatch();
+        Evaluate();
+    }
+
+    private void StartWatch()
+    {
         if (_watch is null)
         {
             _watch = new DispatcherTimer(DispatcherPriority.Background, _host) { Interval = TimeSpan.FromSeconds(1) };
             _watch.Tick += (_, _) => Guard(Evaluate);
         }
         _watch.Start();
-        Evaluate();
     }
 
     private void StopHere()
     {
         _watch?.Stop();
         TearDownScreens();
-        if (_player is not null)
-        {
-            _player.Pause();
-            _player.Source = null;
-            _surface?.Dispose();
-            _player.Dispose();
-            _player = null;
-            _surface = null;
-        }
+        StopPlayer();
+        _living = null;
+        _pixels?.Dispose();
+        _pixels = null;
         _name = null;
         _pausedFor = "começando";
+    }
+
+    private void StopPlayer()
+    {
+        if (_player is null) return;
+        _player.Pause();
+        _player.Source = null;
+        _surface?.Dispose();
+        _player.Dispose();
+        _player = null;
+        _surface = null;
     }
 
     // ── a cada segundo: refazer se precisar, tocar ou pausar ──
 
     private void Evaluate()
     {
-        if (_player is null) return;
+        if (_player is null && _living is null) return;
+
+        if (_pixels is { Lost: true })
+        {
+            // driver atualizado, volta da suspensão: as superfícies ficaram vazias
+            Log.Write("papel de parede com vida: a placa de vídeo foi reiniciada; refazendo a imagem");
+            TearDownScreens();
+            _pixels.Dispose();
+            _pixels = null;
+            _needsBuild = true;
+        }
 
         var progman = FindWindow("Progman", null);
         if (_needsBuild || progman != _progman || _screens.Any(s => !IsWindow(s.Hwnd)) || Layout() != _layout)
         {
             if (!_needsBuild && _screens.Count > 0)
                 Log.Write("papel de parede animado: a área de trabalho mudou (explorer reiniciado ou monitores trocados); remontando");
-            if (!Build()) { _needsBuild = true; Pause("sem área de trabalho para desenhar"); return; }
+            if (!Build())
+            {
+                if (_player is null && _living is null) return;   // a imagem com vida desistiu, e já disse por quê
+                _needsBuild = true;
+                Pause("sem área de trabalho para desenhar");
+                return;
+            }
             _needsBuild = false;
+            // janelas novas nascem sem efeitos: a decisão de tocar é refeita logo abaixo
+            _pausedFor ??= "remontado";
         }
 
-        var motivo = PauseReason();
+        var motivo = PauseReason(out var visiveis);
         if (motivo is null)
         {
+            // a imagem com vida anima só o monitor em que a área de trabalho aparece; o vídeo,
+            // com um player só para todos, toca ou para inteiro
+            foreach (var s in _screens)
+            {
+                if (s.Scene is null) continue;
+                if (!_effectsBroken && visiveis.Contains(s.Monitor)) s.Scene.Start();
+                else s.Scene.Stop();
+            }
+            UpdateFrames();
+            var acesas = _screens.Count(s => s.Scene?.Running == true);
+            if (_living is not null && acesas != _litScreens)
+                Log.Trace($"papel de parede com vida: efeitos em {acesas} de {_screens.Count} monitor(es)");
+            _litScreens = acesas;
+
             if (_pausedFor is null) return;
-            _player.Play();
+            _player?.Play();
             _pausedFor = null;
             Log.Trace($"papel de parede animado: tocando '{_name}'");
-            Status($"Tocando {_name}");
+            Status(_living is null ? $"Tocando {_name}" : $"{_name}, com vida");
         }
         else Pause(motivo);
     }
@@ -192,17 +277,66 @@ internal sealed class AnimatedWallpaper : IDisposable
     {
         if (_pausedFor == motivo) return;
         _player?.Pause();
+        foreach (var s in _screens) s.Scene?.Stop();
+        UpdateFrames();
+        _litScreens = 0;
         _pausedFor = motivo;
         Log.Trace($"papel de parede animado: pausado ({motivo})");
         Status($"{_name} — pausado: {motivo}");
     }
 
-    private string? PauseReason()
+    /// <summary>
+    /// O relógio dos quadros da imagem com vida (<see cref="LivingRules.FramesPerSecond"/>): de pé
+    /// só enquanto algum monitor tem efeitos acesos.
+    /// </summary>
+    private void UpdateFrames()
     {
+        if (!_screens.Any(s => s.Scene?.Running == true))
+        {
+            _frames?.Stop();
+            return;
+        }
+        if (_frames is null)
+        {
+            _frames = new DispatcherTimer(DispatcherPriority.Normal, _host)
+            {
+                Interval = TimeSpan.FromSeconds(1.0 / LivingRules.FramesPerSecond),
+            };
+            _frames.Tick += (_, _) =>
+            {
+                try
+                {
+                    foreach (var s in _screens) s.Scene?.Tick();
+                }
+                catch (Exception ex)
+                {
+                    // um erro aqui se repetiria doze vezes por segundo: apaga os efeitos de vez,
+                    // e a imagem fica
+                    _effectsBroken = true;
+                    _frames?.Stop();
+                    foreach (var s in _screens) s.Scene?.Stop();
+                    Log.Write("papel de parede com vida: um quadro falhou; os efeitos ficaram apagados", ex);
+                    Status($"{_name}: os efeitos falharam e foram apagados ({ex.Message})");
+                }
+            };
+        }
+        if (!_frames.IsEnabled) _frames.Start();
+    }
+
+    /// <summary>
+    /// Por que pausar tudo, ou nulo; com nulo, <paramref name="visible"/> diz quais monitores mostram
+    /// a área de trabalho.
+    /// </summary>
+    private string? PauseReason(out List<RECT> visible)
+    {
+        visible = new List<RECT>();
         if (Locked()) return "sessão bloqueada";
         if (_pauseOnBattery && OnBattery()) return "na bateria";
-        if (!DesktopVisible()) return "área de trabalho coberta";
-        return null;
+        // os efeitos são desenhados para a imagem que está por baixo: com outra no lugar (trocada
+        // pelas Configurações do Windows, por outro programa), velas acesas no lugar errado
+        if (_living is not null && !WindowsWallpaperIs(_living.Path)) return "o papel de parede do Windows foi trocado";
+        visible = VisibleMonitors();
+        return visible.Count == 0 ? "área de trabalho coberta" : null;
     }
 
     /// <summary>
@@ -225,14 +359,21 @@ internal sealed class AnimatedWallpaper : IDisposable
     private static bool OnBattery() =>
         GetSystemPowerStatus(out var s) && s.ACLineStatus == 0 && s.BatteryFlag != 128;
 
+    private static bool WindowsWallpaperIs(string path)
+    {
+        var atual = new StringBuilder(1024);
+        return SystemParametersInfoText(SPI_GETDESKWALLPAPER, (uint)atual.Capacity, atual, 0)
+               && string.Equals(atual.ToString(), path, StringComparison.OrdinalIgnoreCase);
+    }
+
     /// <summary>
-    /// Algum monitor mostra a área de trabalho? Conta só as janelas que estão <b>acima</b> da
-    /// <c>Progman</c> na pilha: no Win+D é a área de trabalho que sobe para cima delas, e as
-    /// janelas continuam lá, nem minimizadas — contar todas pausaria o vídeo justo quando ele
-    /// aparece. Mede dentro da área útil de cada monitor, sem a faixa da dock e da barra, que
-    /// sempre deixam ver um pouco do fundo.
+    /// Os monitores (retângulo inteiro) que mostram a área de trabalho. Conta só as janelas que
+    /// estão <b>acima</b> da <c>Progman</c> na pilha: no Win+D é a área de trabalho que sobe para
+    /// cima delas, e as janelas continuam lá, nem minimizadas — contar todas pausaria o vídeo justo
+    /// quando ele aparece. Mede dentro da área útil de cada monitor, sem a faixa da dock e da
+    /// barra, que sempre deixam ver um pouco do fundo.
     /// </summary>
-    private bool DesktopVisible()
+    private List<RECT> VisibleMonitors()
     {
         var janelas = new List<RECT>();
         var progman = _progman;
@@ -248,7 +389,10 @@ internal sealed class AnimatedWallpaper : IDisposable
 
         // a área útil é lida agora, e não guardada: a faixa da dock e a da barra mudam com as
         // opções, e remontar as janelas por isso faria a área de trabalho piscar
-        return Monitors().Any(m => WallpaperRules.VisibleFraction(m.Work, janelas) >= WallpaperRules.MinVisible);
+        return Monitors()
+            .Where(m => WallpaperRules.VisibleFraction(m.Work, janelas) >= WallpaperRules.MinVisible)
+            .Select(m => m.Monitor)
+            .ToList();
     }
 
     // ── as janelas, uma por monitor ───────────────────────────
@@ -280,7 +424,8 @@ internal sealed class AnimatedWallpaper : IDisposable
 
     /// <summary>
     /// Uma janela por monitor dentro da <c>Progman</c>, logo abaixo dos ícones. Falso quando não
-    /// há onde pôr: explorer subindo, ou um Windows que ainda guarda os ícones fora da Progman.
+    /// há onde pôr (explorer subindo, ou um Windows que ainda guarda os ícones fora da Progman), ou
+    /// quando a imagem com vida não pôde ser montada.
     /// </summary>
     private bool Build()
     {
@@ -316,15 +461,42 @@ internal sealed class AnimatedWallpaper : IDisposable
             }
 
             var alvo = CreateTarget(hwnd);
-            var visual = _compositor!.CreateSpriteVisual();
-            visual.RelativeSizeAdjustment = Vector2.One;
-            var pincel = _compositor.CreateSurfaceBrush(_surface!.CompositionSurface);
-            pincel.Stretch = CompositionStretch.UniformToFill;
-            visual.Brush = pincel;
-            alvo.Root = visual;
+            var raiz = _compositor!.CreateContainerVisual();
+            raiz.RelativeSizeAdjustment = Vector2.One;
+            alvo.Root = raiz;
+            var tela = new Screen(hwnd, alvo, raiz, monitor);
+            _screens.Add(tela);
+
+            if (_living is null)
+            {
+                var visual = _compositor.CreateSpriteVisual();
+                visual.RelativeSizeAdjustment = Vector2.One;
+                var pincel = _compositor.CreateSurfaceBrush(_surface!.CompositionSurface);
+                pincel.Stretch = CompositionStretch.UniformToFill;
+                visual.Brush = pincel;
+                raiz.Children.InsertAtTop(visual);
+            }
+            else
+            {
+                try
+                {
+                    if (LivingScene.NeedsPixels(_living)) _pixels ??= new CompositionPixels(_compositor);
+                    tela.Scene = new LivingScene(_compositor, _pixels, _living, raiz, monitor.Width, monitor.Height, _fit);
+                }
+                catch (Exception ex)
+                {
+                    // desiste de vez, e não a cada segundo: o papel do Windows por baixo é a mesma
+                    // imagem, só que parada
+                    Log.Write($"papel de parede com vida: não deu para montar '{_name}'", ex);
+                    Status($"Não deu para dar vida a {_name}: {ex.Message}. Ficou a imagem parada");
+                    TearDownScreens();
+                    _living = null;
+                    _watch?.Stop();
+                    return false;
+                }
+            }
 
             SetWindowPos(hwnd, icones, p.X, p.Y, monitor.Width, monitor.Height, SWP_NOACTIVATE);
-            _screens.Add(new Screen(hwnd, alvo, visual, monitor));
         }
 
         _layout = Layout();
@@ -334,9 +506,11 @@ internal sealed class AnimatedWallpaper : IDisposable
 
     private void TearDownScreens()
     {
+        _frames?.Stop();
         foreach (var s in _screens)
         {
-            try { s.Target.Root = null; s.Visual.Dispose(); s.Target.Dispose(); } catch { }
+            try { s.Scene?.Dispose(); } catch { }
+            try { s.Target.Root = null; s.Root.Dispose(); s.Target.Dispose(); } catch { }
             if (IsWindow(s.Hwnd)) DestroyWindow(s.Hwnd);
         }
         _screens.Clear();
@@ -364,6 +538,10 @@ internal sealed class AnimatedWallpaper : IDisposable
     [UnmanagedFunctionPointer(CallingConvention.StdCall)]
     private delegate int CreateDesktopWindowTargetFn(nint self, nint hwnd, int isTopmost, out nint target);
 
+    /// <summary>O tamanho de cada monitor, para a imagem com vida ser ampliada antes de chegar aqui.</summary>
+    public static List<(int W, int H)> MonitorSizes() =>
+        Monitors().Select(m => (m.Monitor.Width, m.Monitor.Height)).ToList();
+
     private static List<(RECT Monitor, RECT Work)> Monitors()
     {
         var lista = new List<(RECT, RECT)>();
@@ -389,6 +567,10 @@ internal sealed class AnimatedWallpaper : IDisposable
     private const uint SWP_NOACTIVATE = 0x0010;
     private const uint SMTO_NORMAL = 0x0000;
     private const uint DESKTOP_READOBJECTS = 0x0001;
+    private const uint SPI_GETDESKWALLPAPER = 0x0073;
+
+    [DllImport("user32.dll", EntryPoint = "SystemParametersInfoW", CharSet = CharSet.Unicode, SetLastError = true)]
+    private static extern bool SystemParametersInfoText(uint action, uint length, StringBuilder value, uint flags);
     private const int UOI_NAME = 2;
 
     [StructLayout(LayoutKind.Sequential)]

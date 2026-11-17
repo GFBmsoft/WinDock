@@ -825,6 +825,51 @@ arquivos da própria pasta, sem as subpastas.
 - **Estáticos** (`.jpg`, `.png`, `.bmp`) viram o papel de parede do próprio Windows, como se
   escolhidos nas Configurações dele, e continuam lá com a dock fechada.
 
+**Dar vida às imagens paradas** (desde a 1.0.0.82) põe movimento numa imagem parada sem tirar a
+nitidez dela. A imagem continua sendo o papel de parede do próprio Windows, e a dock põe por cima,
+numa camada transparente, só o movimento: as **velas tremulam** com um brilho quente, uma
+**neblina** passa devagar pelo céu e pela paisagem ao fundo, e **brasas** sobem das velas enquanto
+**grãos de poeira** flutuam pela cena, tudo a 12 quadros por segundo, o ritmo da pixel art. Não há
+nada a marcar: as velas e o céu são achados nos próprios pixels da imagem, então vale para qualquer
+imagem da pasta. Foi afinado nas cenas isométricas em pixel art sobre fundo preto (a Capela, os
+Quartos Góticos); numa foto comum quase nada passa nos filtros, e o efeito fica discreto ou some.
+
+Com a dock fechada, na tela de bloqueio ou se algo der errado, aparece a mesma imagem, só que
+parada. Os efeitos **pausam** junto com os animados (sessão bloqueada, bateria) e **por monitor**:
+só anima o monitor em que a área de trabalho aparece. Os efeitos se apoiam no ajuste do papel de
+parede do Windows (Preencher, Ajustar, Ampliar ou Centralizar); em Lado a lado e Estender a dock
+não sabe onde cada vela foi parar, avisa embaixo da lista e deixa a imagem parada. Se o papel de
+parede for trocado pelas Configurações do Windows, os efeitos se apagam no segundo seguinte.
+
+**Personagens que se mexem.** Um personagem não é achado sozinho (o manto vermelho do Penitente e
+o tapete vermelho embaixo dele são a mesma cor para a análise), então ele é traçado à mão, num
+arquivo por imagem em `%APPDATA%\WinDock\papel-com-vida\<nome da imagem>.json`, com uma ou mais
+partes, cada uma com o contorno em pixels da imagem (`Outline`) e um tipo de movimento:
+
+- `"Motion": "Breath"` (o padrão) — respiração: o tronco assenta até `Amount` pixels e volta,
+  devagar nas pontas, numa volta de `Seconds`; o peito encolhe na faixa `Ramp` de baixo, acima do
+  que fica parado (o cinto). `Blade` (do punho à ponta) faz um brilho correr a lâmina de tempos em
+  tempos.
+- `"Motion": "Idle"` — o idle do Penitente no jogo: o tronco sobe `Amount` pixels de uma vez, fica
+  em cima quase metade da volta e desce (1,2 s).
+- `"Motion": "Cloth"` — pano ao vento: uma onda que desce pelo pano, presa em cima, `Amount`
+  pixels na ponta solta: `"Free": "left"` ou `"right"` para um pano preso de um lado (a capa), e
+  `"both"` para o que pende de um varão (as bandeiras). Com `"Anchor": "bottom"` o preso é
+  embaixo: é como o corpo de um personagem balança de leve, parado na cintura.
+
+Preso embaixo, o balanço vira uma inclinação suave (o corpo, um caule, um rabo), e não uma onda
+que dobraria o meio para um lado e a ponta para o outro.
+
+No mesmo arquivo, `"Lights": false`, `"Fog": false` e `"Particles": false` desligam o que a
+análise acha sozinha (o brilho das velas, a neblina, as brasas e a poeira) para as imagens em que
+ela erra — num quarto moderno em voxel, o "céu" era o tapete azul e a "vela", uma flor amarela.
+
+Já vêm traçadas: a **Capela** e o **Santuário** (o Penitente balançando preso no cinto, a capa
+vermelha à esquerda da perna e as quatro bandeiras), o **Quarto do Penitente** (o Penitente, os
+dois estandartes com franja e o pano ao lado do quadro) e o **Room** (o rabo do gato e as duas
+plantas do vaso, sem os efeitos automáticos). O pedaço é recortado da imagem com a mesma
+ampliação do Windows, e os quadros mudam de pixel inteiro em pixel inteiro, sem borrar.
+
 Em **Usar**, escolha só os animados, só os estáticos ou os dois. A lista **Papel de parede** mostra
 o que está na tela, e escolher outro troca na hora; **Próximo** passa para o seguinte. **Trocar
 sozinho** faz a rotação pela pasta a cada 5 minutos até 1 dia, em ordem alfabética ou, com **Ordem
@@ -845,7 +890,10 @@ quadro.
 **Quanto custa.** Um vídeo de 1080p tocando ocupa, na Radeon integrada da máquina em que a dock é
 feita, perto de um terço da parte 3D da placa e 6% de um núcleo de CPU, e a dock passa a usar
 uns 160 MB a mais de memória. Pausado, não gasta placa nem CPU. Um GIF convertido, de 10 quadros por
-segundo, gasta bem menos que um vídeo de 30.
+segundo, gasta bem menos que um vídeo de 30. A imagem com vida é bem mais leve: na mesma máquina,
+com os dois monitores animando, uns 3 pontos a mais da parte 3D da placa, 2 de CPU no gerenciador
+de janelas do Windows e uns 60 MB na dock; com o Penitente e as quatro bandeiras da Capela, mais
+uns 40 MB (os quadros de cada parte que se mexe ficam guardados).
 
 Fechar a dock ou desligar a opção tira o animado e deixa à mostra o papel de parede do Windows.
 O papel animado precisa do Windows 11 24H2 ou mais novo, em que os ícones da área de trabalho
@@ -910,6 +958,7 @@ Não há nada além disso: sem serviço, sem entrada em "Aplicativos instalados"
 | Executável | onde você copiou (sugestão: `%LOCALAPPDATA%\Programs\WinDock`) |
 | Preferências e apps fixados | `%APPDATA%\WinDock\config.json` |
 | GIFs do papel de parede já convertidos em vídeo | `%LOCALAPPDATA%\WinDock\papel-animado` (pode apagar: são refeitos quando preciso) |
+| Personagens que respiram, traçados por imagem | `%APPDATA%\WinDock\papel-com-vida\<nome da imagem>.json` |
 | Início automático | tarefa agendada `WinDock` (plano B: `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`, valor `WinDock`) |
 
 O `config.json` pode ser editado à mão com a dock fechada; ela grava o arquivo ao sair, então

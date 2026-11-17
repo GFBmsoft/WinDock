@@ -1332,6 +1332,16 @@ public sealed class DockConfig : INotifyPropertyChanged
     /// </summary>
     public bool WallpaperPauseOnBattery { get => _wallpaperPauseOnBattery; set => Set(ref _wallpaperPauseOnBattery, value); }
 
+    private bool _wallpaperLiving;
+    /// <summary>
+    /// A imagem parada ganha vida (pedido de 17/11/2026): a dock a desenha atrás dos ícones, nítida,
+    /// e por cima acende as velas, passa neblina no céu e solta brasas e poeira. Os animados em
+    /// vídeo ficaram desfocados no monitor largo dele, e o que ele queria era o papel isométrico que
+    /// já usava, com movimento. Desligado de fábrica: quem só quer a imagem parada não paga nada.
+    /// Veja <see cref="LivingScene"/>.
+    /// </summary>
+    public bool WallpaperLiving { get => _wallpaperLiving; set => Set(ref _wallpaperLiving, value); }
+
     // ── persistencia ────────────────────────────────────────
     /// <summary>A pasta do usuario onde ficam o config e o log.</summary>
     public static readonly string Dir =
@@ -1501,6 +1511,7 @@ public sealed class DockConfig : INotifyPropertyChanged
         Wallpaper = d.Wallpaper; WallpaperKind = d.WallpaperKind;
         WallpaperRotate = d.WallpaperRotate; WallpaperRotateMinutes = d.WallpaperRotateMinutes;
         WallpaperShuffle = d.WallpaperShuffle; WallpaperPauseOnBattery = d.WallpaperPauseOnBattery;
+        WallpaperLiving = d.WallpaperLiving;
         Hotkeys.Clear(); NotifyHotkeysChanged();
     }
 

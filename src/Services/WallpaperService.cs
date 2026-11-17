@@ -15,6 +15,10 @@ namespace WinDock.Services;
 /// atrás dos ícones pelo <see cref="AnimatedWallpaper"/>, que só existe enquanto há um animado na
 /// tela. Fechar a dock ou desligar a opção tira o animado e deixa à mostra o papel do Windows.
 ///
+/// Com "Dar vida às imagens paradas" (17/11/2026), a imagem parada vira o papel do Windows, como
+/// antes, e o <see cref="AnimatedWallpaper"/> põe por cima dela só os efeitos da
+/// <see cref="LivingScene"/>, numa janela transparente. Fechar a dock só tira o movimento.
+///
 /// Mora na thread da interface, como as outras peças da dock; o que demora (converter um GIF,
 /// avisar o Windows da troca do papel estático) corre fora dela.
 /// </summary>
@@ -97,6 +101,10 @@ internal sealed class WallpaperService : IDisposable
             case nameof(DockConfig.WallpaperPauseOnBattery):
                 _animated?.SetPauseOnBattery(_config.WallpaperPauseOnBattery);
                 break;
+            case nameof(DockConfig.WallpaperLiving):
+                // só a imagem parada muda: com vida ela vai para as janelas da dock, sem, fica só a do Windows
+                if (_config.Wallpaper && _shown is not null && WallpaperRules.IsStatic(_shown)) Show(_shown);
+                break;
         }
     }
 
@@ -149,9 +157,43 @@ internal sealed class WallpaperService : IDisposable
                 await Task.Run(() => SetWindowsWallpaper(path));
                 if (vez != _generation) return;
 
-                // o animado sai só depois do estático no lugar: na ordem contrária, o papel velho
-                // do Windows aparecia por um instante entre os dois
+                // o que estava na tela sai já: efeitos de outra imagem, ou um vídeo. Os efeitos
+                // desta entram por cima do papel do Windows, que agora já é ela
                 _animated?.Stop();
+
+                if (_config.WallpaperLiving)
+                {
+                    var ajuste = WindowsFit();
+                    if (ajuste is null)
+                    {
+                        Log.Write($"papel de parede: '{nome}' sem vida — o Windows está em Lado a lado ou Estender");
+                        SetStatus($"Papel de parede do Windows: {nome}. Para dar vida, o ajuste dele precisa ser " +
+                                  "Preencher, Ajustar, Ampliar ou Centralizar (em Lado a lado e Estender, a dock não sabe onde cada vela foi parar)");
+                        return;
+                    }
+
+                    SetStatus($"Dando vida a {nome}…");
+                    var telas = AnimatedWallpaper.MonitorSizes();
+                    LivingImage imagem;
+                    try { imagem = await Task.Run(() => LivingImage.LoadAsync(path, telas, ajuste.Value)); }
+                    catch (Exception ex)
+                    {
+                        Log.Write($"papel de parede: não deu para dar vida a '{nome}'", ex);
+                        if (vez == _generation) SetStatus($"Papel de parede do Windows: {nome} (sem vida: {ex.Message})");
+                        return;
+                    }
+                    if (vez != _generation) return;
+
+                    _animated ??= CreateAnimated();
+                    _animated.ShowLiving(imagem, nome, _config.WallpaperPauseOnBattery, ajuste.Value);
+                    Log.Write($"papel de parede: '{nome}' com vida ({imagem.Map.Lights.Count} luzes, " +
+                              $"céu em {imagem.Map.SkyShare:P0} da imagem, {imagem.Particles.Count} brasas e grãos" +
+                              (imagem.Figures.Count > 0 ? $", figuras: {string.Join(", ", imagem.Figures.Select(f => f.Name))}" : "") + ")");
+                    return;
+                }
+
+                // o animado saiu (acima) só depois do estático no lugar: na ordem contrária, o
+                // papel velho do Windows aparecia por um instante entre os dois
                 Log.Write($"papel de parede: '{nome}' como papel de parede do Windows");
                 SetStatus($"Papel de parede do Windows: {nome}");
                 return;
@@ -176,13 +218,20 @@ internal sealed class WallpaperService : IDisposable
         }
     }
 
+    /// <summary>O ajuste do papel de parede do Windows, que é onde os efeitos precisam cair.</summary>
+    private static WallpaperFit? WindowsFit()
+    {
+        using var chave = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(@"Control Panel\Desktop");
+        return LivingRules.FitOf(chave?.GetValue("WallpaperStyle") as string, chave?.GetValue("TileWallpaper") as string);
+    }
+
     private AnimatedWallpaper CreateAnimated()
     {
         var a = new AnimatedWallpaper();
         a.StatusChanged += texto => _ui.BeginInvoke(() =>
         {
             // um aviso atrasado do animado não passa por cima do estático que entrou depois
-            if (_shown is not null && WallpaperRules.IsAnimated(_shown)) SetStatus(texto);
+            if (_shown is not null && (WallpaperRules.IsAnimated(_shown) || _config.WallpaperLiving)) SetStatus(texto);
         });
         return a;
     }

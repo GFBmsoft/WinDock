@@ -1829,6 +1829,25 @@
             </Grid>
           </Border>
 
+          <!-- pedido de 17/11/2026: o papel isométrico que ele já tinha, com movimento e sem o
+               borrão dos vídeos esticados no monitor largo -->
+          <Border Style="{StaticResource FluentCardBorderStyle}">
+            <Grid>
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+              </Grid.ColumnDefinitions>
+              <StackPanel VerticalAlignment="Center">
+                <TextBlock Text="Dar vida às imagens paradas" Style="{StaticResource FluentTitle}" />
+                <TextBlock Text="A imagem continua nítida, e por cima dela as velas tremulam, a neblina passa no céu e brasas e poeira flutuam no ar. Pausa junto com os animados"
+                           Style="{StaticResource FluentCaption}" TextWrapping="Wrap" />
+              </StackPanel>
+              <CheckBox Grid.Column="1" Style="{StaticResource FluentToggle}"
+                        AutomationProperties.Name="Dar vida às imagens paradas"
+                        IsChecked="{Binding WallpaperLiving, Mode=TwoWay}" />
+            </Grid>
+          </Border>
+
           <Border Style="{StaticResource FluentCardBorderStyle}" MinHeight="0">
             <StackPanel>
               <TextBlock Text="Papel de parede" Style="{StaticResource FluentTitle}" />
@@ -1921,7 +1940,7 @@
               </Grid.ColumnDefinitions>
               <StackPanel VerticalAlignment="Center">
                 <TextBlock Text="Pausar na bateria" Style="{StaticResource FluentTitle}" />
-                <TextBlock Text="Fora da tomada, o animado para no quadro em que está — um vídeo tocando gasta placa de vídeo o tempo todo"
+                <TextBlock Text="Fora da tomada, o animado para no quadro em que está e a imagem com vida fica parada — o movimento gasta placa de vídeo o tempo todo"
                            Style="{StaticResource FluentCaption}" TextWrapping="Wrap" />
               </StackPanel>
               <CheckBox Grid.Column="1" Style="{StaticResource FluentToggle}"

@@ -11,6 +11,12 @@
   tag que leva a nota junto. Escrito para quem usa a dock: o que mudou na tela, e não no código.
 -->
 
+## 1.0.0.82 — 17/11/2026
+- Papel de parede com vida, em Configurações › Papel de parede › Dar vida às imagens paradas: a imagem parada continua sendo o papel de parede do Windows, nítida como sempre, e a dock põe movimento por cima. As velas tremulam com um brilho quente, uma neblina passa devagar pelo céu e pela paisagem ao fundo, brasas sobem das velas e grãos de poeira flutuam pela cena.
+- As velas e o céu são achados sozinhos nos pixels da imagem, então vale para qualquer imagem da pasta; foi feito para as cenas isométricas em pixel art (numa foto comum o efeito quase some).
+- Personagens e panos também se mexem nas imagens que já vêm preparadas: na Capela e no Santuário o Penitente balança de leve, preso no cinto, com um brilho correndo a lâmina da espada, e a capa e as bandeiras ondulam ao vento; no Quarto do Penitente, ele e os estandartes; no Room, o rabo do gato e as plantas do vaso.
+- O movimento anda a 12 quadros por segundo, o ritmo da pixel art, e só no monitor em que a área de trabalho aparece. Pausa junto com os animados (área coberta, sessão bloqueada, bateria). Com a dock fechada fica a imagem parada.
+
 ## 1.0.0.81 — 16/11/2026
 - Com os ícones desenhados ligados, os programas da família (GRepos, GTerm, GTest, GConv, GSQL e os outros G*) perdem o quadrado escuro que tinham atrás e ficam como os desenhados: só o desenho, sem fundo, com a moldura aparecendo só com o mouse em cima. Antes eles eram os únicos da dock com fundo escuro.
 
