@@ -11,6 +11,11 @@
   tag que leva a nota junto. Escrito para quem usa a dock: o que mudou na tela, e não no código.
 -->
 
+## 1.0.0.84 — 18/11/2026
+- A capa do álbum não falta mais na barra de cima. Quando o programa de música mandava a capa um instante depois do nome da faixa, a barra ficava sem ela, ou com a da faixa anterior, e só o cartão aberto mostrava a certa.
+- Toda faixa nova é conferida de novo um segundo e meio depois, para pegar a capa que chega atrasada mesmo quando o programa não avisa.
+- Com o cartão "Tocando agora" aberto, a capa deixou de ser redesenhada a cada segundo.
+
 ## 1.0.0.83 — 18/11/2026
 - A cota de IA não abre mais de manhã com o número de ontem. O login do Claude Code vence de madrugada, e a dock que abria antes de você usar o Claude Code mostrava a última leitura da véspera como se fosse de agora, sem aviso nenhum, por até dez minutos.
 - Uma janela de cota que já zerou aparece com 0% e "zerou às…", em vez do número de antes de zerar. A de 7 dias, que ainda vale, continua com o número dela.

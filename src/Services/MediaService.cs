@@ -2,6 +2,7 @@ using System.IO;
 using System.Linq;
 using System.Windows.Media.Imaging;
 using System.Runtime.InteropServices.WindowsRuntime;
+using System.Security.Cryptography;
 using Windows.Foundation;
 using Windows.Media.Control;
 
@@ -205,20 +206,65 @@ public sealed class MediaService : IDisposable
     private void OnMediaChanged(GlobalSystemMediaTransportControlsSession s, object e) => _ = Refresh();
     private void OnPlaybackChanged(GlobalSystemMediaTransportControlsSession s, object e) => _ = Refresh();
 
-    /// <summary>Relê tudo da sessão atual e avisa quem estiver ouvindo.</summary>
-    public async Task Refresh()
+    /// <summary>Conta as leituras pedidas, para só a mais nova valer. Veja <see cref="Refresh"/>.</summary>
+    private int _leitura;
+
+    /// <summary>
+    /// Relê tudo da sessão atual e avisa quem estiver ouvindo.
+    ///
+    /// <para><b>Só a leitura pedida por último vale.</b> O Spotify avisa cada troca de faixa
+    /// duas vezes, a 10–60 ms uma da outra (medido em 18/11/2026), e cada aviso abre uma
+    /// leitura, que espera o WinRT e copia a capa. A que termina por último não é
+    /// necessariamente a mais nova, e sem esta conta uma leitura velha podia sobrescrever a
+    /// nova depois de o aviso já ter saído.</para>
+    /// </summary>
+    public Task Refresh() => Refresh(conferencia: 0);
+
+    private async Task Refresh(int conferencia)
     {
         if (_disposed) return;
 
+        var minha = Interlocked.Increment(ref _leitura);
         var info = await Read();
+        if (minha != Volatile.Read(ref _leitura)) return;   // há uma mais nova a caminho
 
-        // avisa só quando algo mudou de verdade: a posição da faixa anda sozinha e dispararia
-        // o evento a cada segundo, redesenhando a barra à toa
-        var mudou = info.Title != Current.Title || info.Artist != Current.Artist ||
-                    info.IsPlaying != Current.IsPlaying || info.HasMedia != Current.HasMedia;
+        var antes = Current;
+
+        // Avisa só quando algo mudou de verdade: a posição da faixa anda sozinha e dispararia
+        // o evento a cada segundo, redesenhando a barra à toa.
+        //
+        // A capa entra na conta. Antes não entrava, e a barra ficava sem a capa (ou com a da
+        // faixa anterior) quando ela chegava num aviso à parte, com o mesmo título. O cartão
+        // aberto relê tudo de segundo em segundo e por isso mostrava a capa certa: era o
+        // sintoma relatado, "só carrega se eu abrir o card". Comparar a referência basta,
+        // porque a mesma capa devolve a mesma imagem (veja Cover).
+        var mudou = info.Title != antes.Title || info.Artist != antes.Artist ||
+                    info.IsPlaying != antes.IsPlaying || info.HasMedia != antes.HasMedia ||
+                    !ReferenceEquals(info.Cover, antes.Cover);
 
         Current = info;
         if (mudou) Changed?.Invoke();
+
+        // Faixa nova: confere de novo daqui a pouco, sem esperar aviso. Se a capa ainda não
+        // veio, confere mais duas vezes. É a releitura que o cartão aberto faz de segundo em
+        // segundo, e que a barra não tinha: se o programa publicar a capa sem avisar, a barra
+        // a pega em até 1,5 s em vez de ficar sem ela até alguém abrir o cartão.
+        var faixaNova = info.Title != antes.Title || info.Artist != antes.Artist;
+        var conferir = conferencia == 0 ? faixaNova || info.Cover is null
+                                        : info.Cover is null && conferencia < 3;
+        if (info.HasMedia && conferir) _ = ConferirDepois(minha, conferencia + 1);
+    }
+
+    /// <summary>
+    /// A releitura de conferência do <see cref="Refresh"/>: 1,5 s depois da troca e depois de
+    /// 3 em 3 s. Desiste se outra leitura passou na frente, porque ela já trouxe o mais novo e
+    /// marca as próprias conferências.
+    /// </summary>
+    private async Task ConferirDepois(int leitura, int vez)
+    {
+        await Task.Delay(vez == 1 ? 1500 : 3000);
+        if (_disposed || leitura != Volatile.Read(ref _leitura)) return;
+        await Refresh(vez);
     }
 
     /// <summary>
@@ -282,13 +328,24 @@ public sealed class MediaService : IDisposable
         }
     }
 
+    /// <summary>A última capa decodificada, com a impressão digital dos bytes dela.</summary>
+    private sealed record CoverCache(byte[] Digest, BitmapSource Image);
+
+    private CoverCache? _capa;
+
     /// <summary>
     /// A capa do álbum, quando o programa publica uma.
     ///
     /// Vem como fluxo, não como arquivo: é preciso copiar para memória antes de virar imagem,
     /// e congelar (<c>Freeze</c>) para poder atravessar para a thread da interface.
+    ///
+    /// <para><b>A mesma capa devolve a mesma imagem.</b> Os bytes são comparados pela impressão
+    /// digital com os da última capa, e só uma capa diferente é decodificada de novo. Isso
+    /// deixa o <see cref="Refresh"/> comparar capas pela referência, e poupa o cartão aberto,
+    /// que relê de segundo em segundo e decodificava de novo, a cada vez, um JPEG de ~200 KB
+    /// com a mesma figura.</para>
     /// </summary>
-    private static async Task<BitmapSource?> Cover(GlobalSystemMediaTransportControlsSessionMediaProperties m)
+    private async Task<BitmapSource?> Cover(GlobalSystemMediaTransportControlsSessionMediaProperties m)
     {
         if (m.Thumbnail is null) return null;
 
@@ -297,14 +354,24 @@ public sealed class MediaService : IDisposable
             using var fluxo = await m.Thumbnail.OpenReadAsync();
             using var memoria = new MemoryStream();
             await fluxo.AsStreamForRead().CopyToAsync(memoria);
-            memoria.Position = 0;
+            if (memoria.Length == 0) return null;
 
+            var digital = SHA256.HashData(memoria.GetBuffer().AsSpan(0, (int)memoria.Length));
+
+            // leituras correm em paralelo (veja Refresh): pegar a referência uma vez só
+            var guardada = _capa;
+            if (guardada is not null && guardada.Digest.AsSpan().SequenceEqual(digital))
+                return guardada.Image;
+
+            memoria.Position = 0;
             var imagem = new BitmapImage();
             imagem.BeginInit();
             imagem.CacheOption = BitmapCacheOption.OnLoad;   // lê tudo agora; o fluxo vai fechar
             imagem.StreamSource = memoria;
             imagem.EndInit();
             imagem.Freeze();
+
+            _capa = new CoverCache(digital, imagem);
             return imagem;
         }
         catch { return null; }

@@ -1,0 +1,37 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Confere o que a barra recebe do MediaService (src/Services/MediaService.cs) quando o programa
+    de mídia manda a capa num aviso à parte: a capa que chega depois do título, a faixa nova que
+    chega com a capa da anterior, duas trocas seguidas, e que a barra não fica sendo avisada à toa
+    com nada mudando.
+
+    Existe porque o defeito (18/11/2026, "só carrega a capa se eu abrir o card") depende de COMO o
+    programa publica, e o Spotify não o repete quando se quer. Aqui o próprio teste publica uma
+    sessão de mídia do Windows (SystemMediaTransportControls de um MediaPlayer sem som) e controla
+    a ordem dos avisos; o serviço de verdade a escuta como escutaria o Spotify.
+
+    Efeito colateral: a sessão é do Windows inteiro. Uma dock rodando a vê e anota "MediaCheck.exe"
+    na lista de programas de mídia vistos (MediaAppsSeen, no config.json). Tirar de lá com a dock
+    fechada, se incomodar.
+
+    Roda com:  dotnet run  (a partir desta pasta)
+    Sai com código 1 se alguma conferência falhar.
+  -->
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0-windows10.0.19041.0</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>WinDock.Tests</RootNamespace>
+    <AssemblyName>MediaCheck</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="..\..\src\Services\MediaService.cs" Link="MediaService.cs" />
+    <Compile Include="..\WingetCheck\LogStub.cs" Link="LogStub.cs" />
+  </ItemGroup>
+
+</Project>
