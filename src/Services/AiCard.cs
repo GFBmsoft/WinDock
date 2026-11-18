@@ -64,11 +64,18 @@ public sealed class AiCard
 
         // Números que sobreviveram a uma leitura que falhou: eles continuam valendo mais que
         // nada, mas quem olha precisa saber que não são de agora. Sem a hora, o cartão
-        // mentiria com cara de atualizado.
+        // mentiria com cara de atualizado — e sem o dia também: de manhã, "desde 17:52" parecia
+        // ser de hoje. O porquê vai junto, porque é ele que diz o que fazer ("sessão expirada").
         Nota = leitura.Desde is { } quando && !string.IsNullOrWhiteSpace(leitura.Erro)
-               ? $"sem atualizar desde {quando:HH:mm}"
+               ? $"sem atualizar desde {Quando(quando)} · {leitura.Erro}"
                : string.Empty;
     }
+
+    /// <summary>"17:52" se for de hoje, "ontem às 17:52", e "15/11 às 17:52" antes disso.</summary>
+    internal static string Quando(DateTime quando) =>
+        quando.Date == DateTime.Today ? $"{quando:HH:mm}"
+        : quando.Date == DateTime.Today.AddDays(-1) ? $"ontem às {quando:HH:mm}"
+        : $"{quando:dd/MM} às {quando:HH:mm}";
 
     /// <summary>Aviso discreto embaixo das barras quando elas são de uma leitura anterior.</summary>
     public string Nota { get; } = string.Empty;

@@ -581,8 +581,11 @@ Três coisas que vale saber:
 
 - **A dock nunca escreve nessa pasta.** A credencial vence de tempos em tempos e renová-la
   significaria gravar por cima do arquivo do Claude Code — duas coisas escrevendo no mesmo lugar é
-  como se perde o login. Quando vencer, o cartão diz **"Sessão expirada"** e volta ao normal
-  assim que você usar o Claude Code, que renova sozinho.
+  como se perde o login. O login dura cerca de oito horas, então costuma vencer de madrugada. Sem
+  leitura nenhuma, o cartão diz **"Sessão expirada"**; com uma leitura anterior, mostra os números
+  dela com o aviso em âmbar ("sem atualizar desde ontem às 16:34 · sessão expirada"), e a janela
+  que zerou nesse meio-tempo aparece com 0% e "zerou às…". Assim que você usa o Claude Code, ele
+  renova o login sozinho, e a dock lê de novo no minuto seguinte.
 - **Seu token não vai para o log**, nem inteiro nem em pedaço.
 - **A fonte não é uma API pública.** É o mesmo endereço que o Claude Code usa, e ele pode mudar
   sem aviso. Se mudar, o cartão passa a dizer que não conseguiu ler — nada mais na dock depende

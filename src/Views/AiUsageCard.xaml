@@ -101,7 +101,7 @@
         </ItemsControl>
 
         <!-- os números são de antes: quem olha precisa saber -->
-        <TextBlock Text="{Binding Nota}" Foreground="#FFFFB900" FontSize="10"
+        <TextBlock Text="{Binding Nota}" Foreground="#FFFFB900" FontSize="10" TextWrapping="Wrap"
                    Margin="26,0,0,2"
                    Visibility="{Binding Nota, Converter={StaticResource EmptyToCollapsed}}" />
       </StackPanel>
@@ -155,7 +155,7 @@
           </ItemsControl.ItemTemplate>
         </ItemsControl>
 
-        <TextBlock Text="{Binding Nota}" Foreground="#FFFFB900" FontSize="10" Margin="0,0,0,2"
+        <TextBlock Text="{Binding Nota}" Foreground="#FFFFB900" FontSize="10" Margin="0,0,0,2" TextWrapping="Wrap"
                    Visibility="{Binding Nota, Converter={StaticResource EmptyToCollapsed}}" />
       </StackPanel>
     </DataTemplate>

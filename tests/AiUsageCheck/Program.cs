@@ -30,30 +30,43 @@ File.WriteAllText(Path.Combine(conta, ".credentials.json"),
 var perfil = new AiProfile(".claude", conta, null, null, null, null);
 var arquivo = AiUsageShared.Arquivo(".claude");
 
-// a resposta da API no formato de verdade, com campos que a dock não lê e os outros leem
-string Resposta(int cincoHoras) => """
-    {"five_hour":{"utilization":CINCO,"resets_at":"2026-11-16T16:00:00.064292+00:00"},
-     "seven_day":{"utilization":23,"resets_at":"2026-11-16T19:00:00.064312+00:00"},
+// a resposta da API no formato de verdade, com campos que a dock não lê e os outros leem. Os
+// prazos são contados de agora: uma janela que já zerou mostra 0% (AiUsageService.Vigente), e
+// datas fixas no texto fariam o teste mudar de sentido com o calendário.
+string Utc(DateTime local) => local.ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ss.ffffff+00:00", CultureInfo.InvariantCulture);
+string Resposta(int cincoHoras, DateTime? zeraCinco = null) => """
+    {"five_hour":{"utilization":CINCO,"resets_at":"ZERA5"},
+     "seven_day":{"utilization":23,"resets_at":"ZERA7"},
      "seven_day_opus":null,
-     "limits":[{"kind":"session","percent":CINCO,"resets_at":"2026-11-16T16:00:00.064292+00:00"},
-               {"kind":"weekly_scoped","percent":2,"resets_at":"2026-11-16T19:00:00+00:00",
+     "limits":[{"kind":"session","percent":CINCO,"resets_at":"ZERA5"},
+               {"kind":"weekly_scoped","percent":2,"resets_at":"ZERA7",
                 "scope":{"model":{"display_name":"Fable"}}}],
      "spend":{"used":{"amount_minor":0,"currency":"USD"}}}
-    """.Replace("CINCO", cincoHoras.ToString(CultureInfo.InvariantCulture));
+    """.Replace("CINCO", cincoHoras.ToString(CultureInfo.InvariantCulture))
+       .Replace("ZERA5", Utc(zeraCinco ?? DateTime.Now.AddHours(3)))
+       .Replace("ZERA7", Utc(DateTime.Now.AddDays(4)));
 
 // o arquivo como o GTerm grava: horas locais com o fuso, sem BOM
-void GravarComoGTerm(DateTime em, int cincoHoras, DateTime? proxima = null, string? erro = null)
+void GravarComoGTerm(DateTime em, int cincoHoras, DateTime? proxima = null, string? erro = null,
+                     DateTime? zeraCinco = null)
 {
     Directory.CreateDirectory(AiUsageShared.Pasta);
     var estado = new JsonObject
     {
         ["at"] = em.ToString("o", CultureInfo.InvariantCulture),
-        ["data"] = JsonNode.Parse(Resposta(cincoHoras)),
+        ["data"] = JsonNode.Parse(Resposta(cincoHoras, zeraCinco)),
         ["nextTry"] = (proxima ?? em).ToString("o", CultureInfo.InvariantCulture),
     };
     if (erro is not null) estado["erro"] = erro;
     File.WriteAllText(arquivo, estado.ToJsonString());
 }
+
+// a credencial do Claude Code: vence em `vence`, e cada gravação é o Claude Code renovando
+var credencial = Path.Combine(conta, ".credentials.json");
+void GravarCredencial(DateTimeOffset vence) =>
+    File.WriteAllText(credencial,
+        """{"claudeAiOauth":{"accessToken":"token-de-teste","expiresAt":VENCE,"subscriptionType":"max"}}"""
+        .Replace("VENCE", vence.ToUnixTimeMilliseconds().ToString(CultureInfo.InvariantCulture)));
 
 JsonObject LerArquivo() => (JsonObject)JsonNode.Parse(File.ReadAllText(arquivo))!;
 DateTime Hora(JsonNode? no) => DateTimeOffset.Parse((string)no!, CultureInfo.InvariantCulture).LocalDateTime;
@@ -188,6 +201,72 @@ try
     (lido, novo) = await Servico().LerAsync(perfil, consultar: false, default);
     Check("sem rede com o arquivo velho: mostra o que há e não pergunta",
           api.Pedidos == 0 && CincoHoras(lido) == 12 && lido.Erro is null, $"{api.Pedidos} pedido(s)");
+
+    // ── a manhã seguinte: credencial vencida de noite e o número de ontem no arquivo ──
+    //
+    // O caso de 18/11/2026: a dock abriu às 07:49, o token de ontem já tinha vencido (dura oito
+    // horas) e o Claude Code só o renovou às 07:50:40. A dock mostrava os 5 horas de ontem sem
+    // aviso nenhum, e só voltava a perguntar dez minutos depois.
+
+    Recomecar();
+    var ontem = DateTime.Now.AddHours(-14);
+    GravarComoGTerm(ontem, 60, zeraCinco: DateTime.Now.AddHours(-10));
+    GravarCredencial(DateTimeOffset.Now.AddHours(-6));
+    File.SetLastWriteTimeUtc(credencial, DateTime.UtcNow.AddHours(-14));
+    servico = Servico();
+    (lido, _) = await servico.LerAsync(perfil, consultar: true, default);
+
+    Check("manhã seguinte, sessão vencida: não pergunta à API", api.Pedidos == 0, $"{api.Pedidos} pedido(s)");
+    Check("a janela de 5 horas que já zerou não mostra o número de ontem", CincoHoras(lido) == 0,
+          $"5 horas = {CincoHoras(lido)}");
+    Check("e a semana, que ainda não zerou, fica",
+          lido.Gauges.FirstOrDefault(g => g.Nome == "7 dias")?.Percent == 23);
+    Check("com o aviso de leitura velha e o porquê",
+          lido.Erro == "sessão expirada" && lido.Desde is { } desde && Perto(desde, ontem, 1),
+          $"erro = {lido.Erro ?? "(nada)"}, desde = {lido.Desde}");
+
+    (lido, novo) = await servico.LerAsync(perfil, consultar: false, default);
+    Check("credencial ainda vencida: a volta sem rede não pergunta", api.Pedidos == 0 && !novo,
+          $"{api.Pedidos} pedido(s), novo = {novo}");
+
+    // o Claude Code renovou: o arquivo de credenciais muda, e a volta seguinte já pergunta
+    GravarCredencial(DateTimeOffset.Now.AddHours(8));
+    (lido, novo) = await servico.LerAsync(perfil, consultar: false, default);
+    Check("o Claude Code renovou: a volta sem rede pergunta na hora", api.Pedidos == 1, $"{api.Pedidos} pedido(s)");
+    Check("e traz o número de agora, sem aviso", novo && CincoHoras(lido) == 33 && lido.Erro is null,
+          $"novo = {novo}, 5 horas = {CincoHoras(lido)}, erro = {lido.Erro ?? "(nada)"}");
+
+    (lido, _) = await servico.LerAsync(perfil, consultar: false, default);
+    Check("e depois volta ao ritmo de sempre", api.Pedidos == 1, $"{api.Pedidos} pedido(s)");
+
+    // o GTerm leu com o token novo antes da dock: vale o número dele, e a dock não corre atrás
+    Recomecar();
+    GravarComoGTerm(ontem, 60, zeraCinco: DateTime.Now.AddHours(-10));
+    GravarCredencial(DateTimeOffset.Now.AddHours(-6));
+    servico = Servico();
+    await servico.LerAsync(perfil, consultar: true, default);
+    GravarCredencial(DateTimeOffset.Now.AddHours(8));
+    GravarComoGTerm(DateTime.Now, 7);
+    (lido, novo) = await servico.LerAsync(perfil, consultar: false, default);
+    Check("renovou e o GTerm já leu: a dock usa o número dele sem perguntar",
+          api.Pedidos == 0 && novo && CincoHoras(lido) == 7, $"{api.Pedidos} pedido(s), 5 horas = {CincoHoras(lido)}");
+
+    // ── a janela zera com a dock aberta, entre duas voltas ──────
+
+    Recomecar();
+    GravarComoGTerm(DateTime.Now.AddSeconds(-20), 41, zeraCinco: DateTime.Now.AddSeconds(1.5));
+    servico = Servico();
+    (lido, _) = await servico.LerAsync(perfil, consultar: false, default);
+    Check("antes de zerar, o número da janela", CincoHoras(lido) == 41, $"5 horas = {CincoHoras(lido)}");
+    await Task.Delay(2000);
+    (lido, novo) = await servico.LerAsync(perfil, consultar: false, default);
+    Check("zerou: a volta sem rede traz 0% e conta como novo, para a barra mudar",
+          novo && CincoHoras(lido) == 0 && api.Pedidos == 0,
+          $"novo = {novo}, 5 horas = {CincoHoras(lido)}, {api.Pedidos} pedido(s)");
+    (lido, novo) = await servico.LerAsync(perfil, consultar: false, default);
+    Check("e na volta seguinte nada mudou", !novo && CincoHoras(lido) == 0, $"novo = {novo}");
+
+    GravarCredencial(DateTimeOffset.UtcNow.AddDays(1));
 
     // ── o arquivo do ctop rodando no PowerShell 5 (com BOM) ──────
 

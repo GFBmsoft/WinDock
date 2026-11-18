@@ -11,6 +11,12 @@
   tag que leva a nota junto. Escrito para quem usa a dock: o que mudou na tela, e não no código.
 -->
 
+## 1.0.0.83 — 18/11/2026
+- A cota de IA não abre mais de manhã com o número de ontem. O login do Claude Code vence de madrugada, e a dock que abria antes de você usar o Claude Code mostrava a última leitura da véspera como se fosse de agora, sem aviso nenhum, por até dez minutos.
+- Uma janela de cota que já zerou aparece com 0% e "zerou às…", em vez do número de antes de zerar. A de 7 dias, que ainda vale, continua com o número dela.
+- Quando os números não são de agora, o aviso em âmbar diz de quando são e por quê, com o dia se não for de hoje: "sem atualizar desde ontem às 16:34 · sessão expirada".
+- Assim que o Claude Code renova o login, a dock lê a cota no minuto seguinte, sem esperar a próxima volta de dez minutos.
+
 ## 1.0.0.82 — 17/11/2026
 - Papel de parede com vida, em Configurações › Papel de parede › Dar vida às imagens paradas: a imagem parada continua sendo o papel de parede do Windows, nítida como sempre, e a dock põe movimento por cima. As velas tremulam com um brilho quente, uma neblina passa devagar pelo céu e pela paisagem ao fundo, brasas sobem das velas e grãos de poeira flutuam pela cena.
 - As velas e o céu são achados sozinhos nos pixels da imagem, então vale para qualquer imagem da pasta; foi feito para as cenas isométricas em pixel art (numa foto comum o efeito quase some).

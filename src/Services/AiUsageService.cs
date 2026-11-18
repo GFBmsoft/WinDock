@@ -55,7 +55,9 @@ public sealed record AiProfile(string Id, string Pasta, string? Nome, string? Em
 }
 
 /// <summary>O que se leu de uma conta.</summary>
-/// <param name="Erro">Por que não deu certo — só quando não há <paramref name="Gauges"/>.</param>
+/// <param name="Erro">
+/// Por que não deu certo. Com <paramref name="Gauges"/>, por que eles são de uma leitura anterior.
+/// </param>
 /// <param name="Desde">
 /// Quando estes números foram lidos, se eles vieram de uma leitura anterior porque a de agora
 /// falhou. Nulo quer dizer recém-lidos.
@@ -328,6 +330,15 @@ public sealed class AiUsageService
 
         /// <summary>O que se devolveu da última vez — é o que a volta sem rede repete quando nada mudou.</summary>
         public AiAccountUsage? Devolvida;
+
+        /// <summary><see cref="Devolvida"/> com as janelas que já zeraram em 0%: o que o cartão viu por último.</summary>
+        public AiAccountUsage? Mostrada;
+
+        /// <summary>
+        /// A data do arquivo de credenciais quando a API a deu por vencida; nula com a credencial
+        /// valendo. Mudou, é o Claude Code que renovou.
+        /// </summary>
+        public DateTime? Vencida;
     }
 
     private readonly Dictionary<string, Estado> _estados = new(StringComparer.OrdinalIgnoreCase);
@@ -388,7 +399,60 @@ public sealed class AiUsageService
             if (!_estados.TryGetValue(perfil.Id, out estado!)) _estados[perfil.Id] = estado = new Estado();
         }
 
+        var (leitura, novo) = await LerDaVezAsync(estado, perfil, consultar, cancel).ConfigureAwait(false);
+
+        // Uma janela que já zerou não tem mais aquele número, venha ele de onde vier: é o que
+        // fazia a dock abrir de manhã com os 5 horas de ontem (18/11/2026). E zerar muda o que
+        // se mostra sem ninguém ter lido nada — daí o "novo", senão a volta sem rede devolveria
+        // a leitura de antes e a barra seguiria com o número que já não vale.
+        var vigente = Vigente(leitura, DateTime.Now);
+        if (estado.Mostrada is { } antes && !antes.Gauges.SequenceEqual(vigente.Gauges)) novo = true;
+        estado.Mostrada = vigente;
+        return (vigente, novo);
+    }
+
+    /// <summary>
+    /// A leitura com as janelas que já zeraram em 0%. O prazo fica, para o cartão dizer quando
+    /// zerou.
+    ///
+    /// <para>Zero é o que a janela tinha ao zerar, e não o que ela tem agora: o que se usou
+    /// depois só uma leitura nova diz. Mas é o único número verdadeiro que se tem dela — o de
+    /// antes é de outra janela —, e o aviso de leitura velha continua embaixo das barras.</para>
+    /// </summary>
+    internal static AiAccountUsage Vigente(AiAccountUsage leitura, DateTime agora)
+    {
+        if (!leitura.Gauges.Any(g => g.ResetaEm <= agora && g.Percent > 0)) return leitura;
+
+        return leitura with
+        {
+            Gauges = leitura.Gauges.Select(g => g.ResetaEm <= agora ? g with { Percent = 0 } : g).ToList()
+        };
+    }
+
+    /// <summary>
+    /// Quando o arquivo de credenciais foi gravado pela última vez. É por ele que a dock sabe que
+    /// o Claude Code renovou o token — ela nunca lê o token para isso.
+    /// </summary>
+    private static DateTime CarimboDaCredencial(AiProfile perfil)
+    {
+        try { return File.GetLastWriteTimeUtc(Path.Combine(perfil.Pasta, ".credentials.json")); }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { return DateTime.MinValue; }
+    }
+
+    private async Task<(AiAccountUsage Leitura, bool Novo)> LerDaVezAsync(Estado estado, AiProfile perfil,
+                                                                          bool consultar, CancellationToken cancel)
+    {
         var agora = DateTime.Now;
+
+        // A credencial vencida não espera os dez minutos da próxima pergunta. Ela vence de noite
+        // (dura oito horas) e o Claude Code a renova no primeiro uso do dia: sem isto, a dock que
+        // abriu antes dele ficava até dez minutos com o número de ontem, mesmo com o token novo
+        // já no arquivo (18/11/2026: leu às 07:49:07, o token chegou às 07:50:40).
+        if (!consultar && estado.Vencida is { } vista && CarimboDaCredencial(perfil) != vista)
+        {
+            Log.Trace($"cota de IA ({perfil.Id}): o arquivo de credenciais mudou, lendo de novo");
+            consultar = true;
+        }
 
         // os números guardados valem, mas a identidade é a de agora: quem trocou de plano ou
         // de login não espera a próxima ida à rede para ver o cabeçalho mudar
@@ -430,6 +494,13 @@ public sealed class AiUsageService
         var leitura = consulta.Leitura;
         var lida = DateTime.Now;
 
+        if (leitura.State == AiUsageState.Expired)
+        {
+            if (estado.Vencida is null)
+                Log.Write($"cota de IA ({perfil.Id}): credencial vencida; a leitura volta quando o Claude Code renovar");
+            estado.Vencida = CarimboDaCredencial(perfil);
+        }
+
         if (leitura.State == AiUsageState.Ok)
         {
             estado.Ultima = leitura;
@@ -437,6 +508,7 @@ public sealed class AiUsageService
             estado.Bruto = consulta.Bruto;
             estado.EsperarAte = default;
             estado.Porque = null;
+            estado.Vencida = null;
 
             AiUsageShared.Gravar(perfil.Id, new AiUsageShared(lida, consulta.Bruto, lida, null));
             return (Devolver(estado, leitura), true);
@@ -490,6 +562,10 @@ public sealed class AiUsageService
         estado.Ultima = new AiAccountUsage(perfil, AiUsageState.Ok, medidores, plano);
         estado.LidaEm = comum.Em;
         estado.Bruto = dados;
+
+        // outro leu depois de nós com um token que valia: não há mais o que esperar do arquivo
+        // de credenciais
+        estado.Vencida = null;
         return true;
     }
 
@@ -559,10 +635,17 @@ public sealed class AiUsageService
         var credencial = LerCredencial(perfil);
         var plano = credencial.Plano;
 
+        // O porquê vai junto mesmo quando o cartão tem frase própria para o estado: com números
+        // de antes na tela, ele é o aviso embaixo das barras. Sem ele, a sessão vencida mostrava
+        // os números de ontem como se fossem de agora (18/11/2026).
         if (credencial.Estado != AiUsageState.Ok || credencial.Token is not { } token)
             return new Consulta(new AiAccountUsage(perfil, credencial.Estado, Array.Empty<AiGauge>(), plano,
-                                                   credencial.Estado == AiUsageState.Failed
-                                                   ? "não deu para ler as credenciais" : null));
+                                                   credencial.Estado switch
+                                                   {
+                                                       AiUsageState.Failed => "não deu para ler as credenciais",
+                                                       AiUsageState.Expired => "sessão expirada",
+                                                       _ => "sem credencial"
+                                                   }));
 
         try
         {
