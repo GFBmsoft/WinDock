@@ -2724,8 +2724,13 @@ public sealed class PanelModel : INotifyPropertyChanged, IDisposable
     /// dock não consegue acionar (o "abrir a conversa certa" é do app). Do navegador, vai à janela
     /// cujo título traz o nome do site (o WhatsApp Web, a aba do Gmail); sem ela, abre o endereço.
     /// De app, a janela dele, ou o app aberto de novo. E sai da Central, como lá.
+    ///
+    /// <para><b>Falso quando não há para onde levar</b>: a notificação fica na Central, e quem
+    /// chama abre a Central, onde o clique do Windows sabe o que fazer. Antes o AUMID ia direto
+    /// para o <c>shell:AppsFolder</c>, e um que não é app — o <c>Windows.Defender.SecurityCenter</c>
+    /// das notificações do Defender — abria uma janela do Explorer (23/11/2026).</para>
     /// </summary>
-    public void OpenNotification(NotificationItem item)
+    public bool OpenNotification(NotificationItem item)
     {
         var janelas = WindowService.Enumerate();
 
@@ -2736,14 +2741,35 @@ public sealed class PanelModel : INotifyPropertyChanged, IDisposable
             if (aba is not null) WindowService.Activate(aba.Handle);
             else OpenUrl("https://" + item.Site);
         }
-        else if (item.Aumid.Length > 0)
-        {
-            var janela = janelas.FirstOrDefault(w => string.Equals(w.Aumid, item.Aumid, StringComparison.OrdinalIgnoreCase));
-            if (janela is not null) WindowService.Activate(janela.Handle);
-            else WindowService.LaunchApp(item.Aumid);
-        }
+        else if (!OpenSender(item, janelas)) return false;
 
         DismissNotification(item);
+        return true;
+    }
+
+    /// <summary>
+    /// A janela de quem mandou, ou o app aberto de novo. O AUMID da notificação só vai para o
+    /// <c>shell:AppsFolder</c> se o shell o conhece: com um que não conhece, o explorer não
+    /// reclama, abre uma janela dele. Remetente do sistema (<c>Windows.Defender.SecurityCenter</c>,
+    /// <c>Windows.SystemToast.*</c>) vira o app com o mesmo nome no menu iniciar.
+    /// </summary>
+    private static bool OpenSender(NotificationItem item, IReadOnlyList<TaskWindow> janelas)
+    {
+        if (item.Aumid.Length == 0) return false;
+
+        var janela = janelas.FirstOrDefault(w => string.Equals(w.Aumid, item.Aumid, StringComparison.OrdinalIgnoreCase));
+        if (janela is not null) { WindowService.Activate(janela.Handle); return true; }
+
+        if (IconService.ShellExists(item.Aumid)) return WindowService.LaunchApp(item.Aumid);
+
+        if (AppCatalog.ByName(item.App) is not { } app) return false;
+
+        var dele = app.IsAumid
+            ? janelas.FirstOrDefault(w => string.Equals(w.Aumid, app.Target, StringComparison.OrdinalIgnoreCase))
+            : null;
+        if (dele is not null) WindowService.Activate(dele.Handle);
+        else AppCatalog.Launch(app);
+        return true;
     }
 
     /// <summary>

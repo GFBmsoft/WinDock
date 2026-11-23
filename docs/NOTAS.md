@@ -11,6 +11,10 @@
   tag que leva a nota junto. Escrito para quem usa a dock: o que mudou na tela, e não no código.
 -->
 
+## 1.0.0.86 — 23/11/2026
+- O clique numa notificação da Segurança do Windows abre a Segurança do Windows, e não mais uma janela do Explorer. Vale para as outras notificações do próprio Windows: a dock abre o app que tem o nome delas.
+- Notificação do Windows sem app para abrir, como a do Windows Update, abre a Central de Notificações, com a notificação ainda lá para o clique de verdade.
+
 ## 1.0.0.85 — 23/11/2026
 - Os aparelhos Bluetooth podem ganhar um apelido que só a dock mostra: "Attack Shark X11" no lugar de "X11mouse2". O lápis que aparece ao passar o mouse na linha do aparelho, no cartão do Bluetooth, abre as Configurações com o campo dele pronto para digitar; a lista inteira fica em Configurações › Itens da barra › Nomes dos aparelhos Bluetooth.
 - O apelido aparece no cartão do Bluetooth e na dica do ícone da barra. O Windows continua com o nome dele, que aparece na dica do apelido, e apagar o apelido volta a ele.

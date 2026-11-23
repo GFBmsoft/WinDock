@@ -435,7 +435,10 @@ conhece —, e não "Google Chrome".
 
 **O clique leva a quem mandou.** Do navegador, a dock traz para a frente a janela cujo título tem o
 nome do site (o WhatsApp Web, a aba do Gmail) e, sem ela, abre o endereço; de um app, a janela
-dele, ou o app de novo. A notificação sai da Central, como no clique do Windows. A conversa certa
+dele, ou o app de novo. Uma notificação do próprio Windows abre o app com o nome dela (a da
+Segurança do Windows abre a Segurança do Windows); sem app nenhum, como a do Windows Update, o
+clique abre a Central do Windows e a notificação fica lá. Nos outros casos ela sai da Central,
+como no clique do Windows. A conversa certa
 não abre: isso o Windows só deixa para quem a mandou. E uma aba que não está na frente da janela
 dela não tem como ser achada pelo título — aí o endereço abre numa aba nova.
 

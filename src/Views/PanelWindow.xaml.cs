@@ -345,7 +345,7 @@ public partial class PanelWindow : Window
         while (_balloons.Count >= MaxBalloons) _balloons[0].Close();
 
         var balao = new NotificationBalloon(item, _config.NotificationPopupText, _config.NotificationPopupSeconds);
-        balao.Opened += b => _model.OpenNotification(b.Item);
+        balao.Opened += b => OpenNotification(b.Item);
         balao.Closed += (_, _) => { _balloons.Remove(balao); StackBalloons(); };
         balao.SizeChanged += (_, _) => StackBalloons();
 
@@ -396,7 +396,19 @@ public partial class PanelWindow : Window
 
         NotificationsPopup.IsOpen = false;
         _outsideClick.Stop();
-        _model.OpenNotification(item);
+        OpenNotification(item);
+    }
+
+    /// <summary>
+    /// Leva a quem mandou; sem para onde levar (remetente que não é app nem tem um com o nome
+    /// dele), abre a Central do Windows, onde a notificação continua e o clique de lá a aciona.
+    /// </summary>
+    private void OpenNotification(NotificationItem item)
+    {
+        if (_model.OpenNotification(item)) return;
+
+        _shellPanelWasOpen = false;
+        Toggle(PanelModel.ActionCenter);
     }
 
     private void Toggle(string uri)

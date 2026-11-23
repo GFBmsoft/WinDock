@@ -201,6 +201,21 @@ public static class AppCatalog
         return IconService.ForApp(id, string.Empty);
     }
 
+    /// <summary>
+    /// O app com este nome, como o menu iniciar o mostra ("Segurança do Windows"), sem olhar
+    /// maiúscula nem acento; nulo se não houver.
+    ///
+    /// Serve à notificação de remetente do sistema: a do Defender chega como
+    /// <c>Windows.Defender.SecurityCenter</c>, que não é app nenhum na pasta de aplicativos — quem
+    /// a pessoa reconhece é o "Segurança do Windows" do nome dela, e esse está no catálogo
+    /// (<c>Microsoft.SecHealthUI_8wekyb3d8bbwe!SecHealthUI</c>; visto em 23/11/2026).
+    /// </summary>
+    public static CatalogApp? ByName(string name)
+    {
+        var procurado = Text.Normalize(name.Trim());
+        return procurado.Length == 0 ? null : All().FirstOrDefault(a => a.Search == procurado);
+    }
+
     /// <summary>O app do catalogo com este AUMID, ou cujo caminho termina neste executavel.</summary>
     private static CatalogApp? ByKey(string id) =>
         All().FirstOrDefault(a => a.IsAumid && a.Target.Equals(id, StringComparison.OrdinalIgnoreCase)) ??
