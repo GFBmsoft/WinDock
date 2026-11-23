@@ -11,6 +11,10 @@
   tag que leva a nota junto. Escrito para quem usa a dock: o que mudou na tela, e não no código.
 -->
 
+## 1.0.0.85 — 23/11/2026
+- Os aparelhos Bluetooth podem ganhar um apelido que só a dock mostra: "Attack Shark X11" no lugar de "X11mouse2". O lápis que aparece ao passar o mouse na linha do aparelho, no cartão do Bluetooth, abre as Configurações com o campo dele pronto para digitar; a lista inteira fica em Configurações › Itens da barra › Nomes dos aparelhos Bluetooth.
+- O apelido aparece no cartão do Bluetooth e na dica do ícone da barra. O Windows continua com o nome dele, que aparece na dica do apelido, e apagar o apelido volta a ele.
+
 ## 1.0.0.84 — 18/11/2026
 - A capa do álbum não falta mais na barra de cima. Quando o programa de música mandava a capa um instante depois do nome da faixa, a barra ficava sem ela, ou com a da faixa anterior, e só o cartão aberto mostrava a certa.
 - Toda faixa nova é conferida de novo um segundo e meio depois, para pegar a capa que chega atrasada mesmo quando o programa não avisa.

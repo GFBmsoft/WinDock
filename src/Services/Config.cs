@@ -1133,6 +1133,21 @@ public sealed class DockConfig : INotifyPropertyChanged
     public List<string> BluetoothHidden { get; set; } = new();
 
     /// <summary>
+    /// Apelidos dados aos aparelhos bluetooth, que só a dock mostra: o nome que o Windows guarda
+    /// ("X11mouse2", "AULA-F99Pro 5.0") continua o mesmo lá. Renomear no próprio Windows foi
+    /// descartado (23/11/2026): exige administrador, e o aparelho pode regravar o nome dele ao
+    /// reconectar.
+    ///
+    /// A chave é o nome do Windows, a mesma do <see cref="BluetoothHidden"/>, para esconder e
+    /// renomear andarem juntos: esconder um aparelho renomeado guarda o nome de sempre, e o
+    /// apelido não precisa saber se o aparelho está escondido. O custo é o mesmo dos dois: dois
+    /// aparelhos com o mesmo nome no Windows dividem o apelido, e um aparelho que volte com outro
+    /// nome deixa a linha antiga órfã. O endereço não tem esses dois defeitos, mas não é o que o
+    /// <see cref="BluetoothHidden"/> guarda, e as duas listas passariam a discordar.
+    /// </summary>
+    public Dictionary<string, string> BluetoothNames { get; set; } = new();
+
+    /// <summary>
     /// Apelidos dados a ícones da bandeja que não publicam nome nenhum, guardados pela
     /// assinatura do desenho.
     ///

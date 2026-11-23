@@ -235,7 +235,9 @@ tentar imitar o que o Windows já faz bem:
   interrompe o trabalho por último, longe da borda onde o cursor chega primeiro;
 - **bluetooth**, aceso quando o rádio está ligado e apagado quando não. O clique abre a lista de
   aparelhos pareados, os conectados primeiro, e cada linha tem um **✕** para tirá-la da barra
-  (fica guardado em `BluetoothHidden`, e um link devolve os ocultos);
+  (fica guardado em `BluetoothHidden`, e um link devolve os ocultos) e um **lápis** para dar ao
+  aparelho um apelido que só a dock mostra (`BluetoothNames`). Os dois guardam o aparelho pelo
+  nome que o Windows dá a ele, então esconder e renomear andam juntos;
 - **notificações**: o sino conta o que está na Central do Windows (rosa quando há alguma) e abre um
   cartão com elas, lidas pelo `UserNotificationListener` — que funciona sem pacote, apesar de a
   documentação tratá-lo como coisa de app de loja. O que vem do navegador aparece pelo site

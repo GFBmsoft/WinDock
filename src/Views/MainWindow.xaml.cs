@@ -1041,11 +1041,14 @@ public partial class MainWindow : Window
         if (dlg.ShowDialog() == true) _model?.PinShortcut(dlg.FileName);
     }
 
-    /// <summary>As Configurações abertas e roladas até uma seção — o lápis do cartão de ferramentas.</summary>
-    internal void OpenSettingsAt(string section)
+    /// <summary>
+    /// As Configurações abertas e roladas até uma seção — o lápis do cartão de ferramentas. Com
+    /// <paramref name="item"/>, o campo daquele item já em foco (o lápis de um aparelho bluetooth).
+    /// </summary>
+    internal void OpenSettingsAt(string section, string? item = null)
     {
         OpenSettings();
-        _settings?.ShowSection(section);
+        _settings?.ShowSection(section, item);
     }
 
     private void OpenSettings()

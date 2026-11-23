@@ -8,9 +8,23 @@ namespace WinDock.Services;
 /// Um aparelho lembrado pelo Windows: se esta conectado agora e, quando o Windows sabe,
 /// quanto resta de bateria (0 a 100). <c>null</c> em <see cref="Battery"/> quer dizer
 /// "este aparelho nao informa", que e diferente de "esta com zero".
+///
+/// <see cref="Name"/> é o nome que o Windows guarda, e é a chave de tudo o que a dock lembra do
+/// aparelho (esconder, apelido). <see cref="Alias"/> é o apelido que a pessoa deu na dock (veja
+/// <c>DockConfig.BluetoothNames</c>); o que se lê na tela é o <see cref="Label"/>.
 /// </summary>
-public sealed record BluetoothDevice(string Name, bool Connected, int? Battery)
+public sealed record BluetoothDevice(string Name, bool Connected, int? Battery, string Alias = "")
 {
+    /// <summary>
+    /// O que a pessoa lê: o apelido, se houver, senão o nome do Windows. Como no
+    /// <c>TrayIcon.Label</c>, o apelido nunca vai para o <see cref="Name"/>: esconder um aparelho
+    /// renomeado tem de guardar a mesma chave de antes.
+    /// </summary>
+    public string Label => string.IsNullOrWhiteSpace(Alias) ? Name : Alias;
+
+    /// <summary>Dica do nome na lista: o nome do Windows, só quando há apelido por cima dele.</summary>
+    public string? WindowsNameTip => string.IsNullOrWhiteSpace(Alias) ? null : $"No Windows: {Name}";
+
     public bool HasBattery => Battery is not null;
 
     /// <summary>Texto curto para a linha da lista: "93%".</summary>

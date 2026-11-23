@@ -940,6 +940,7 @@
                     <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
                   </Grid.ColumnDefinitions>
 
                   <!-- verde quando conectado de verdade, so contorno quando apenas pareado -->
@@ -959,7 +960,9 @@
                     </Ellipse.Style>
                   </Ellipse>
 
-                  <TextBlock Grid.Column="1" Text="{Binding Name}" Foreground="#FFE8E8EA"
+                  <!-- o apelido dado na dock, se houver; a dica lembra o nome do Windows -->
+                  <TextBlock Grid.Column="1" Text="{Binding Label}" Foreground="#FFE8E8EA"
+                             ToolTip="{Binding WindowsNameTip}"
                              FontSize="12" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
 
                   <!-- só quem informa a bateria mostra esta coluna -->
@@ -989,10 +992,20 @@
                     </TextBlock.Style>
                   </TextBlock>
 
+                  <!-- dá um apelido que só a dock mostra: abre as Configurações no campo deste
+                       aparelho, como o lápis das ferramentas. A chave é o nome do Windows, a
+                       mesma do ✕ ao lado. -->
+                  <Button x:Name="Rename" Grid.Column="4" Style="{StaticResource PanelButton}"
+                          Padding="5,0" Margin="6,0,0,0" Opacity="0"
+                          Click="OnRenameBluetoothDevice" Tag="{Binding Name}"
+                          ToolTip="Renomear na dock">
+                    <ui:GlyphIcon Glyph="&#xE70F;" Fill="#FFE8E8EA" Size="11" VerticalAlignment="Center" />
+                  </Button>
+
                   <!-- tira este aparelho da lista da barra; ele continua pareado no Windows.
                        Só aparece com o mouse na linha, para a lista ficar limpa. -->
-                  <Button x:Name="Hide" Grid.Column="4" Style="{StaticResource PanelButton}"
-                          Padding="6,0" Margin="6,0,0,0" Opacity="0"
+                  <Button x:Name="Hide" Grid.Column="5" Style="{StaticResource PanelButton}"
+                          Padding="6,0" Margin="2,0,0,0" Opacity="0"
                           Click="OnHideBluetoothDevice" Tag="{Binding Name}"
                           ToolTip="Não mostrar este aparelho na barra">
                     <TextBlock Text="✕" Foreground="#FFE8E8EA" FontSize="11" />
@@ -1003,6 +1016,7 @@
               <DataTemplate.Triggers>
                 <Trigger SourceName="Row" Property="IsMouseOver" Value="True">
                   <Setter TargetName="Row" Property="Background" Value="#14FFFFFF" />
+                  <Setter TargetName="Rename" Property="Opacity" Value="1" />
                   <Setter TargetName="Hide" Property="Opacity" Value="1" />
                 </Trigger>
               </DataTemplate.Triggers>

@@ -1386,6 +1386,53 @@
           </Grid>
         </Border>
 
+        <!-- Apelidos dos aparelhos bluetooth, no molde dos "Ícones sem nome": o nome que o Windows
+             guarda à esquerda, o apelido à direita, gravado a cada tecla. Só a dock mostra o
+             apelido; o Windows fica com o nome dele. O lápis de cada aparelho, no cartão do
+             Bluetooth da barra, abre aqui com o campo dele em foco. Sem aparelho pareado, o cartão
+             não aparece. -->
+        <Border x:Name="BluetoothNamesCard" Style="{StaticResource FluentCardBorderStyle}"
+                Visibility="Collapsed">
+          <StackPanel>
+            <TextBlock Text="Nomes dos aparelhos Bluetooth" Style="{StaticResource FluentTitle}" />
+            <TextBlock Text="Um apelido que só a dock mostra, no cartão do Bluetooth e na dica da barra. O Windows continua com o nome dele; apagar o apelido volta a ele."
+                       Style="{StaticResource FluentCaption}" TextWrapping="Wrap" />
+
+            <ItemsControl x:Name="BluetoothNamesList" Margin="0,12,0,0">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate>
+                  <Grid Margin="0,0,0,8">
+                    <Grid.ColumnDefinitions>
+                      <ColumnDefinition Width="Auto" />
+                      <ColumnDefinition Width="Auto" />
+                      <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+
+                    <Border Background="{StaticResource FluentControl}"
+                            BorderBrush="{StaticResource FluentControlBorder}" BorderThickness="1"
+                            CornerRadius="6" Width="34" Height="34" VerticalAlignment="Center">
+                      <TextBlock Text="&#xE702;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
+                                 FontSize="16" Foreground="{StaticResource FluentText}"
+                                 HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </Border>
+
+                    <!-- o nome do Windows, que é por onde a pessoa reconhece o aparelho -->
+                    <TextBlock Grid.Column="1" Text="{Binding Name}" VerticalAlignment="Center"
+                               Margin="10,0,0,0" Width="150" TextTrimming="CharacterEllipsis"
+                               Foreground="{StaticResource FluentText}" FontSize="12"
+                               ToolTip="{Binding Name}" />
+
+                    <TextBox Grid.Column="2" Style="{StaticResource FluentTextBox}" Margin="10,0,0,0"
+                             Text="{Binding Alias, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                             Tag="{Binding Name}" VerticalAlignment="Center"
+                             AutomationProperties.Name="{Binding Name, StringFormat='Apelido de {0}'}" />
+                  </Grid>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </StackPanel>
+        </Border>
+
         <Border Style="{StaticResource FluentCardBorderStyle}">
           <Grid>
             <Grid.ColumnDefinitions>

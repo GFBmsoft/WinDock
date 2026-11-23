@@ -969,8 +969,31 @@ public sealed class PanelModel : INotifyPropertyChanged, IDisposable
         OnChanged(nameof(HiddenBluetoothCount));
         OnChanged(nameof(HasHiddenBluetooth));
 
-        BluetoothDevices = all
+        // escondidos pelo nome do Windows, antes do apelido: é o nome que o ✕ guardou
+        BluetoothDevices = RenameBluetooth(all
             .Where(d => !hidden.Contains(d.Name, StringComparer.CurrentCultureIgnoreCase))
+            .ToList());
+    }
+
+    /// <summary>
+    /// Põe o apelido da pessoa nos aparelhos que ela renomeou (<see cref="DockConfig.BluetoothNames"/>),
+    /// como o <see cref="Rename(IReadOnlyList{TrayIcon})"/> faz com a bandeja: no <c>Alias</c>, e
+    /// nunca no <c>Name</c>, que continua sendo a chave de esconder e de renomear.
+    ///
+    /// A ordem é refeita pelo que se lê, senão "Attack Shark X11" ficaria onde o "X11mouse2" estava,
+    /// no fim da lista, e a lista pareceria fora de ordem.
+    /// </summary>
+    private IReadOnlyList<BluetoothDevice> RenameBluetooth(IReadOnlyList<BluetoothDevice> devices)
+    {
+        if (_config.BluetoothNames.Count == 0) return devices;
+
+        return devices
+            .Select(d => _config.BluetoothNames.TryGetValue(d.Name, out var apelido) &&
+                         !string.IsNullOrWhiteSpace(apelido)
+                ? d with { Alias = apelido.Trim() }
+                : d)
+            .OrderByDescending(d => d.Connected)
+            .ThenBy(d => d.Label, StringComparer.CurrentCultureIgnoreCase)
             .ToList();
     }
 
@@ -2998,17 +3021,18 @@ public sealed class PanelModel : INotifyPropertyChanged, IDisposable
             return;
         }
 
-        var devices = BluetoothService.Devices();
+        // com o apelido, como no cartão: a dica é o outro lugar em que a barra cita o aparelho
+        var devices = RenameBluetooth(BluetoothService.Devices());
 
         // na dica, a bateria vem junto do nome de quem informa: "AULA-F99Pro 5.0 (93%)"
         var connected = devices.Where(d => d.Connected)
-                               .Select(d => d.HasBattery ? $"{d.Name} ({d.BatteryText})" : d.Name)
+                               .Select(d => d.HasBattery ? $"{d.Label} ({d.BatteryText})" : d.Label)
                                .ToList();
 
         BluetoothTooltip = connected.Count > 0
             ? "Conectado: " + string.Join(", ", connected)
             : devices.Count > 0
-                ? "Pareados: " + string.Join(", ", devices.Take(4).Select(d => d.Name))
+                ? "Pareados: " + string.Join(", ", devices.Take(4).Select(d => d.Label))
                 : "Bluetooth ligado";
     }
 

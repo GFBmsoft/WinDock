@@ -36,6 +36,7 @@ public partial class SettingsWindow : Window
 
         foreach (var name in _config.TilingExcludedApps) _excludedApps.Add(name);
         LoadTrayNames();
+        LoadBluetoothNames();
         LoadMediaApps();
         LoadPanelOrder();
         _config.PropertyChanged += OnConfigChanged;
@@ -409,13 +410,22 @@ public partial class SettingsWindow : Window
         SavePlaces();
     }
 
-    /// <summary>Rola até uma seção — as que os lápis dos cartões da barra abrem.</summary>
-    internal void ShowSection(string section)
+    /// <summary>
+    /// Rola até uma seção — as que os lápis dos cartões da barra abrem. Com <paramref name="item"/>,
+    /// põe o foco no campo daquele item: o lápis de um aparelho bluetooth chega com o campo dele
+    /// pronto para digitar.
+    /// </summary>
+    internal void ShowSection(string section, string? item = null)
     {
+        // a lista dos aparelhos é relida: a janela pode estar aberta desde antes de o aparelho
+        // ser pareado, e aí o lápis dele chegaria a um cartão sem a linha dele
+        if (section == "bluetooth") LoadBluetoothNames();
+
         FrameworkElement? cartao = section switch
         {
             "ferramentas" => ToolsCard,
             "locais" => PlacesCard,
+            "bluetooth" => BluetoothNamesCard,
             _ => null
         };
         if (cartao is null) return;
@@ -424,7 +434,27 @@ public partial class SettingsWindow : Window
         SelectPage(PageItems);
 
         // depois do layout: na janela recém-criada o cartão ainda não tem posição para rolar até ela
-        Dispatcher.BeginInvoke(() => cartao.BringIntoView(), System.Windows.Threading.DispatcherPriority.Loaded);
+        Dispatcher.BeginInvoke(() =>
+        {
+            cartao.BringIntoView();
+            if (item is not null && FieldOf(cartao, item) is { } campo)
+            {
+                campo.Focus();
+                campo.SelectAll();
+            }
+        }, System.Windows.Threading.DispatcherPriority.Loaded);
+    }
+
+    /// <summary>O campo de texto de um item dentro de um cartão, achado pelo <c>Tag</c> dele.</summary>
+    private static System.Windows.Controls.TextBox? FieldOf(DependencyObject raiz, string item)
+    {
+        for (var i = 0; i < System.Windows.Media.VisualTreeHelper.GetChildrenCount(raiz); i++)
+        {
+            var filho = System.Windows.Media.VisualTreeHelper.GetChild(raiz, i);
+            if (filho is System.Windows.Controls.TextBox { Tag: string tag } campo && tag == item) return campo;
+            if (FieldOf(filho, item) is { } achado) return achado;
+        }
+        return null;
     }
 
     // ── navegação ────────────────────────────────────────────
@@ -1120,6 +1150,61 @@ public partial class SettingsWindow : Window
         var suggestion = Candidates(TrayService.Cached);
         TrayNamesList.ItemsSource = icons.Select(i => new TrayNameRow(_config, i, suggestion)).ToList();
         TrayNamesCard.Visibility = Visibility.Visible;
+    }
+
+    // ── apelidos dos aparelhos bluetooth ─────────────────────
+
+    /// <summary>
+    /// Uma linha da lista "Nomes dos aparelhos Bluetooth": o nome do Windows e o apelido.
+    ///
+    /// O mesmo molde do <see cref="TrayNameRow"/>: gravado a cada tecla, sem botão de confirmar, e
+    /// apagar o texto volta ao nome do Windows. A barra mostra o apelido na leitura seguinte — o
+    /// cartão ao abrir, a dica em até cinco segundos. Veja <see cref="DockConfig.BluetoothNames"/>.
+    /// </summary>
+    private sealed class BluetoothNameRow(DockConfig config, string name)
+        : System.ComponentModel.INotifyPropertyChanged
+    {
+        /// <summary>O nome do Windows, que é a chave.</summary>
+        public string Name { get; } = name;
+
+        private string _alias = config.BluetoothNames.TryGetValue(name, out var a) ? a : string.Empty;
+        public string Alias
+        {
+            get => _alias;
+            set
+            {
+                if (_alias == value) return;
+                _alias = value;
+
+                if (string.IsNullOrWhiteSpace(value)) config.BluetoothNames.Remove(Name);
+                else config.BluetoothNames[Name] = value.Trim();
+
+                config.Save();
+                PropertyChanged?.Invoke(this, new(nameof(Alias)));
+            }
+        }
+
+        public event System.ComponentModel.PropertyChangedEventHandler? PropertyChanged;
+    }
+
+    /// <summary>
+    /// Monta a lista dos aparelhos que podem ganhar apelido: todos os pareados, inclusive os
+    /// escondidos do cartão — a dica da barra ainda os cita. Um nome só uma vez: dois aparelhos com o
+    /// mesmo nome no Windows dividem a chave, e duas linhas iguais brigariam pelo mesmo apelido.
+    ///
+    /// A leitura é a mesma do cartão da barra (a lista de dispositivos, uns 3 ms), e funciona com o
+    /// rádio desligado. Sem nenhum aparelho pareado, o cartão não aparece.
+    /// </summary>
+    private void LoadBluetoothNames()
+    {
+        var nomes = BluetoothService.Devices()
+            .Select(d => d.Name)
+            .Distinct()
+            .OrderBy(n => n, StringComparer.CurrentCultureIgnoreCase)
+            .ToList();
+
+        BluetoothNamesList.ItemsSource = nomes.Select(n => new BluetoothNameRow(_config, n)).ToList();
+        BluetoothNamesCard.Visibility = nomes.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
     }
 
     /// <summary>

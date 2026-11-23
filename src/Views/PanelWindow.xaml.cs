@@ -1278,6 +1278,19 @@ public partial class PanelWindow : Window
         if ((sender as FrameworkElement)?.Tag is string name) _model.HideBluetoothDevice(name);
     }
 
+    /// <summary>
+    /// O lápis da linha: as Configurações abertas no cartão dos nomes dos aparelhos, com o campo
+    /// deste já em foco. O apelido é editado lá, como os dos ícones da bandeja, e não no cartão:
+    /// a barra não recebe teclado, e um campo aqui dentro teria de pedi-lo e devolvê-lo.
+    /// </summary>
+    private void OnRenameBluetoothDevice(object sender, RoutedEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.Tag is not string name) return;
+
+        CloseAllPopups();
+        Application.Current.Windows.OfType<MainWindow>().FirstOrDefault()?.OpenSettingsAt("bluetooth", name);
+    }
+
     private void OnShowAllBluetooth(object sender, RoutedEventArgs e) =>
         _model.ShowAllBluetoothDevices();
 

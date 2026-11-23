@@ -207,6 +207,7 @@ atalho para a página do Windows daquele assunto.
 | Ajustar o volume sem abrir nada | role a roda do mouse sobre o alto-falante |
 | Volume de um programa só | clique no alto-falante > a seta do rodapé > seção **Aplicativos** |
 | Ligar ou desligar o wi-fi, ver a rede e o sinal | clique nas ondas do wi-fi (veja [Wi-Fi](#wi-fi)) |
+| Dar a um aparelho bluetooth um nome que só a dock mostra | clique no bluetooth > o lápis na linha do aparelho (veja [Bluetooth](#bluetooth)) |
 | Pausar, avançar, voltar a faixa | os botões ao lado do nome da música |
 | Ver a faixa inteira, com capa | clique no nome da música |
 | Ver as notificações (WhatsApp Web, Discord, Outlook…) | clique no sino, rosa com o número quando há alguma (veja [Notificações](#notificações)) |
@@ -476,6 +477,16 @@ O interruptor no cabeçalho liga e desliga o rádio. Compacto, o cartão mostra 
 quando ele informa (em geral os Bluetooth LE), e "conectado" em verde quando está em uso de
 verdade — não apenas pareado. O `✕` que aparece ao passar o mouse esconde o aparelho da lista sem
 despareá-lo no Windows.
+
+**Renomear um aparelho.** O lápis ao lado do `✕` dá ao aparelho um apelido que só a dock mostra
+— "Attack Shark X11" no lugar de "X11mouse2". Ele abre **Configurações > Itens da barra > Nomes
+dos aparelhos Bluetooth** com o campo daquele aparelho pronto para digitar; a mesma lista tem
+todos os pareados, inclusive os escondidos. O apelido é gravado a cada tecla, sem botão de
+confirmar, e aparece no cartão na próxima vez que ele abrir e na dica do ícone da barra em até
+cinco segundos. Apagar o texto volta ao nome do Windows, que continua aparecendo na dica do
+apelido. O Windows fica com o nome dele: renomear lá exige administrador, e o aparelho pode
+regravar o nome ao reconectar. Esconder e renomear usam a mesma chave, o nome do Windows, então
+um aparelho renomeado e escondido volta com o apelido.
 
 #### Brilho
 
